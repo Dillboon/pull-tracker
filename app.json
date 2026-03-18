@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "CablePull Tracker",
+    "slug": "cable-pull-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0d1117"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0d1117"
+      },
+      "package": "com.cablepull.tracker",
+      "permissions": []
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.cablepull.tracker"
+    },
+    "plugins": [
+      "expo-print"
+    ]
+  }
+}
