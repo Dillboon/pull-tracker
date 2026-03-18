@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, SafeAreaView, StyleSheet } from 'react-native';
+import { View, SafeAreaView, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -60,6 +60,13 @@ export default function App() {
     persistDrops(next);
     showToast(isDouble ? '⟷ Double drop added' : '+ Single drop added');
   }, [drops, persistDrops, showToast]);
+  
+  const bulkAddDrops = useCallback((newDrops) => {
+    const next = [...newDrops, ...drops];
+    setDrops(next);
+    persistDrops(next);
+    showToast(`⬇ ${newDrops.length} drops imported`);
+  }, [drops, persistDrops, showToast]);
 
   const updateDrop = useCallback((updated) => {
     const next = drops.map(d => d.id === updated.id ? updated : d);
@@ -96,11 +103,11 @@ export default function App() {
     );
   }
 
-  const screenProps = { drops, idfList, addDrop, updateDrop, deleteDrop, updateIdfs, clearAllDrops, showToast };
+  const screenProps = { drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, updateIdfs, clearAllDrops, showToast };
 
   return (
     <SafeAreaView style={styles.root}>
-      <StatusBar style="light" backgroundColor="#161b22" />
+      <StatusBar style="light" backgroundColor="#161b22" translucent={false} />
       <View style={{ flex: 1 }}>
         {activeTab === 'drops'     && <DropsScreen     {...screenProps} />}
         {activeTab === 'dashboard' && <DashboardScreen {...screenProps} />}

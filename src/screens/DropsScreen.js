@@ -4,6 +4,7 @@ import {
   FlatList, StyleSheet, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import DropCard from '../components/DropCard';
+import BulkImportModal from '../components/BulkImportModal';
 import { COLORS } from '../theme';
 
 const STATUS_FILTERS = [
@@ -13,10 +14,11 @@ const STATUS_FILTERS = [
   { key: 'ROUGH_ONLY',  label: 'Pulled Only' },
 ];
 
-export default function DropsScreen({ drops, idfList, addDrop, updateDrop, deleteDrop }) {
+export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop }) {
   const [filterIdf,    setFilterIdf]    = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [search,       setSearch]       = useState('');
+  const [showBulk,     setShowBulk]     = useState(false);
 
   const filtered = useMemo(() => drops.filter(d => {
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
@@ -33,6 +35,10 @@ export default function DropsScreen({ drops, idfList, addDrop, updateDrop, delet
       ) return false;
     }
     return true;
+  }).sort((a, b) => {
+    const numA = parseInt(a.cableA) || 0;
+    const numB = parseInt(b.cableA) || 0;
+    return numA - numB;
   }), [drops, filterIdf, filterStatus, search]);
 
   return (
@@ -109,13 +115,24 @@ export default function DropsScreen({ drops, idfList, addDrop, updateDrop, delet
         keyboardShouldPersistTaps="handled"
       />
 
+      {/* Bulk import modal */}
+      <BulkImportModal
+        visible={showBulk}
+        onClose={() => setShowBulk(false)}
+        onImport={bulkAddDrops}
+        idfList={idfList}
+      />
+
       {/* Floating add buttons */}
       <View style={s.fab}>
         <TouchableOpacity style={[s.fabBtn, s.fabBlue]} onPress={() => addDrop(false)} activeOpacity={0.85}>
-          <Text style={s.fabText}>+ SINGLE DROP</Text>
+          <Text style={s.fabText}>+ SINGLE</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[s.fabBtn, s.fabPurple]} onPress={() => addDrop(true)} activeOpacity={0.85}>
-          <Text style={s.fabText}>⟷ DOUBLE DROP</Text>
+          <Text style={s.fabText}>⟷ DOUBLE</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.fabBtn, s.fabGreen]} onPress={() => setShowBulk(true)} activeOpacity={0.85}>
+          <Text style={s.fabText}>⬇ BULK</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -200,5 +217,6 @@ const s = StyleSheet.create({
   },
   fabBlue:   { backgroundColor: '#1d4ed8', shadowColor: COLORS.blue, shadowOpacity: 0.5, shadowRadius: 8, elevation: 6 },
   fabPurple: { backgroundColor: '#5b21b6', shadowColor: COLORS.purple, shadowOpacity: 0.5, shadowRadius: 8, elevation: 6 },
+  fabGreen:  { backgroundColor: '#166534', shadowColor: COLORS.green, shadowOpacity: 0.5, shadowRadius: 8, elevation: 6 },
   fabText: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.5 },
 });
