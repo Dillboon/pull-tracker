@@ -7,6 +7,7 @@ import ProjectsScreen  from './src/screens/ProjectsScreen';
 import DropsScreen     from './src/screens/DropsScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import SettingsScreen  from './src/screens/SettingsScreen';
+import GalleryScreen   from './src/screens/GalleryScreen';
 import TabBar          from './src/components/TabBar';
 import Toast           from './src/components/Toast';
 import { COLORS }      from './src/theme';
@@ -137,11 +138,15 @@ export default function App() {
   // ── Inside a project ──────────────────────────────────────────────────────
   const screenProps = {
     drops:        activeProject.drops,
-    idfList:      activeProject.idfList,
-    project:      activeProject,
-    addDrop, bulkAddDrops, updateDrop, deleteDrop,
-    updateIdfs, clearAllDrops, showToast,
-    setProjects, projects,
+  idfList:      activeProject.idfList,
+  project:      activeProject,
+  addDrop, bulkAddDrops, updateDrop, deleteDrop,
+  updateIdfs, clearAllDrops, showToast,
+  setProjects, projects,
+  folders:          activeProject.folders       ?? [],
+  galleryImages:    activeProject.galleryImages  ?? [],
+  setFolders:       (next) => updateActiveProject({ folders: next }),
+  setGalleryImages: (next) => updateActiveProject({ galleryImages: next }),
   };
 
   return (
@@ -171,6 +176,7 @@ export default function App() {
         {activeTab === 'drops'     && <DropsScreen     {...screenProps} />}
         {activeTab === 'dashboard' && <DashboardScreen {...screenProps} />}
         {activeTab === 'settings'  && <SettingsScreen  {...screenProps} />}
+		{activeTab === 'gallery' && <GalleryScreen {...screenProps} />}
       </View>
 
       <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />

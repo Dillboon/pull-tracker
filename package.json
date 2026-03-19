@@ -17,6 +17,7 @@
     "expo-print": "~14.0.1",
     "expo-sharing": "~13.0.1",
     "expo-file-system": "~18.0.4",
+	"expo-image-picker": "~16.0.3"
     "xlsx": "^0.18.5",
     "exceljs": "^4.4.0"
   },

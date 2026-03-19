@@ -8,12 +8,15 @@ import { uid, today } from '../utils';
 import ProjectCard from '../components/ProjectCard';
 
 const emptyProject = (name) => ({
-  id:        uid(),
-  name:      name.trim(),
-  status:    'active',
-  createdAt: today(),
-  drops:     [],
-  idfList:   [...DEFAULT_IDFS],
+  id:            uid(),
+  name:          name.trim(),
+  status:        'active',
+  createdAt:     today(),
+  drops:         [],
+  idfList:       [...DEFAULT_IDFS],
+  folders:       [],
+  galleryImages: [],
+});
 });
 
 export default function ProjectsScreen({ projects, setProjects, onOpenProject }) {
