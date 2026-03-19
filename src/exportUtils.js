@@ -12,6 +12,17 @@ const sortedDrops = (drops) => [...drops].sort((a, b) => {
   return (parseInt(a.cableA) || 0) - (parseInt(b.cableA) || 0);
 });
 
+const getGroupType = (d) =>
+  d.groupType || (d.isDouble ? 'double' : 'single');
+
+const getCableLabel = (d) =>
+  [d.cableA, d.cableB, d.cableC, d.cableD].filter(Boolean).join(' / ') || '—';
+
+const getTypeLabel = (d) => {
+  const t = getGroupType(d);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
 // ─── PDF Export ──────────────────────────────────────────────────────────────
 export async function exportPDF(drops, projectName = '') {
   const sorted = sortedDrops(drops);
@@ -21,14 +32,15 @@ export async function exportPDF(drops, projectName = '') {
 
   const rows = sorted.map((d, i) => {
     const bg = i % 2 === 0 ? '#f8fafc' : '#ffffff';
-    const cable = d.isDouble ? `${d.cableA || '—'} / ${d.cableB || '—'}` : (d.cableA || '—');
+    const cable = getCableLabel(d);
+    const typeLabel = getTypeLabel(d);
     const tick = (v) => v
       ? `<span style="color:#16a34a;font-weight:700;">✓</span>`
       : `<span style="color:#dc2626;">✗</span>`;
     return `
       <tr style="background:${bg}">
         <td>${d.idf || '—'}</td>
-        <td>${d.isDouble ? '<b style="color:#7c3aed;">Double</b>' : 'Single'}</td>
+        <td>${typeLabel !== 'Single' ? `<b style="color:#7c3aed;">${typeLabel}</b>` : 'Single'}</td>
         <td>${cable}</td>
         <td style="text-align:center">${tick(d.roughPull)}</td>
         <td style="text-align:center">${tick(d.terminated)}</td>
@@ -179,13 +191,13 @@ export async function exportXLSX(drops, projectName = '') {
 
   // Data rows
   sorted.forEach((d, i) => {
-    const cable = d.isDouble
-      ? `${d.cableA || '—'} / ${d.cableB || '—'}`
-      : (d.cableA || '—');
+    const cable     = getCableLabel(d);
+    const typeLabel = getTypeLabel(d);
+    const isGrouped = getGroupType(d) !== 'single';
 
     const row = ws.addRow([
       d.idf || '',
-      d.isDouble ? 'Double' : 'Single',
+      typeLabel,
       cable,
       d.roughPull  ? 'Yes' : 'No',
       d.terminated ? 'Yes' : 'No',
@@ -197,7 +209,7 @@ export async function exportXLSX(drops, projectName = '') {
     row.height = 18;
 
     const isEven   = i % 2 === 0;
-    const baseFill = d.isDouble
+    const baseFill = isGrouped
       ? (isEven ? doubleFill : doubleOddFill)
       : (isEven ? evenFill   : oddFill);
 
@@ -210,7 +222,7 @@ export async function exportXLSX(drops, projectName = '') {
           cell.alignment = centerAlign;
           break;
         case 2: // Type
-          cell.font      = d.isDouble ? doubleFont : bodyFont;
+          cell.font      = isGrouped ? doubleFont : bodyFont;
           cell.alignment = centerAlign;
           break;
         case 3: // Cable ID(s)

@@ -6,12 +6,19 @@ import {
 import { COLORS } from '../theme';
 import { uid, today } from '../utils';
 
+const GROUP_OPTIONS = [
+  { key: 'single', label: 'Single', step: 1 },
+  { key: 'double', label: 'Double', step: 2 },
+  { key: 'triple', label: 'Triple', step: 3 },
+  { key: 'quad',   label: 'Quad',   step: 4 },
+];
+
 export default function BulkImportModal({ visible, onClose, onImport, idfList }) {
   const [prefix,    setPrefix]    = useState('');
   const [start,     setStart]     = useState('1');
   const [end,       setEnd]       = useState('10');
   const [padZeros,  setPadZeros]  = useState(true);
-  const [isDouble,  setIsDouble]  = useState(true);
+  const [groupType, setGroupType] = useState('double');
   const [idf,       setIdf]       = useState('');
 
   const padNum = (n, max) => {
@@ -20,34 +27,40 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList })
     return String(n).padStart(len, '0');
   };
 
+  const step = GROUP_OPTIONS.find(o => o.key === groupType)?.step ?? 1;
+
   const preview = useMemo(() => {
     const s = parseInt(start);
     const e = parseInt(end);
     if (isNaN(s) || isNaN(e) || s < 1 || e < s || e - s > 499) return null;
 
     const items = [];
-    if (isDouble) {
-      for (let i = s; i <= e; i += 2) {
-        const a = `${prefix}${padNum(i, e)}`;
-        const b = i + 1 <= e ? `${prefix}${padNum(i + 1, e)}` : null;
-        items.push({ a, b, double: !!b });
+    for (let i = s; i <= e; i += step) {
+      const ids = [];
+      for (let j = 0; j < step && i + j <= e; j++) {
+        ids.push(`${prefix}${padNum(i + j, e)}`);
       }
-    } else {
-      for (let i = s; i <= e; i++) {
-        items.push({ a: `${prefix}${padNum(i, e)}`, double: false });
-      }
+      // Actual group type based on how many IDs fit
+      const actualType = ids.length === 1 ? 'single'
+        : ids.length === 2 ? 'double'
+        : ids.length === 3 ? 'triple'
+        : 'quad';
+      items.push({ ids, groupType: actualType });
     }
     return items;
-  }, [prefix, start, end, padZeros, isDouble]);
+  }, [prefix, start, end, padZeros, groupType]);
 
   const handleImport = () => {
     if (!preview) return;
     const drops = preview.map(item => ({
       id:         uid(),
-      isDouble:   item.double,
-      cableA:     item.a,
-      cableB:     item.b || '',
-      idf:        idf,
+      groupType:  item.groupType,
+      isDouble:   item.groupType === 'double',
+      cableA:     item.ids[0] || '',
+      cableB:     item.ids[1] || '',
+      cableC:     item.ids[2] || '',
+      cableD:     item.ids[3] || '',
+      idf,
       roughPull:  false,
       terminated: false,
       tested:     false,
@@ -143,17 +156,28 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList })
               />
             </View>
 
-            <View style={[st.row, { marginTop: 12 }]}>
-              <View>
-                <Text style={st.optLabel}>Default to Double Drops</Text>
-                <Text style={st.optHint}>Auto-pairs consecutive IDs (01↔02, 03↔04...)</Text>
+            {/* Group type selector */}
+            <View style={{ marginTop: 14 }}>
+              <Text style={st.optLabel}>Drop Grouping</Text>
+              <Text style={st.optHint}>How to group consecutive cable IDs</Text>
+              <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
+                {GROUP_OPTIONS.map(opt => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    onPress={() => setGroupType(opt.key)}
+                    style={[st.groupBtn, groupType === opt.key && st.groupBtnActive]}
+                  >
+                    <Text style={[st.groupBtnText, groupType === opt.key && { color: COLORS.purple }]}>
+                      {opt.label}
+                    </Text>
+                    {opt.step > 1 && (
+                      <Text style={[st.groupBtnHint, groupType === opt.key && { color: COLORS.purple, opacity: 0.7 }]}>
+                        {opt.step} IDs
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
               </View>
-              <Switch
-                value={isDouble}
-                onValueChange={setIsDouble}
-                trackColor={{ false: COLORS.surface2, true: COLORS.purple }}
-                thumbColor="#fff"
-              />
             </View>
           </View>
 
@@ -182,17 +206,15 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList })
               <View style={{ gap: 5, maxHeight: 200, overflow: 'hidden' }}>
                 {preview.slice(0, 8).map((item, i) => (
                   <View key={i} style={st.previewRow}>
-                    {item.double && (
-                      <View style={st.doublePill}>
-                        <Text style={st.doublePillText}>DBL</Text>
+                    {item.groupType !== 'single' && (
+                      <View style={st.groupPill}>
+                        <Text style={st.groupPillText}>{item.groupType.slice(0, 3).toUpperCase()}</Text>
                       </View>
                     )}
                     <Text style={st.previewText}>
-                      {item.a}{item.double && item.b ? ` ↔ ${item.b}` : ''}
+                      {item.ids.join(' ↔ ')}
                     </Text>
-                    {idf ? (
-                      <Text style={st.previewIdf}>{idf}</Text>
-                    ) : null}
+                    {idf ? <Text style={st.previewIdf}>{idf}</Text> : null}
                   </View>
                 ))}
                 {preview.length > 8 && (
@@ -221,34 +243,23 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList })
 }
 
 const st = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
+  root:     { flex: 1, backgroundColor: COLORS.bg },
   header: {
     backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    padding: 16, flexDirection: 'row',
+    justifyContent: 'space-between', alignItems: 'center',
   },
   title:    { fontSize: 18, fontWeight: '800', color: COLORS.text },
   subtitle: { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1.5, marginTop: 2 },
   closeBtn: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 20,
-    width: 34, height: 34,
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20,
+    width: 34, height: 34, alignItems: 'center', justifyContent: 'center',
   },
   closeBtnText: { color: COLORS.textSub, fontSize: 14, fontWeight: '700' },
   section: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    padding: 14,
+    backgroundColor: COLORS.surface, borderWidth: 1,
+    borderColor: COLORS.border, borderRadius: 10, padding: 14,
   },
   sectionTitle: {
     fontSize: 10, fontWeight: '800', letterSpacing: 1,
@@ -259,92 +270,54 @@ const st = StyleSheet.create({
     color: COLORS.textMuted, marginBottom: 5,
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 7,
-    padding: 10,
-    color: COLORS.text,
-    fontSize: 13,
-    fontFamily: 'monospace',
+    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1,
+    borderColor: COLORS.border, borderRadius: 7, padding: 10,
+    color: COLORS.text, fontSize: 13, fontFamily: 'monospace',
   },
-  errorText: {
-    color: COLORS.red,
-    fontSize: 11,
-    marginTop: 6,
-    fontWeight: '600',
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
+  errorText: { color: COLORS.red, fontSize: 11, marginTop: 6, fontWeight: '600' },
+  row:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   optLabel: { fontSize: 13, fontWeight: '700', color: COLORS.textSub },
   optHint:  { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
+
+  // Group type buttons
+  groupBtn: {
+    flex: 1, alignItems: 'center', paddingVertical: 8,
+    borderRadius: 7, backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1, borderColor: 'transparent', gap: 2,
+  },
+  groupBtnActive: {
+    backgroundColor: 'rgba(124,58,237,0.18)',
+    borderColor: 'rgba(124,58,237,0.4)',
+  },
+  groupBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted },
+  groupBtnHint: { fontSize: 9, color: COLORS.textMuted },
+
   idfBtn: {
-    paddingHorizontal: 11, paddingVertical: 5,
-    borderRadius: 6,
+    paddingHorizontal: 11, paddingVertical: 5, borderRadius: 6,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1, borderColor: 'transparent',
   },
-  idfBtnActive: {
-    backgroundColor: COLORS.amberDim,
-    borderColor: 'rgba(245,158,11,0.5)',
-  },
-  idfBtnText: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
+  idfBtnActive: { backgroundColor: COLORS.amberDim, borderColor: 'rgba(245,158,11,0.5)' },
+  idfBtnText:   { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
+
   previewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 5,
-    padding: 7,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 5, padding: 7,
   },
-  previewText: {
-    fontFamily: 'monospace',
-    fontSize: 13,
-    color: COLORS.text,
-    flex: 1,
+  previewText: { fontFamily: 'monospace', fontSize: 13, color: COLORS.text, flex: 1 },
+  previewIdf:  { fontSize: 10, color: COLORS.amber, fontWeight: '700' },
+  previewMore: { fontSize: 11, color: COLORS.textMuted, textAlign: 'center', paddingVertical: 4 },
+  groupPill: {
+    backgroundColor: 'rgba(124,58,237,0.2)', borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.4)', borderRadius: 3,
+    paddingHorizontal: 4, paddingVertical: 1,
   },
-  previewIdf: {
-    fontSize: 10,
-    color: COLORS.amber,
-    fontWeight: '700',
-  },
-  previewMore: {
-    fontSize: 11,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    paddingVertical: 4,
-  },
-  doublePill: {
-    backgroundColor: 'rgba(124,58,237,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.4)',
-    borderRadius: 3,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-  },
-  doublePillText: { fontSize: 7, fontWeight: '800', color: '#a78bfa', letterSpacing: 0.5 },
+  groupPillText: { fontSize: 7, fontWeight: '800', color: '#a78bfa', letterSpacing: 0.5 },
+
   importBtn: {
-    backgroundColor: COLORS.blue,
-    borderRadius: 10,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: COLORS.blue,
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 6,
+    backgroundColor: COLORS.blue, borderRadius: 10, padding: 16, alignItems: 'center',
+    shadowColor: COLORS.blue, shadowOpacity: 0.5, shadowRadius: 8, elevation: 6,
   },
-  importBtnDisabled: {
-    backgroundColor: COLORS.surface2,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  importBtnText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 15,
-    letterSpacing: 0.5,
-  },
+  importBtnDisabled: { backgroundColor: COLORS.surface2, shadowOpacity: 0, elevation: 0 },
+  importBtnText:     { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
 });
