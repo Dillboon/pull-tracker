@@ -116,14 +116,8 @@ export async function exportXLSX(drops, projectName = '') {
 
   // ── Style constants ───────────────────────────────────────────────────────
   const headerFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2744' } };
-  const evenFill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-  const oddFill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF6FF' } };
-  const doubleFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3EEFF' } };
-  const doubleOddFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE9E0FF' } };
-  const tripleFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6FAF8' } };
-  const tripleOddFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0F4F0' } };
-  const quadFill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } };
-  const quadOddFill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE0B2' } };
+  const evenFill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3EEFF' } };
+  const oddFill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE9E0FF' } };
 
   const headerFont  = { bold: true, color: { argb: 'FFFBBF24' }, size: 10, name: 'Calibri' };
   const bodyFont    = { size: 10, name: 'Calibri' };
@@ -132,9 +126,6 @@ export async function exportXLSX(drops, projectName = '') {
   const yesFont     = { bold: true, color: { argb: 'FF16A34A' }, size: 10, name: 'Calibri' };
   const noFont      = { bold: true, color: { argb: 'FFDC2626' }, size: 10, name: 'Calibri' };
   const doubleFont  = { bold: true, color: { argb: 'FF7C3AED' }, size: 10, name: 'Calibri' };
-  const tripleFont  = { bold: true, color: { argb: 'FF0D9488' }, size: 10, name: 'Calibri' };
-  const quadFont    = { bold: true, color: { argb: 'FFF97316' }, size: 10, name: 'Calibri' };
-  const singleFont  = { bold: true, color: { argb: 'FF475569' }, size: 10, name: 'Calibri' };
   const idfFont     = { bold: true, color: { argb: 'FF1E40AF' }, size: 10, name: 'Calibri' };
 
   const thinBorder = {
@@ -216,10 +207,7 @@ export async function exportXLSX(drops, projectName = '') {
 
     const gt = getGroupType(d);
     const isEven   = i % 2 === 0;
-    const baseFill = gt === 'double' ? (isEven ? doubleFill    : doubleOddFill)
-                   : gt === 'triple' ? (isEven ? tripleFill    : tripleOddFill)
-                   : gt === 'quad'   ? (isEven ? quadFill      : quadOddFill)
-                   :                   (isEven ? evenFill      : oddFill);
+    const baseFill = isEven ? evenFill : oddFill;
 
     row.eachCell((cell, colNum) => {
       cell.fill   = baseFill;
@@ -230,10 +218,7 @@ export async function exportXLSX(drops, projectName = '') {
           cell.alignment = centerAlign;
           break;
         case 2: // Type
-          cell.font = gt === 'double' ? doubleFont
-                    : gt === 'triple' ? tripleFont
-                    : gt === 'quad'   ? quadFont
-                    : singleFont;
+          cell.font      = doubleFont;
           cell.alignment = centerAlign;
           break;
         case 3: // Cable ID(s)
