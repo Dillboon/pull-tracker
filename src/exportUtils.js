@@ -222,7 +222,10 @@ export async function exportXLSX(drops, projectName = '') {
           cell.alignment = centerAlign;
           break;
         case 2: // Type
-          cell.font      = isGrouped ? doubleFont : bodyFont;
+          cell.font = getGroupType(d) === 'double' ? doubleFont
+		    : getGroupType(d) === 'triple' ? { bold: true, color: { argb: 'FF0D9488' }, size: 10, name: 'Calibri' }
+			: getGroupType(d) === 'quad'   ? { bold: true, color: { argb: 'FFF97316' }, size: 10, name: 'Calibri' }
+			: { ...bodyFont, color: { argb: 'FF64748B' } };
           cell.alignment = centerAlign;
           break;
         case 3: // Cable ID(s)
@@ -280,7 +283,10 @@ export async function exportXLSX(drops, projectName = '') {
   const summaryRows = [
     ['Project',        projectName || '—'],
     ['Total Drops',    sorted.length],
-    ['Double Drops',   sorted.filter(d => d.isDouble).length],
+	['Single Drops',   sorted.filter(d => getGroupType(d) === 'single').length],
+    ['Double Drops',   sorted.filter(d => getGroupType(d) === 'double').length],
+	['Triple Drops',   sorted.filter(d => getGroupType(d) === 'triple').length],
+	['Quad Drops',     sorted.filter(d => getGroupType(d) === 'quad').length],
     ['Rough Pulled',   sorted.filter(d => d.roughPull).length],
     ['Terminated',     sorted.filter(d => d.terminated).length],
     ['Tested',         sorted.filter(d => d.tested).length],
