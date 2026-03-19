@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
   TextInput, Modal, Image, Alert, Dimensions, Animated, PanResponder,
 } from 'react-native';
+import { PinchGestureHandler, PanGestureHandler } from 'react-native-gesture-handler';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { COLORS } from '../theme';
@@ -25,163 +26,71 @@ function ZoomableImage({ uri }) {
   const translateX = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(0)).current;
 
-  const scaleValue = useRef(1);
-  const txValue = useRef(0);
-  const tyValue = useRef(0);
+  const lastScale = useRef(1);
+  const lastX = useRef(0);
+  const lastY = useRef(0);
 
-  const gesture = useRef({
-    startScale: 1,
-    startX: 0,
-    startY: 0,
-    startDistance: 0,
-    startCenterX: 0,
-    startCenterY: 0,
-  }).current;
+  const onPinchEvent = Animated.event(
+    [{ nativeEvent: { scale: scale } }],
+    { useNativeDriver: true }
+  );
 
-  const reset = () => {
-    scaleValue.current = 1;
-    txValue.current = 0;
-    tyValue.current = 0;
-    scale.setValue(1);
-    translateX.setValue(0);
-    translateY.setValue(0);
+  const onPinchStateChange = (event) => {
+    if (event.nativeEvent.oldState === 4) {
+      lastScale.current *= event.nativeEvent.scale;
+      scale.setValue(lastScale.current);
+    }
   };
 
-  const panResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onStartShouldSetPanResponderCapture: () => false,
-    onMoveShouldSetPanResponder: (_, gs) => gs.numberActiveTouches >= 2 || Math.abs(gs.dx) > 2 || Math.abs(gs.dy) > 2,
-    onMoveShouldSetPanResponderCapture: () => false,
+  const onPanEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX, translationY: translateY } }],
+    { useNativeDriver: true }
+  );
 
-    onPanResponderGrant: (evt) => {
-      scale.stopAnimation((v) => { scaleValue.current = v ?? scaleValue.current; });
-      translateX.stopAnimation((v) => { txValue.current = v ?? txValue.current; });
-      translateY.stopAnimation((v) => { tyValue.current = v ?? tyValue.current; });
+  const onPanStateChange = (event) => {
+    if (event.nativeEvent.oldState === 4) {
+      lastX.current += event.nativeEvent.translationX;
+      lastY.current += event.nativeEvent.translationY;
 
-      gesture.startScale = scaleValue.current;
-      gesture.startX = txValue.current;
-      gesture.startY = tyValue.current;
+      translateX.setOffset(lastX.current);
+      translateX.setValue(0);
 
-      const touches = evt.nativeEvent.touches || [];
-      if (touches.length >= 2) {
-        gesture.startDistance = distance(
-          touches[0].pageX, touches[0].pageY,
-          touches[1].pageX, touches[1].pageY
-        );
-        gesture.startCenterX = (touches[0].pageX + touches[1].pageX) / 2;
-        gesture.startCenterY = (touches[0].pageY + touches[1].pageY) / 2;
-      } else {
-        gesture.startDistance = 0;
-        gesture.startCenterX = 0;
-        gesture.startCenterY = 0;
-      }
-    },
-
-    onPanResponderMove: (evt, gs) => {
-      const touches = evt.nativeEvent.touches || [];
-
-      if (touches.length >= 2) {
-        const d = distance(
-          touches[0].pageX, touches[0].pageY,
-          touches[1].pageX, touches[1].pageY
-        );
-
-        if (!gesture.startDistance) {
-          gesture.startDistance = d;
-        }
-
-        const nextScale = clamp(gesture.startScale * (d / gesture.startDistance), 1, 4);
-        scale.setValue(nextScale);
-        scaleValue.current = nextScale;
-
-        const centerX = (touches[0].pageX + touches[1].pageX) / 2;
-        const centerY = (touches[0].pageY + touches[1].pageY) / 2;
-        const dx = centerX - gesture.startCenterX;
-        const dy = centerY - gesture.startCenterY;
-        translateX.setValue(gesture.startX + dx);
-        translateY.setValue(gesture.startY + dy);
-        txValue.current = gesture.startX + dx;
-        tyValue.current = gesture.startY + dy;
-        return;
-      }
-
-      if (scaleValue.current > 1) {
-        const nextX = gesture.startX + gs.dx;
-        const nextY = gesture.startY + gs.dy;
-        translateX.setValue(nextX);
-        translateY.setValue(nextY);
-        txValue.current = nextX;
-        tyValue.current = nextY;
-      }
-    },
-
-    onPanResponderRelease: () => {
-      if (scaleValue.current <= 1) {
-        Animated.spring(scale, {
-          toValue: 1,
-          useNativeDriver: true,
-          bounciness: 0,
-        }).start();
-        Animated.spring(translateX, {
-          toValue: 0,
-          useNativeDriver: true,
-          bounciness: 0,
-        }).start();
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          bounciness: 0,
-        }).start();
-        reset();
-        return;
-      }
-
-      const maxOffset = (SCREEN_W * (scaleValue.current - 1)) / 2 + 80;
-      const clampedX = clamp(txValue.current, -maxOffset, maxOffset);
-      const clampedY = clamp(tyValue.current, -maxOffset, maxOffset);
-
-      txValue.current = clampedX;
-      tyValue.current = clampedY;
-
-      Animated.spring(translateX, {
-        toValue: clampedX,
-        useNativeDriver: true,
-        bounciness: 0,
-      }).start();
-      Animated.spring(translateY, {
-        toValue: clampedY,
-        useNativeDriver: true,
-        bounciness: 0,
-      }).start();
-    },
-
-    onPanResponderTerminate: () => {
-      if (scaleValue.current <= 1) {
-        reset();
-      }
-    },
-
-    onShouldBlockNativeResponder: () => true,
-  }), [gesture, scale, scaleValue, translateX, translateY]);
+      translateY.setOffset(lastY.current);
+      translateY.setValue(0);
+    }
+  };
 
   return (
-    <View style={s.zoomWrap}>
-      <Animated.View
-        {...panResponder.panHandlers}
-        style={[
-          s.zoomInner,
-          {
-            transform: [
-              { translateX },
-              { translateY },
-              { scale },
-            ],
-          },
-        ]}
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <PanGestureHandler
+        onGestureEvent={onPanEvent}
+        onHandlerStateChange={onPanStateChange}
       >
-        <Image source={{ uri }} style={s.lightboxImage} resizeMode="contain" />
-      </Animated.View>
-      <Text style={s.zoomHint}>Pinch to zoom • drag to move</Text>
+        <Animated.View>
+          <PinchGestureHandler
+            onGestureEvent={onPinchEvent}
+            onHandlerStateChange={onPinchStateChange}
+          >
+            <Animated.Image
+              source={{ uri }}
+              style={{
+                width: SCREEN_W,
+                height: SCREEN_H * 0.6,
+                transform: [
+                  { scale },
+                  { translateX },
+                  { translateY },
+                ],
+              }}
+              resizeMode="contain"
+            />
+          </PinchGestureHandler>
+        </Animated.View>
+      </PanGestureHandler>
+
+      <Text style={{ color: '#aaa', marginTop: 10 }}>
+        Pinch to zoom • drag to move
+      </Text>
     </View>
   );
 }
