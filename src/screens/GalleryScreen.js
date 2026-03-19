@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
   TextInput, Modal, Image, Alert, Dimensions,
-  Animated, PanResponder,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -10,134 +9,6 @@ import { COLORS } from '../theme';
 import { uid, today } from '../utils';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-
-// ─── Zoomable Image (pinch-to-zoom + pan, Android-safe) ──────────────────────
-function ZoomableImage({ uri }) {
-  const scale    = React.useRef(new Animated.Value(1)).current;
-  const translateX = React.useRef(new Animated.Value(0)).current;
-  const translateY = React.useRef(new Animated.Value(0)).current;
-
-  // Raw tracked values outside Animated (for calculations)
-  const state = React.useRef({
-    scale: 1,
-    tx: 0,
-    ty: 0,
-    lastScale: 1,
-    lastTx: 0,
-    lastTy: 0,
-    initialDistance: null,
-    initialMidX: 0,
-    initialMidY: 0,
-  }).current;
-
-  const getDistance = (touches) => {
-    const dx = touches[0].pageX - touches[1].pageX;
-    const dy = touches[0].pageY - touches[1].pageY;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
-
-  const getMid = (touches) => ({
-    x: (touches[0].pageX + touches[1].pageX) / 2,
-    y: (touches[0].pageY + touches[1].pageY) / 2,
-  });
-
-  const panResponder = React.useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder:  () => true,
-    onPanResponderGrant: (evt) => {
-      state.lastScale = state.scale;
-      state.lastTx    = state.tx;
-      state.lastTy    = state.ty;
-      state.initialDistance = null;
-    },
-    onPanResponderMove: (evt, gestureState) => {
-      const touches = evt.nativeEvent.touches;
-
-      if (touches.length === 2) {
-        // ── Pinch ──
-        const dist = getDistance(touches);
-        const mid  = getMid(touches);
-
-        if (state.initialDistance === null) {
-          state.initialDistance = dist;
-          state.initialMidX     = mid.x;
-          state.initialMidY     = mid.y;
-          return;
-        }
-
-        const newScale = Math.max(1, Math.min(state.lastScale * (dist / state.initialDistance), 5));
-        state.scale = newScale;
-        scale.setValue(newScale);
-
-        // Pan to keep pinch midpoint stable
-        const newTx = state.lastTx + (mid.x - state.initialMidX);
-        const newTy = state.lastTy + (mid.y - state.initialMidY);
-        state.tx = newTx;
-        state.ty = newTy;
-        translateX.setValue(newTx);
-        translateY.setValue(newTy);
-
-      } else if (touches.length === 1 && state.scale > 1) {
-        // ── Pan (only when zoomed in) ──
-        state.tx = state.lastTx + gestureState.dx;
-        state.ty = state.lastTy + gestureState.dy;
-        translateX.setValue(state.tx);
-        translateY.setValue(state.ty);
-      }
-    },
-    onPanResponderRelease: () => {
-      // Snap back to fit if scale went below 1
-      if (state.scale <= 1) {
-        state.scale = 1;
-        state.tx    = 0;
-        state.ty    = 0;
-        Animated.parallel([
-          Animated.spring(scale,      { toValue: 1, useNativeDriver: true }),
-          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }),
-          Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
-        ]).start();
-      }
-      state.lastScale = state.scale;
-      state.lastTx    = state.tx;
-      state.lastTy    = state.ty;
-      state.initialDistance = null;
-    },
-  })).current;
-
-  // Double-tap to reset
-  const lastTap = React.useRef(0);
-  const handleDoubleTap = () => {
-    const now = Date.now();
-    if (now - lastTap.current < 300) {
-      state.scale = 1; state.tx = 0; state.ty = 0;
-      state.lastScale = 1; state.lastTx = 0; state.lastTy = 0;
-      Animated.parallel([
-        Animated.spring(scale,      { toValue: 1, useNativeDriver: true }),
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }),
-        Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
-      ]).start();
-    }
-    lastTap.current = now;
-  };
-
-  return (
-    <View
-      style={{ width: SCREEN_W, height: SCREEN_H * 0.62, marginTop: 60, overflow: 'hidden' }}
-      {...panResponder.panHandlers}
-      onTouchEnd={handleDoubleTap}
-    >
-      <Animated.Image
-        source={{ uri }}
-        style={{
-          width: SCREEN_W,
-          height: SCREEN_H * 0.62,
-          transform: [{ scale }, { translateX }, { translateY }],
-        }}
-        resizeMode="contain"
-      />
-    </View>
-  );
-}
 
 export default function GalleryScreen({ folders, galleryImages, setFolders, setGalleryImages, showToast }) {
   const [activeFolder,  setActiveFolder]  = useState(null);
@@ -178,33 +49,22 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
     );
   };
 
+  const renameFolder = (folderId, currentName) => {
+    setRenamingFolder({ id: folderId, name: currentName });
+  };
+
   const submitRename = () => {
-    if (!renamingFolder || !renamingFolder.name.trim()) return;
-
-    const trimmed = renamingFolder.name.trim();
-
-    // Check if the new name is taken by a DIFFERENT folder
+    const trimmed = renamingFolder?.name?.trim();
+    if (!trimmed) { setRenamingFolder(null); return; }
     if (folders.some(f => f.id !== renamingFolder.id && f.name.toLowerCase() === trimmed.toLowerCase())) {
       Alert.alert('Name taken', 'Another folder already has that name.');
       return;
     }
-
-    // Update the master folder list
-    const updated = folders.map(f => 
-      f.id === renamingFolder.id ? { ...f, name: trimmed } : f
-    );
-    setFolders(updated);
-
-    // Keep the header updated if we are currently inside that folder
-    setActiveFolder(prev => 
-      prev?.id === renamingFolder.id ? { ...prev, name: trimmed } : prev
-    );
-
-    // Close modal and notify
+    setFolders(folders.map(f => f.id === renamingFolder.id ? { ...f, name: trimmed } : f));
+    setActiveFolder(prev => prev?.id === renamingFolder.id ? { ...prev, name: trimmed } : prev);
     setRenamingFolder(null);
-    showToast('Folder renamed');
   };
-  
+
   // ── Image CRUD ────────────────────────────────────────────────────────────
   const pickImages = async (folderId) => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -400,7 +260,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
         <TouchableOpacity onPress={() => setActiveFolder(null)} style={s.backBtn} activeOpacity={0.7}>
           <Text style={s.backArrow}>←</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={{ flex: 1 }} onPress={() => setRenamingFolder({ id: activeFolder.id, name: activeFolder.name })}>
+        <TouchableOpacity style={{ flex: 1 }} onPress={() => renameFolder(activeFolder.id, activeFolder.name)}>
           <Text style={s.headerTitle} numberOfLines={1}>{activeFolder.name}</Text>
           <Text style={s.headerSub}>{folderImages.length} PHOTO{folderImages.length !== 1 ? 'S' : ''}  ·  TAP TO RENAME</Text>
         </TouchableOpacity>
@@ -486,7 +346,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
               <Text style={s.lightboxCloseText}>✕</Text>
             </TouchableOpacity>
 
-            <ZoomableImage uri={lightbox.uri} />
+            <Image source={{ uri: lightbox.uri }} style={s.lightboxImage} resizeMode="contain" />
 
             <View style={s.lightboxMeta}>
               <Text style={s.lightboxName}>{lightbox.name}</Text>
@@ -593,6 +453,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   lightboxCloseText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.62, marginTop: 60 },
   lightboxMeta: {
     backgroundColor: COLORS.surface,
     borderTopWidth: 1, borderTopColor: COLORS.border,
