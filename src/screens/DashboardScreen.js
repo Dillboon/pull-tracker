@@ -53,10 +53,10 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
       {/* Stat grid */}
       <View style={s.grid}>
         <StatCard icon="📦" label="Total Drops"  value={stats.total}   color={COLORS.textSub} />
-        <StatCard icon="①"  label="Single Drops" value={stats.singles} color={COLORS.textSub} />
+        <StatCard icon="⟷"  label="Single Drops" value={stats.singles} color={COLORS.textSub} />
 		<StatCard icon="⟷"  label="Double Drops" value={stats.doubles} color={COLORS.purple}  />
-		{stats.triples > 0 && <StatCard icon="③"  label="Triple Drops" value={stats.triples} color={COLORS.teal}   />}
-		{stats.quads   > 0 && <StatCard icon="④"  label="Quad Drops"   value={stats.quads}   color={COLORS.orange} />}
+		{stats.triples > 0 && <StatCard icon="⟷"  label="Triple Drops" value={stats.triples} color={COLORS.teal}   />}
+		{stats.quads   > 0 && <StatCard icon="⟷"  label="Quad Drops"   value={stats.quads}   color={COLORS.orange} />}
         <StatCard icon="🔧" label="Rough Pulled" value={`${stats.rp}/${stats.total}`}   color={COLORS.amber} />
         <StatCard icon="🔗" label="Terminated"   value={`${stats.tm}/${stats.total}`}   color={COLORS.blue}  />
         <StatCard icon="✅" label="Tested"        value={`${stats.ts}/${stats.total}`}   color={COLORS.green} />

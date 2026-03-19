@@ -178,22 +178,33 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
     );
   };
 
-  const renameFolder = (folderId, currentName) => {
-    setRenamingFolder({ id: folderId, name: currentName });
-  };
-
   const submitRename = () => {
-    const trimmed = renamingFolder?.name?.trim();
-    if (!trimmed) { setRenamingFolder(null); return; }
+    if (!renamingFolder || !renamingFolder.name.trim()) return;
+
+    const trimmed = renamingFolder.name.trim();
+
+    // Check if the new name is taken by a DIFFERENT folder
     if (folders.some(f => f.id !== renamingFolder.id && f.name.toLowerCase() === trimmed.toLowerCase())) {
       Alert.alert('Name taken', 'Another folder already has that name.');
       return;
     }
-    setFolders(folders.map(f => f.id === renamingFolder.id ? { ...f, name: trimmed } : f));
-    setActiveFolder(prev => prev?.id === renamingFolder.id ? { ...prev, name: trimmed } : prev);
-    setRenamingFolder(null);
-  };
 
+    // Update the master folder list
+    const updated = folders.map(f => 
+      f.id === renamingFolder.id ? { ...f, name: trimmed } : f
+    );
+    setFolders(updated);
+
+    // Keep the header updated if we are currently inside that folder
+    setActiveFolder(prev => 
+      prev?.id === renamingFolder.id ? { ...prev, name: trimmed } : prev
+    );
+
+    // Close modal and notify
+    setRenamingFolder(null);
+    showToast('Folder renamed');
+  };
+  
   // ── Image CRUD ────────────────────────────────────────────────────────────
   const pickImages = async (folderId) => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -389,7 +400,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
         <TouchableOpacity onPress={() => setActiveFolder(null)} style={s.backBtn} activeOpacity={0.7}>
           <Text style={s.backArrow}>←</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={{ flex: 1 }} onPress={() => renameFolder(activeFolder.id, activeFolder.name)}>
+        <TouchableOpacity style={{ flex: 1 }} onPress={() => setRenamingFolder({ id: activeFolder.id, name: activeFolder.name })}>
           <Text style={s.headerTitle} numberOfLines={1}>{activeFolder.name}</Text>
           <Text style={s.headerSub}>{folderImages.length} PHOTO{folderImages.length !== 1 ? 'S' : ''}  ·  TAP TO RENAME</Text>
         </TouchableOpacity>
