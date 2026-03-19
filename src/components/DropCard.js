@@ -95,6 +95,11 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
                 onToggle={() => quickToggle(f.key)}
               />
             ))}
+            {drop.notes ? (
+              <View style={s.notePill}>
+                <Text style={s.notePillText}>📝</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -310,4 +315,13 @@ const s = StyleSheet.create({
     borderRadius: 8, padding: 11, alignItems: 'center',
   },
   deleteBtnText: { color: '#f87171', fontWeight: '800', fontSize: 12, letterSpacing: 0.6 },
+  notePill: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+  notePillText: { fontSize: 9 },
 });

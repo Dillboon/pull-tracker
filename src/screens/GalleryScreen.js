@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
-  TextInput, Modal, Image, Alert, Dimensions,
+  TextInput, Modal, Image, Alert, Dimensions, ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -16,6 +16,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
   const [newFolderModal,setNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [editingNotes,  setEditingNotes]  = useState(null); // { imageId, notes }
+  const [renamingFolder, setRenamingFolder] = useState(null); // { id, name }
 
   // ── Folder CRUD ───────────────────────────────────────────────────────────
   const createFolder = () => {
@@ -49,23 +50,19 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
   };
 
   const renameFolder = (folderId, currentName) => {
-    Alert.prompt(
-      'Rename Folder',
-      '',
-      (newName) => {
-        const trimmed = newName?.trim();
-        if (!trimmed || trimmed === currentName) return;
-        if (folders.some(f => f.id !== folderId && f.name.toLowerCase() === trimmed.toLowerCase())) {
-          Alert.alert('Name taken', 'Another folder already has that name.');
-          return;
-        }
-        const updated = folders.map(f => f.id === folderId ? { ...f, name: trimmed } : f);
-        setFolders(updated);
-        setActiveFolder(prev => prev?.id === folderId ? { ...prev, name: trimmed } : prev);
-      },
-      'plain-text',
-      currentName
-    );
+    setRenamingFolder({ id: folderId, name: currentName });
+  };
+
+  const submitRename = () => {
+    const trimmed = renamingFolder?.name?.trim();
+    if (!trimmed) { setRenamingFolder(null); return; }
+    if (folders.some(f => f.id !== renamingFolder.id && f.name.toLowerCase() === trimmed.toLowerCase())) {
+      Alert.alert('Name taken', 'Another folder already has that name.');
+      return;
+    }
+    setFolders(folders.map(f => f.id === renamingFolder.id ? { ...f, name: trimmed } : f));
+    setActiveFolder(prev => prev?.id === renamingFolder.id ? { ...prev, name: trimmed } : prev);
+    setRenamingFolder(null);
   };
 
   // ── Image CRUD ────────────────────────────────────────────────────────────
@@ -188,6 +185,36 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
             );
           }}
         />
+
+        {/* Rename folder modal */}
+        <Modal visible={!!renamingFolder} transparent animationType="fade" onRequestClose={() => setRenamingFolder(null)}>
+          <View style={s.modalOverlay}>
+            <View style={s.modalBox}>
+              <Text style={s.modalTitle}>Rename Folder</Text>
+              <TextInput
+                value={renamingFolder?.name ?? ''}
+                onChangeText={t => setRenamingFolder(prev => ({ ...prev, name: t }))}
+                placeholder="Folder name"
+                placeholderTextColor={COLORS.textDim}
+                style={s.modalInput}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={submitRename}
+              />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                <TouchableOpacity style={[s.modalBtn, s.modalCancel]} onPress={() => setRenamingFolder(null)}>
+                  <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.modalBtn, s.modalCreate, !renamingFolder?.name?.trim() && { opacity: 0.4 }]}
+                  disabled={!renamingFolder?.name?.trim()}
+                  onPress={submitRename}>
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* New folder modal */}
         <Modal visible={newFolderModal} transparent animationType="fade" onRequestClose={() => setNewFolderModal(false)}>
@@ -319,7 +346,16 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
               <Text style={s.lightboxCloseText}>✕</Text>
             </TouchableOpacity>
 
-            <Image source={{ uri: lightbox.uri }} style={s.lightboxImage} resizeMode="contain" />
+            <ScrollView
+              style={{ width: SCREEN_W, height: SCREEN_H * 0.62, marginTop: 60 }}
+              maximumZoomScale={5}
+              minimumZoomScale={1}
+              centerContent
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+            >
+              <Image source={{ uri: lightbox.uri }} style={s.lightboxImage} resizeMode="contain" />
+            </ScrollView>
 
             <View style={s.lightboxMeta}>
               <Text style={s.lightboxName}>{lightbox.name}</Text>
@@ -426,7 +462,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   lightboxCloseText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.62, marginTop: 60 },
+  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.62 },
   lightboxMeta: {
     backgroundColor: COLORS.surface,
     borderTopWidth: 1, borderTopColor: COLORS.border,
