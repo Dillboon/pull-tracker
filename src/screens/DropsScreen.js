@@ -36,8 +36,13 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     }
     return true;
   }).sort((a, b) => {
-    const numA = parseInt(a.cableA) || 0;
-    const numB = parseInt(b.cableA) || 0;
+    const numA = parseInt(a.cableA)
+    const numB = parseInt(b.cableA)
+	const hasA = !isNaN(numA);
+	const hasB = !isNaN(numB);
+	if (!hasA && !hasB) return 0;
+	if (!hasA) return 1;
+	if (!hasB) return -1;
     return numA - numB;
   }), [drops, filterIdf, filterStatus, search]);
 
