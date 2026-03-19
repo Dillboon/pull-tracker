@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, SafeAreaView, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import ProjectsScreen  from './src/screens/ProjectsScreen';
 import DropsScreen     from './src/screens/DropsScreen';
@@ -114,19 +113,16 @@ export default function App() {
   }, []);
 
   if (!loaded) {
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    return (
       <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
         <StatusBar style="light" backgroundColor={COLORS.bg} translucent={false} />
       </View>
-    </GestureHandlerRootView>
-  );
-}
+    );
+  }
 
   // ── Projects screen ───────────────────────────────────────────────────────
   if (!activeProject) {
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    return (
       <SafeAreaView style={st.root}>
         <StatusBar style="light" backgroundColor={COLORS.surface} translucent={false} />
         <ProjectsScreen
@@ -136,9 +132,8 @@ export default function App() {
         />
         {toast && <Toast msg={toast.msg} type={toast.type} />}
       </SafeAreaView>
-    </GestureHandlerRootView>
-  );
-}
+    );
+  }
 
   // ── Inside a project ──────────────────────────────────────────────────────
   const screenProps = {
@@ -155,7 +150,6 @@ export default function App() {
   };
 
   return (
-  <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={st.root}>
       <StatusBar style="light" backgroundColor={COLORS.surface} translucent={false} />
 
@@ -182,14 +176,13 @@ export default function App() {
         {activeTab === 'drops'     && <DropsScreen     {...screenProps} />}
         {activeTab === 'dashboard' && <DashboardScreen {...screenProps} />}
         {activeTab === 'settings'  && <SettingsScreen  {...screenProps} />}
-        {activeTab === 'gallery'   && <GalleryScreen   {...screenProps} />}
+		{activeTab === 'gallery' && <GalleryScreen {...screenProps} />}
       </View>
 
       <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
       {toast && <Toast msg={toast.msg} type={toast.type} />}
     </SafeAreaView>
-  </GestureHandlerRootView>
- );
+  );
 }
 
 const st = StyleSheet.create({

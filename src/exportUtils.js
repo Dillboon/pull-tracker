@@ -116,10 +116,14 @@ export async function exportXLSX(drops, projectName = '') {
 
   // ── Style constants ───────────────────────────────────────────────────────
   const headerFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2744' } };
-  const evenFill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
-  const oddFill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FA' } };
+  const evenFill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+  const oddFill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF6FF' } };
   const doubleFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3EEFF' } };
   const doubleOddFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE9E0FF' } };
+  const tripleFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6FAF8' } };
+  const tripleOddFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD0F4F0' } };
+  const quadFill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } };
+  const quadOddFill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE0B2' } };
 
   const headerFont  = { bold: true, color: { argb: 'FFFBBF24' }, size: 10, name: 'Calibri' };
   const bodyFont    = { size: 10, name: 'Calibri' };
@@ -128,6 +132,9 @@ export async function exportXLSX(drops, projectName = '') {
   const yesFont     = { bold: true, color: { argb: 'FF16A34A' }, size: 10, name: 'Calibri' };
   const noFont      = { bold: true, color: { argb: 'FFDC2626' }, size: 10, name: 'Calibri' };
   const doubleFont  = { bold: true, color: { argb: 'FF7C3AED' }, size: 10, name: 'Calibri' };
+  const tripleFont  = { bold: true, color: { argb: 'FF0D9488' }, size: 10, name: 'Calibri' };
+  const quadFont    = { bold: true, color: { argb: 'FFF97316' }, size: 10, name: 'Calibri' };
+  const singleFont  = { bold: true, color: { argb: 'FF475569' }, size: 10, name: 'Calibri' };
   const idfFont     = { bold: true, color: { argb: 'FF1E40AF' }, size: 10, name: 'Calibri' };
 
   const thinBorder = {
@@ -193,7 +200,6 @@ export async function exportXLSX(drops, projectName = '') {
   sorted.forEach((d, i) => {
     const cable     = getCableLabel(d);
     const typeLabel = getTypeLabel(d);
-    const isGrouped = getGroupType(d) !== 'single';
 
     const row = ws.addRow([
       d.idf || '',
@@ -208,10 +214,12 @@ export async function exportXLSX(drops, projectName = '') {
 
     row.height = 18;
 
+    const gt = getGroupType(d);
     const isEven   = i % 2 === 0;
-    const baseFill = isGrouped
-      ? (isEven ? doubleFill : doubleOddFill)
-      : (isEven ? evenFill   : oddFill);
+    const baseFill = gt === 'double' ? (isEven ? doubleFill    : doubleOddFill)
+                   : gt === 'triple' ? (isEven ? tripleFill    : tripleOddFill)
+                   : gt === 'quad'   ? (isEven ? quadFill      : quadOddFill)
+                   :                   (isEven ? evenFill      : oddFill);
 
     row.eachCell((cell, colNum) => {
       cell.fill   = baseFill;
@@ -222,10 +230,10 @@ export async function exportXLSX(drops, projectName = '') {
           cell.alignment = centerAlign;
           break;
         case 2: // Type
-          cell.font = getGroupType(d) === 'double' ? doubleFont
-		    : getGroupType(d) === 'triple' ? { bold: true, color: { argb: 'FF0D9488' }, size: 10, name: 'Calibri' }
-			: getGroupType(d) === 'quad'   ? { bold: true, color: { argb: 'FFF97316' }, size: 10, name: 'Calibri' }
-			: { ...bodyFont, color: { argb: 'FF64748B' } };
+          cell.font = gt === 'double' ? doubleFont
+                    : gt === 'triple' ? tripleFont
+                    : gt === 'quad'   ? quadFont
+                    : singleFont;
           cell.alignment = centerAlign;
           break;
         case 3: // Cable ID(s)
@@ -283,10 +291,10 @@ export async function exportXLSX(drops, projectName = '') {
   const summaryRows = [
     ['Project',        projectName || '—'],
     ['Total Drops',    sorted.length],
-	['Single Drops',   sorted.filter(d => getGroupType(d) === 'single').length],
+    ['Single Drops',   sorted.filter(d => getGroupType(d) === 'single').length],
     ['Double Drops',   sorted.filter(d => getGroupType(d) === 'double').length],
-	['Triple Drops',   sorted.filter(d => getGroupType(d) === 'triple').length],
-	['Quad Drops',     sorted.filter(d => getGroupType(d) === 'quad').length],
+    ['Triple Drops',   sorted.filter(d => getGroupType(d) === 'triple').length],
+    ['Quad Drops',     sorted.filter(d => getGroupType(d) === 'quad').length],
     ['Rough Pulled',   sorted.filter(d => d.roughPull).length],
     ['Terminated',     sorted.filter(d => d.terminated).length],
     ['Tested',         sorted.filter(d => d.tested).length],
