@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'rea
 import { COLORS, STATUS_FIELDS } from '../theme';
 import { exportPDF, exportXLSX } from '../exportUtils';
 
-export default function DashboardScreen({ drops, idfList, showToast }) {
+export default function DashboardScreen({ drops, idfList, showToast, project }) {
   const [exporting, setExporting] = useState(null);
 
   const stats = {
@@ -22,8 +22,8 @@ export default function DashboardScreen({ drops, idfList, showToast }) {
     }
     setExporting(type);
     try {
-      if (type === 'pdf')  await exportPDF(drops);
-      if (type === 'xlsx') await exportXLSX(drops);
+      if (type === 'pdf')  await exportPDF(drops, project.name);
+      if (type === 'xlsx') await exportXLSX(drops, project.name);
     } catch (e) {
       showToast('Export failed: ' + e.message, 'error');
     } finally {
@@ -40,17 +40,21 @@ export default function DashboardScreen({ drops, idfList, showToast }) {
   );
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
-      <Text style={s.screenTitle}>Project Stats</Text>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: COLORS.bg }}
+      contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
+    >
+      <Text style={s.screenTitle}>Stats</Text>
+      <Text style={s.projectLabel} numberOfLines={1}>{project.name}</Text>
 
       {/* Stat grid */}
       <View style={s.grid}>
-        <StatCard icon="📦" label="Total Drops"   value={stats.total}   color={COLORS.textSub} />
-        <StatCard icon="⟷"  label="Double Drops"  value={stats.doubles} color={COLORS.purple} />
-        <StatCard icon="🔧" label="Rough Pulled"  value={`${stats.rp}/${stats.total}`}   color={COLORS.amber} />
-        <StatCard icon="🔗" label="Terminated"    value={`${stats.tm}/${stats.total}`}   color={COLORS.blue} />
-        <StatCard icon="✅" label="Tested"         value={`${stats.ts}/${stats.total}`}   color={COLORS.green} />
-        <StatCard icon="🏁" label="Complete"       value={`${stats.complete}/${stats.total}`} color={COLORS.pink} />
+        <StatCard icon="📦" label="Total Drops"  value={stats.total}   color={COLORS.textSub} />
+        <StatCard icon="⟷"  label="Double Drops" value={stats.doubles} color={COLORS.purple}  />
+        <StatCard icon="🔧" label="Rough Pulled" value={`${stats.rp}/${stats.total}`}   color={COLORS.amber} />
+        <StatCard icon="🔗" label="Terminated"   value={`${stats.tm}/${stats.total}`}   color={COLORS.blue}  />
+        <StatCard icon="✅" label="Tested"        value={`${stats.ts}/${stats.total}`}   color={COLORS.green} />
+        <StatCard icon="🏁" label="Complete"      value={`${stats.complete}/${stats.total}`} color={COLORS.pink} />
       </View>
 
       {/* Progress bars */}
@@ -78,7 +82,7 @@ export default function DashboardScreen({ drops, idfList, showToast }) {
       )}
 
       {/* Per-IDF breakdown */}
-      {stats.total > 0 && (
+      {stats.total > 0 && idfList.some(idf => drops.some(d => d.idf === idf)) && (
         <View style={s.section}>
           <Text style={s.sectionTitle}>BY IDF CLOSET</Text>
           {idfList
@@ -100,9 +104,6 @@ export default function DashboardScreen({ drops, idfList, showToast }) {
                 </View>
               );
           })}
-          {idfList.every(idf => !drops.some(d => d.idf === idf)) && (
-            <Text style={{ color: COLORS.textDim, fontSize: 12 }}>No IDF assigned yet</Text>
-          )}
         </View>
       )}
 
@@ -136,7 +137,7 @@ export default function DashboardScreen({ drops, idfList, showToast }) {
           </TouchableOpacity>
         </View>
         <Text style={{ fontSize: 10, color: COLORS.textDim, textAlign: 'center', marginTop: 8 }}>
-          Exports all {stats.total} drops
+          Exports all {stats.total} drops for "{project.name}"
         </Text>
       </View>
     </ScrollView>
@@ -144,55 +145,34 @@ export default function DashboardScreen({ drops, idfList, showToast }) {
 }
 
 const s = StyleSheet.create({
-  screenTitle: {
-    fontSize: 22, fontWeight: '800', color: COLORS.text,
-    marginBottom: 14, letterSpacing: -0.3,
-  },
-  grid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14,
-  },
+  screenTitle:  { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
+  projectLabel: { fontSize: 12, color: COLORS.amber, fontWeight: '600', marginBottom: 14, marginTop: 2 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   statCard: {
-    width: '47%',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    padding: 14,
-    gap: 4,
+    width: '47%', backgroundColor: COLORS.surface, borderWidth: 1,
+    borderColor: COLORS.border, borderRadius: 10, padding: 14, gap: 4,
   },
   statVal:   { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
   statLabel: { fontSize: 10, fontWeight: '600', color: COLORS.textMuted, letterSpacing: 0.5 },
   section: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 14,
+    backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 10, padding: 14, marginBottom: 14,
   },
-  sectionTitle: {
-    fontSize: 10, fontWeight: '800', letterSpacing: 1,
-    color: COLORS.textMuted, marginBottom: 14,
-  },
+  sectionTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1, color: COLORS.textMuted, marginBottom: 14 },
   progLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSub },
   progVal:   { fontSize: 11, fontWeight: '700' },
   barTrack:  { height: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' },
   barFill:   { height: '100%', borderRadius: 3 },
   idfRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   idfLabel: { fontSize: 13, fontWeight: '700', color: COLORS.textSub, fontFamily: 'monospace' },
   exportBtn: {
-    flex: 1, borderRadius: 10, padding: 14,
-    alignItems: 'center', gap: 4, borderWidth: 1,
+    flex: 1, borderRadius: 10, padding: 14, alignItems: 'center', gap: 4, borderWidth: 1,
   },
-  exportPdf:  { backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' },
-  exportXlsx: { backgroundColor: 'rgba(34,197,94,0.1)', borderColor: 'rgba(34,197,94,0.3)' },
+  exportPdf:   { backgroundColor: 'rgba(239,68,68,0.1)',  borderColor: 'rgba(239,68,68,0.3)'  },
+  exportXlsx:  { backgroundColor: 'rgba(34,197,94,0.1)',  borderColor: 'rgba(34,197,94,0.3)'  },
   exportIcon:  { fontSize: 26 },
   exportLabel: { fontWeight: '800', fontSize: 13, letterSpacing: 0.3 },
   exportHint:  { fontSize: 10, color: COLORS.textMuted },

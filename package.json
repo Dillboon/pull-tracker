@@ -17,7 +17,8 @@
     "expo-print": "~14.0.1",
     "expo-sharing": "~13.0.1",
     "expo-file-system": "~18.0.4",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "exceljs": "^4.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
