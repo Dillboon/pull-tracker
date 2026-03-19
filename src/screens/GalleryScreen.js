@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
-  TextInput, Modal, Image, Alert, Dimensions,
+  TextInput, Modal, Image, Alert, Dimensions, Animated, PanResponder,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -9,6 +9,182 @@ import { COLORS } from '../theme';
 import { uid, today } from '../utils';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function distance(x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function ZoomableImage({ uri }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  const scaleValue = useRef(1);
+  const txValue = useRef(0);
+  const tyValue = useRef(0);
+
+  const gesture = useRef({
+    startScale: 1,
+    startX: 0,
+    startY: 0,
+    startDistance: 0,
+    startCenterX: 0,
+    startCenterY: 0,
+  }).current;
+
+  const reset = () => {
+    scaleValue.current = 1;
+    txValue.current = 0;
+    tyValue.current = 0;
+    scale.setValue(1);
+    translateX.setValue(0);
+    translateY.setValue(0);
+  };
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponderCapture: () => false,
+    onMoveShouldSetPanResponder: (_, gs) => gs.numberActiveTouches >= 2 || Math.abs(gs.dx) > 2 || Math.abs(gs.dy) > 2,
+    onMoveShouldSetPanResponderCapture: () => false,
+
+    onPanResponderGrant: (evt) => {
+      scale.stopAnimation((v) => { scaleValue.current = v ?? scaleValue.current; });
+      translateX.stopAnimation((v) => { txValue.current = v ?? txValue.current; });
+      translateY.stopAnimation((v) => { tyValue.current = v ?? tyValue.current; });
+
+      gesture.startScale = scaleValue.current;
+      gesture.startX = txValue.current;
+      gesture.startY = tyValue.current;
+
+      const touches = evt.nativeEvent.touches || [];
+      if (touches.length >= 2) {
+        gesture.startDistance = distance(
+          touches[0].pageX, touches[0].pageY,
+          touches[1].pageX, touches[1].pageY
+        );
+        gesture.startCenterX = (touches[0].pageX + touches[1].pageX) / 2;
+        gesture.startCenterY = (touches[0].pageY + touches[1].pageY) / 2;
+      } else {
+        gesture.startDistance = 0;
+        gesture.startCenterX = 0;
+        gesture.startCenterY = 0;
+      }
+    },
+
+    onPanResponderMove: (evt, gs) => {
+      const touches = evt.nativeEvent.touches || [];
+
+      if (touches.length >= 2) {
+        const d = distance(
+          touches[0].pageX, touches[0].pageY,
+          touches[1].pageX, touches[1].pageY
+        );
+
+        if (!gesture.startDistance) {
+          gesture.startDistance = d;
+        }
+
+        const nextScale = clamp(gesture.startScale * (d / gesture.startDistance), 1, 4);
+        scale.setValue(nextScale);
+        scaleValue.current = nextScale;
+
+        const centerX = (touches[0].pageX + touches[1].pageX) / 2;
+        const centerY = (touches[0].pageY + touches[1].pageY) / 2;
+        const dx = centerX - gesture.startCenterX;
+        const dy = centerY - gesture.startCenterY;
+        translateX.setValue(gesture.startX + dx);
+        translateY.setValue(gesture.startY + dy);
+        txValue.current = gesture.startX + dx;
+        tyValue.current = gesture.startY + dy;
+        return;
+      }
+
+      if (scaleValue.current > 1) {
+        const nextX = gesture.startX + gs.dx;
+        const nextY = gesture.startY + gs.dy;
+        translateX.setValue(nextX);
+        translateY.setValue(nextY);
+        txValue.current = nextX;
+        tyValue.current = nextY;
+      }
+    },
+
+    onPanResponderRelease: () => {
+      if (scaleValue.current <= 1) {
+        Animated.spring(scale, {
+          toValue: 1,
+          useNativeDriver: true,
+          bounciness: 0,
+        }).start();
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 0,
+        }).start();
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 0,
+        }).start();
+        reset();
+        return;
+      }
+
+      const maxOffset = (SCREEN_W * (scaleValue.current - 1)) / 2 + 80;
+      const clampedX = clamp(txValue.current, -maxOffset, maxOffset);
+      const clampedY = clamp(tyValue.current, -maxOffset, maxOffset);
+
+      txValue.current = clampedX;
+      tyValue.current = clampedY;
+
+      Animated.spring(translateX, {
+        toValue: clampedX,
+        useNativeDriver: true,
+        bounciness: 0,
+      }).start();
+      Animated.spring(translateY, {
+        toValue: clampedY,
+        useNativeDriver: true,
+        bounciness: 0,
+      }).start();
+    },
+
+    onPanResponderTerminate: () => {
+      if (scaleValue.current <= 1) {
+        reset();
+      }
+    },
+
+    onShouldBlockNativeResponder: () => true,
+  }), [gesture, scale, scaleValue, translateX, translateY]);
+
+  return (
+    <View style={s.zoomWrap}>
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={[
+          s.zoomInner,
+          {
+            transform: [
+              { translateX },
+              { translateY },
+              { scale },
+            ],
+          },
+        ]}
+      >
+        <Image source={{ uri }} style={s.lightboxImage} resizeMode="contain" />
+      </Animated.View>
+      <Text style={s.zoomHint}>Pinch to zoom • drag to move</Text>
+    </View>
+  );
+}
 
 export default function GalleryScreen({ folders, galleryImages, setFolders, setGalleryImages, showToast }) {
   const [activeFolder,  setActiveFolder]  = useState(null);
@@ -148,7 +324,6 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
             const latest = imgs.slice(-3).reverse();
             return (
               <TouchableOpacity style={s.folderCard} onPress={() => setActiveFolder(folder)} activeOpacity={0.75}>
-                {/* Stacked thumbnail preview */}
                 <View style={s.thumbStack}>
                   {imgs.length === 0 ? (
                     <View style={s.thumbEmpty}><Text style={{ fontSize: 26 }}>📁</Text></View>
@@ -167,7 +342,6 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
                   )}
                 </View>
 
-                {/* Folder info */}
                 <View style={{ flex: 1, gap: 3 }}>
                   <Text style={s.folderName} numberOfLines={1}>{folder.name}</Text>
                   <Text style={s.folderMeta}>
@@ -186,7 +360,6 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
           }}
         />
 
-        {/* Rename folder modal */}
         <Modal visible={!!renamingFolder} transparent animationType="fade" onRequestClose={() => setRenamingFolder(null)}>
           <View style={s.modalOverlay}>
             <View style={s.modalBox}>
@@ -216,7 +389,6 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
           </View>
         </Modal>
 
-        {/* New folder modal */}
         <Modal visible={newFolderModal} transparent animationType="fade" onRequestClose={() => setNewFolderModal(false)}>
           <View style={s.modalOverlay}>
             <View style={s.modalBox}>
@@ -255,7 +427,6 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      {/* Folder header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => setActiveFolder(null)} style={s.backBtn} activeOpacity={0.7}>
           <Text style={s.backArrow}>←</Text>
@@ -308,7 +479,6 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
         )}
       />
 
-      {/* Edit notes modal */}
       {editingNotes && (
         <Modal visible transparent animationType="fade" onRequestClose={() => setEditingNotes(null)}>
           <View style={s.modalOverlay}>
@@ -338,7 +508,6 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
         </Modal>
       )}
 
-      {/* Lightbox */}
       {lightbox && (
         <Modal visible transparent animationType="fade" onRequestClose={() => setLightbox(null)}>
           <View style={s.lightbox}>
@@ -346,7 +515,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
               <Text style={s.lightboxCloseText}>✕</Text>
             </TouchableOpacity>
 
-            <Image source={{ uri: lightbox.uri }} style={s.lightboxImage} resizeMode="contain" />
+            <ZoomableImage key={lightbox.id} uri={lightbox.uri} />
 
             <View style={s.lightboxMeta}>
               <Text style={s.lightboxName}>{lightbox.name}</Text>
@@ -377,7 +546,6 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
 }
 
 const s = StyleSheet.create({
-  // ── Header ────────────────────────────────────────────────────────────────
   header: {
     backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
@@ -403,7 +571,6 @@ const s = StyleSheet.create({
   },
   backArrow: { color: COLORS.blue, fontSize: 18, fontWeight: '700' },
 
-  // ── Folder cards ──────────────────────────────────────────────────────────
   folderCard: {
     backgroundColor: COLORS.surface,
     borderWidth: 1, borderColor: COLORS.border,
@@ -420,7 +587,6 @@ const s = StyleSheet.create({
   folderMeta:  { fontSize: 10, color: COLORS.textMuted },
   folderLatestNote: { fontSize: 11, color: COLORS.textSub, fontStyle: 'italic' },
 
-  // ── Image rows ────────────────────────────────────────────────────────────
   imageRow: {
     backgroundColor: COLORS.surface,
     borderWidth: 1, borderColor: COLORS.border,
@@ -440,7 +606,6 @@ const s = StyleSheet.create({
     borderRadius: 6, borderWidth: 1, borderColor: COLORS.border,
   },
 
-  // ── Lightbox ──────────────────────────────────────────────────────────────
   lightbox: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.96)',
@@ -453,7 +618,33 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   lightboxCloseText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.62, marginTop: 60 },
+
+  zoomWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  zoomInner: {
+    width: SCREEN_W,
+    height: SCREEN_H * 0.62,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lightboxImage: {
+    width: SCREEN_W,
+    height: SCREEN_H * 0.62,
+  },
+  zoomHint: {
+    position: 'absolute',
+    bottom: 14,
+    alignSelf: 'center',
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+
   lightboxMeta: {
     backgroundColor: COLORS.surface,
     borderTopWidth: 1, borderTopColor: COLORS.border,
@@ -465,14 +656,12 @@ const s = StyleSheet.create({
   lbEditBtn:   { flex: 1, backgroundColor: COLORS.amberDim, borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)' },
   lbDeleteBtn: { flex: 1, backgroundColor: COLORS.redDim,   borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)'  },
 
-  // ── Empty states ──────────────────────────────────────────────────────────
   empty:        { alignItems: 'center', paddingTop: 80, gap: 10 },
   emptyTitle:   { fontSize: 18, fontWeight: '800', color: COLORS.textDim },
   emptyHint:    { fontSize: 12, color: COLORS.textDim, textAlign: 'center', paddingHorizontal: 40 },
   emptyBtn:     { marginTop: 8, backgroundColor: COLORS.blue, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 },
   emptyBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
 
-  // ── Modals ────────────────────────────────────────────────────────────────
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalBox:     { backgroundColor: COLORS.surface, borderRadius: 14, padding: 20, width: '100%', borderWidth: 1, borderColor: COLORS.borderHi },
   modalTitle:   { fontSize: 17, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
