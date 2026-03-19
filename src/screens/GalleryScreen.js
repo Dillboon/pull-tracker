@@ -1,16 +1,77 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
-  TextInput, Modal, Image, Alert, Dimensions, ScrollView,
+  TextInput, Modal, Image, Alert, Dimensions, Animated,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Reanimated, {
+  useSharedValue, useAnimatedStyle, withTiming,
+} from 'react-native-reanimated';
 import { COLORS } from '../theme';
 import { uid, today } from '../utils';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-export default function GalleryScreen({ folders, galleryImages, setFolders, setGalleryImages, showToast }) {
+// ─── Zoomable Image (pinch + pan) ────────────────────────────────────────────
+function ZoomableImage({ uri }) {
+  const scale      = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const offsetX    = useSharedValue(0);
+  const offsetY    = useSharedValue(0);
+  const savedX     = useSharedValue(0);
+  const savedY     = useSharedValue(0);
+
+  const pinch = Gesture.Pinch()
+    .onUpdate(e => { scale.value = Math.max(1, Math.min(savedScale.value * e.scale, 5)); })
+    .onEnd(() => { savedScale.value = scale.value; });
+
+  const pan = Gesture.Pan()
+    .onUpdate(e => {
+      if (scale.value > 1) {
+        offsetX.value = savedX.value + e.translationX;
+        offsetY.value = savedY.value + e.translationY;
+      }
+    })
+    .onEnd(() => {
+      savedX.value = offsetX.value;
+      savedY.value = offsetY.value;
+    });
+
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      scale.value      = withTiming(1);
+      savedScale.value = 1;
+      offsetX.value    = withTiming(0);
+      offsetY.value    = withTiming(0);
+      savedX.value     = 0;
+      savedY.value     = 0;
+    });
+
+  const composed = Gesture.Simultaneous(pinch, pan, doubleTap);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: scale.value },
+      { translateX: offsetX.value },
+      { translateY: offsetY.value },
+    ],
+  }));
+
+  return (
+    <GestureHandlerRootView style={{ width: SCREEN_W, height: SCREEN_H * 0.62, marginTop: 60, overflow: 'hidden' }}>
+      <GestureDetector gesture={composed}>
+        <Reanimated.View style={[{ width: SCREEN_W, height: SCREEN_H * 0.62 }, animStyle]}>
+          <Image source={{ uri }} style={{ width: SCREEN_W, height: SCREEN_H * 0.62 }} resizeMode="contain" />
+        </Reanimated.View>
+      </GestureDetector>
+    </GestureHandlerRootView>
+  );
+}
+
+ folders, galleryImages, setFolders, setGalleryImages, showToast }) {
   const [activeFolder,  setActiveFolder]  = useState(null);
   const [lightbox,      setLightbox]      = useState(null);
   const [newFolderModal,setNewFolderModal] = useState(false);
@@ -346,16 +407,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
               <Text style={s.lightboxCloseText}>✕</Text>
             </TouchableOpacity>
 
-            <ScrollView
-              style={{ width: SCREEN_W, height: SCREEN_H * 0.62, marginTop: 60 }}
-              maximumZoomScale={5}
-              minimumZoomScale={1}
-              centerContent
-              showsHorizontalScrollIndicator={false}
-              showsVerticalScrollIndicator={false}
-            >
-              <Image source={{ uri: lightbox.uri }} style={s.lightboxImage} resizeMode="contain" />
-            </ScrollView>
+            <ZoomableImage uri={lightbox.uri} />
 
             <View style={s.lightboxMeta}>
               <Text style={s.lightboxName}>{lightbox.name}</Text>
@@ -462,7 +514,6 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   lightboxCloseText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.62 },
   lightboxMeta: {
     backgroundColor: COLORS.surface,
     borderTopWidth: 1, borderTopColor: COLORS.border,
