@@ -17,7 +17,6 @@ const emptyProject = (name) => ({
   folders:       [],
   galleryImages: [],
 });
-});
 
 export default function ProjectsScreen({ projects, setProjects, onOpenProject }) {
   const [showNew,     setShowNew]     = useState(false);
