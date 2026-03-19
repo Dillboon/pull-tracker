@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   FlatList, StyleSheet, KeyboardAvoidingView, Platform,
@@ -23,11 +23,34 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   const [idfDropdown,    setIdfDropdown]    = useState(false);
   const [statusDropdown, setStatusDropdown] = useState(false);
 
+  const [lockedOrder, setLockedOrder] = useState(() => drops.map(d => d.id));
+
+  useEffect(() => {
+    setLockedOrder(prev => {
+      const newIds = drops.map(d => d.id).filter(id => !prev.includes(id));
+      return [...prev, ...newIds];
+    });
+  }, [drops]);
+
   const idfLabel    = filterIdf === 'ALL' ? 'All IDFs' : filterIdf;
   const statusLabel = STATUS_FILTERS.find(f => f.key === filterStatus)?.label ?? 'All';
   const hasFilter   = filterIdf !== 'ALL' || filterStatus !== 'ALL';
 
   const closeDropdowns = () => { setIdfDropdown(false); setStatusDropdown(false); };
+
+  const handleRefresh = () => {
+    const sorted = [...drops].sort((a, b) => {
+      const numA = parseInt(a.cableA);
+      const numB = parseInt(b.cableA);
+      const hasA = !isNaN(numA);
+      const hasB = !isNaN(numB);
+      if (!hasA && !hasB) return 0;
+      if (!hasA) return 1;
+      if (!hasB) return -1;
+      return numA - numB;
+    });
+    setLockedOrder(sorted.map(d => d.id));
+  };
 
   const filtered = useMemo(() => drops.filter(d => {
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
@@ -45,15 +68,10 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     }
     return true;
   }).sort((a, b) => {
-    const numA = parseInt(a.cableA);
-    const numB = parseInt(b.cableA);
-    const hasA = !isNaN(numA);
-    const hasB = !isNaN(numB);
-    if (!hasA && !hasB) return 0;
-    if (!hasA) return 1;
-    if (!hasB) return -1;
-    return numA - numB;
-  }), [drops, filterIdf, filterStatus, search]);
+    const ai = lockedOrder.indexOf(a.id);
+    const bi = lockedOrder.indexOf(b.id);
+    return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
+  }), [drops, filterIdf, filterStatus, search, lockedOrder]);
 
   return (
     <KeyboardAvoidingView
@@ -134,7 +152,6 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
             )}
           </View>
 
-          {/* Clear filters — only when active */}
           {hasFilter && (
             <TouchableOpacity
               style={s.clearBtn}
@@ -143,6 +160,9 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
               <Text style={s.clearBtnText}>✕</Text>
             </TouchableOpacity>
           )}
+          <TouchableOpacity style={s.refreshBtn} onPress={handleRefresh}>
+            <Text style={s.refreshBtnText}>⟳</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -318,6 +338,13 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   clearBtnText: { color: '#f87171', fontSize: 13, fontWeight: '800' },
+  refreshBtn: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+    justifyContent: 'center',
+  },
+  refreshBtnText: { color: COLORS.textSub, fontSize: 16 },
 
   // ── Empty state ──────────────────────────────────────────────────────────
   empty: { alignItems: 'center', paddingTop: 80, gap: 8 },
