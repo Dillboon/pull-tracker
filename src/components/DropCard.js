@@ -82,8 +82,22 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
         <View style={{ flex: 1, gap: 6 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
             {groupType !== 'single' && (
-              <View style={s.groupPill}>
-                <Text style={s.groupPillText}>{groupType.toUpperCase()}</Text>
+              <View style={[s.groupPill, {
+                backgroundColor:
+                  groupType === 'double' ? 'rgba(124,58,237,0.18)' :
+                  groupType === 'triple' ? 'rgba(13,148,136,0.18)' :
+                  'rgba(249,115,22,0.18)',
+                borderColor:
+                  groupType === 'double' ? 'rgba(124,58,237,0.4)' :
+                  groupType === 'triple' ? 'rgba(13,148,136,0.4)' :
+                  'rgba(249,115,22,0.4)',
+              }]}>
+                <Text style={[s.groupPillText, {
+                  color:
+                    groupType === 'double' ? '#a78bfa' :
+                    groupType === 'triple' ? '#2dd4bf' :
+                    '#fb923c',
+                }]}>{groupType.toUpperCase()}</Text>
               </View>
             )}
             {headerIds.map((id, idx) => (
@@ -141,10 +155,27 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
               {GROUP_TYPES.map(type => (
                 <TouchableOpacity
                   key={type}
-                  style={[s.typeBtn, groupType === type && s.typeBtnActive]}
+                  style={[s.typeBtn, groupType === type && {
+                    backgroundColor:
+                      type === 'double' ? 'rgba(124,58,237,0.18)' :
+                      type === 'triple' ? 'rgba(13,148,136,0.18)' :
+                      type === 'quad'   ? 'rgba(249,115,22,0.18)' :
+                      'rgba(255,255,255,0.08)',
+                    borderColor:
+                      type === 'double' ? 'rgba(124,58,237,0.4)' :
+                      type === 'triple' ? 'rgba(13,148,136,0.4)' :
+                      type === 'quad'   ? 'rgba(249,115,22,0.4)' :
+                      'rgba(255,255,255,0.2)',
+                  }]}
                   onPress={() => changeGroupType(type)}
                 >
-                  <Text style={[s.typeBtnText, groupType === type && { color: COLORS.purple }]}>
+                  <Text style={[s.typeBtnText, groupType === type && {
+                    color:
+                      type === 'double' ? '#a78bfa' :
+                      type === 'triple' ? '#2dd4bf' :
+                      type === 'quad'   ? '#fb923c' :
+                      COLORS.text,
+                  }]}>
                     {type.charAt(0).toUpperCase() + type.slice(1)}
                   </Text>
                 </TouchableOpacity>

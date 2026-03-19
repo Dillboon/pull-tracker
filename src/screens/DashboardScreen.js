@@ -12,7 +12,10 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
     tm:       drops.filter(d => d.terminated).length,
     ts:       drops.filter(d => d.tested).length,
     complete: drops.filter(d => d.roughPull && d.terminated && d.tested).length,
-    doubles:  drops.filter(d => d.isDouble).length,
+	singles:  drops.filter(d => (d.groupType || (d.isDouble ? 'double' : 'single')) === 'single').length,
+    doubles:  drops.filter(d => (d.groupType || (d.isDouble ? 'double' : 'single')) === 'double').length,
+	triples:  drops.filter(d => (d.groupType || (d.isDouble ? 'double' : 'single')) === 'triple').length,
+	quads:    drops.filter(d => (d.groupType || (d.isDouble ? 'double' : 'single')) === 'quad').length,
   };
 
   const handleExport = async (type) => {
@@ -50,7 +53,10 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
       {/* Stat grid */}
       <View style={s.grid}>
         <StatCard icon="📦" label="Total Drops"  value={stats.total}   color={COLORS.textSub} />
-        <StatCard icon="⟷"  label="Double Drops" value={stats.doubles} color={COLORS.purple}  />
+        <StatCard icon="①"  label="Single Drops" value={stats.singles} color={COLORS.textSub} />
+		<StatCard icon="⟷"  label="Double Drops" value={stats.doubles} color={COLORS.purple}  />
+		{stats.triples > 0 && <StatCard icon="③"  label="Triple Drops" value={stats.triples} color={COLORS.teal}   />}
+		{stats.quads   > 0 && <StatCard icon="④"  label="Quad Drops"   value={stats.quads}   color={COLORS.orange} />}
         <StatCard icon="🔧" label="Rough Pulled" value={`${stats.rp}/${stats.total}`}   color={COLORS.amber} />
         <StatCard icon="🔗" label="Terminated"   value={`${stats.tm}/${stats.total}`}   color={COLORS.blue}  />
         <StatCard icon="✅" label="Tested"        value={`${stats.ts}/${stats.total}`}   color={COLORS.green} />

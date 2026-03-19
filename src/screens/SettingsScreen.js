@@ -187,7 +187,10 @@ export default function SettingsScreen({
         <Text style={s.sectionTitle}>PROJECT INFO</Text>
         {[
           ['Total Drops',  String(drops.length)],
-          ['Double Drops', String(drops.filter(d => d.isDouble).length)],
+          ['Single Drops', String(drops.filter(d => (d.groupType || (d.isDouble ? 'double' : 'single')) === 'single').length)],
+		  ['Double Drops', String(drops.filter(d => (d.groupType || (d.isDouble ? 'double' : 'single')) === 'double').length)],
+		  ['Triple Drops', String(drops.filter(d => (d.groupType || (d.isDouble ? 'double' : 'single')) === 'triple').length)],
+		  ['Quad Drops',   String(drops.filter(d => (d.groupType || (d.isDouble ? 'double' : 'single')) === 'quad').length)],
           ['IDF Closets',  String(idfList.length)],
           ['Status',       isArchived ? 'Archived' : 'Active'],
           ['Created',      project.createdAt],

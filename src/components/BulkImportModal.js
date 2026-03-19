@@ -165,13 +165,36 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList })
                   <TouchableOpacity
                     key={opt.key}
                     onPress={() => setGroupType(opt.key)}
-                    style={[st.groupBtn, groupType === opt.key && st.groupBtnActive]}
+                    style={[st.groupBtn, groupType === opt.key && {
+                      backgroundColor:
+                        opt.key === 'double' ? 'rgba(124,58,237,0.18)' :
+                        opt.key === 'triple' ? 'rgba(13,148,136,0.18)' :
+                        opt.key === 'quad'   ? 'rgba(249,115,22,0.18)' :
+                        'rgba(255,255,255,0.08)',
+                      borderColor:
+                        opt.key === 'double' ? 'rgba(124,58,237,0.4)' :
+                        opt.key === 'triple' ? 'rgba(13,148,136,0.4)' :
+                        opt.key === 'quad'   ? 'rgba(249,115,22,0.4)' :
+                        'rgba(255,255,255,0.2)',
+                    }]}
                   >
-                    <Text style={[st.groupBtnText, groupType === opt.key && { color: COLORS.purple }]}>
+                    <Text style={[st.groupBtnText, groupType === opt.key && {
+                      color:
+                        opt.key === 'double' ? '#a78bfa' :
+                        opt.key === 'triple' ? '#2dd4bf' :
+                        opt.key === 'quad'   ? '#fb923c' :
+                        COLORS.text,
+                    }]}>
                       {opt.label}
                     </Text>
                     {opt.step > 1 && (
-                      <Text style={[st.groupBtnHint, groupType === opt.key && { color: COLORS.purple, opacity: 0.7 }]}>
+                      <Text style={[st.groupBtnHint, groupType === opt.key && {
+                        color:
+                          opt.key === 'double' ? '#a78bfa' :
+                          opt.key === 'triple' ? '#2dd4bf' :
+                          '#fb923c',
+                        opacity: 0.7,
+                      }]}>
                         {opt.step} IDs
                       </Text>
                     )}
@@ -207,8 +230,22 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList })
                 {preview.slice(0, 8).map((item, i) => (
                   <View key={i} style={st.previewRow}>
                     {item.groupType !== 'single' && (
-                      <View style={st.groupPill}>
-                        <Text style={st.groupPillText}>{item.groupType.slice(0, 3).toUpperCase()}</Text>
+                      <View style={[st.groupPill, {
+                        backgroundColor:
+                          item.groupType === 'double' ? 'rgba(124,58,237,0.2)' :
+                          item.groupType === 'triple' ? 'rgba(13,148,136,0.2)' :
+                          'rgba(249,115,22,0.2)',
+                        borderColor:
+                          item.groupType === 'double' ? 'rgba(124,58,237,0.4)' :
+                          item.groupType === 'triple' ? 'rgba(13,148,136,0.4)' :
+                          'rgba(249,115,22,0.4)',
+                      }]}>
+                        <Text style={[st.groupPillText, {
+                          color:
+                            item.groupType === 'double' ? '#a78bfa' :
+                            item.groupType === 'triple' ? '#2dd4bf' :
+                            '#fb923c',
+                        }]}>{item.groupType.slice(0, 3).toUpperCase()}</Text>
                       </View>
                     )}
                     <Text style={st.previewText}>
