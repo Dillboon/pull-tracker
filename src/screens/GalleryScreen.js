@@ -1,83 +1,21 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
-  TextInput, Modal, Image, Alert, Dimensions, Animated,
+  TextInput, Modal, Image, Alert, Dimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
-import Reanimated, {
-  useSharedValue, useAnimatedStyle, withTiming,
-} from 'react-native-reanimated';
 import { COLORS } from '../theme';
 import { uid, today } from '../utils';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-// ─── Zoomable Image (pinch + pan) ────────────────────────────────────────────
-function ZoomableImage({ uri }) {
-  const scale      = useSharedValue(1);
-  const savedScale = useSharedValue(1);
-  const offsetX    = useSharedValue(0);
-  const offsetY    = useSharedValue(0);
-  const savedX     = useSharedValue(0);
-  const savedY     = useSharedValue(0);
-
-  const pinch = Gesture.Pinch()
-    .onUpdate(e => { scale.value = Math.max(1, Math.min(savedScale.value * e.scale, 5)); })
-    .onEnd(() => { savedScale.value = scale.value; });
-
-  const pan = Gesture.Pan()
-    .onUpdate(e => {
-      if (scale.value > 1) {
-        offsetX.value = savedX.value + e.translationX;
-        offsetY.value = savedY.value + e.translationY;
-      }
-    })
-    .onEnd(() => {
-      savedX.value = offsetX.value;
-      savedY.value = offsetY.value;
-    });
-
-  const doubleTap = Gesture.Tap()
-    .numberOfTaps(2)
-    .onEnd(() => {
-      scale.value      = withTiming(1);
-      savedScale.value = 1;
-      offsetX.value    = withTiming(0);
-      offsetY.value    = withTiming(0);
-      savedX.value     = 0;
-      savedY.value     = 0;
-    });
-
-  const composed = Gesture.Simultaneous(pinch, pan, doubleTap);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: scale.value },
-      { translateX: offsetX.value },
-      { translateY: offsetY.value },
-    ],
-  }));
-
-  return (
-    <GestureHandlerRootView style={{ width: SCREEN_W, height: SCREEN_H * 0.62, marginTop: 60, overflow: 'hidden' }}>
-      <GestureDetector gesture={composed}>
-        <Reanimated.View style={[{ width: SCREEN_W, height: SCREEN_H * 0.62 }, animStyle]}>
-          <Image source={{ uri }} style={{ width: SCREEN_W, height: SCREEN_H * 0.62 }} resizeMode="contain" />
-        </Reanimated.View>
-      </GestureDetector>
-    </GestureHandlerRootView>
-  );
-}
-
- folders, galleryImages, setFolders, setGalleryImages, showToast }) {
+export default function GalleryScreen({ folders, galleryImages, setFolders, setGalleryImages, showToast }) {
   const [activeFolder,  setActiveFolder]  = useState(null);
   const [lightbox,      setLightbox]      = useState(null);
   const [newFolderModal,setNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [editingNotes,  setEditingNotes]  = useState(null); // { imageId, notes }
-  const [renamingFolder, setRenamingFolder] = useState(null); // { id, name }
 
   // ── Folder CRUD ───────────────────────────────────────────────────────────
   const createFolder = () => {
@@ -101,8 +39,8 @@ function ZoomableImage({ uri }) {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => {
-          setFolders(folders.filter(f => f.id !== folderId));
-          setGalleryImages(galleryImages.filter(i => i.folderId !== folderId));
+          setFolders(prev => prev.filter(f => f.id !== folderId));
+          setGalleryImages(prev => prev.filter(i => i.folderId !== folderId));
           setActiveFolder(null);
           showToast('Folder deleted');
         }},
@@ -111,19 +49,23 @@ function ZoomableImage({ uri }) {
   };
 
   const renameFolder = (folderId, currentName) => {
-    setRenamingFolder({ id: folderId, name: currentName });
-  };
-
-  const submitRename = () => {
-    const trimmed = renamingFolder?.name?.trim();
-    if (!trimmed) { setRenamingFolder(null); return; }
-    if (folders.some(f => f.id !== renamingFolder.id && f.name.toLowerCase() === trimmed.toLowerCase())) {
-      Alert.alert('Name taken', 'Another folder already has that name.');
-      return;
-    }
-    setFolders(folders.map(f => f.id === renamingFolder.id ? { ...f, name: trimmed } : f));
-    setActiveFolder(prev => prev?.id === renamingFolder.id ? { ...prev, name: trimmed } : prev);
-    setRenamingFolder(null);
+    Alert.prompt(
+      'Rename Folder',
+      '',
+      (newName) => {
+        const trimmed = newName?.trim();
+        if (!trimmed || trimmed === currentName) return;
+        if (folders.some(f => f.id !== folderId && f.name.toLowerCase() === trimmed.toLowerCase())) {
+          Alert.alert('Name taken', 'Another folder already has that name.');
+          return;
+        }
+        const updated = folders.map(f => f.id === folderId ? { ...f, name: trimmed } : f);
+        setFolders(updated);
+        setActiveFolder(prev => prev?.id === folderId ? { ...prev, name: trimmed } : prev);
+      },
+      'plain-text',
+      currentName
+    );
   };
 
   // ── Image CRUD ────────────────────────────────────────────────────────────
@@ -246,36 +188,6 @@ function ZoomableImage({ uri }) {
             );
           }}
         />
-
-        {/* Rename folder modal */}
-        <Modal visible={!!renamingFolder} transparent animationType="fade" onRequestClose={() => setRenamingFolder(null)}>
-          <View style={s.modalOverlay}>
-            <View style={s.modalBox}>
-              <Text style={s.modalTitle}>Rename Folder</Text>
-              <TextInput
-                value={renamingFolder?.name ?? ''}
-                onChangeText={t => setRenamingFolder(prev => ({ ...prev, name: t }))}
-                placeholder="Folder name"
-                placeholderTextColor={COLORS.textDim}
-                style={s.modalInput}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={submitRename}
-              />
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-                <TouchableOpacity style={[s.modalBtn, s.modalCancel]} onPress={() => setRenamingFolder(null)}>
-                  <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.modalBtn, s.modalCreate, !renamingFolder?.name?.trim() && { opacity: 0.4 }]}
-                  disabled={!renamingFolder?.name?.trim()}
-                  onPress={submitRename}>
-                  <Text style={{ color: '#fff', fontWeight: '800' }}>Save</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
 
         {/* New folder modal */}
         <Modal visible={newFolderModal} transparent animationType="fade" onRequestClose={() => setNewFolderModal(false)}>
@@ -407,7 +319,7 @@ function ZoomableImage({ uri }) {
               <Text style={s.lightboxCloseText}>✕</Text>
             </TouchableOpacity>
 
-            <ZoomableImage uri={lightbox.uri} />
+            <Image source={{ uri: lightbox.uri }} style={s.lightboxImage} resizeMode="contain" />
 
             <View style={s.lightboxMeta}>
               <Text style={s.lightboxName}>{lightbox.name}</Text>
@@ -433,6 +345,36 @@ function ZoomableImage({ uri }) {
           </View>
         </Modal>
       )}
+      {/* Rename folder modal */}
+      <Modal visible={!!renamingFolder} transparent animationType="fade" onRequestClose={() => setRenamingFolder(null)}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalBox}>
+            <Text style={s.modalTitle}>Rename Folder</Text>
+            <TextInput
+              value={renamingFolder?.name ?? ''}
+              onChangeText={t => setRenamingFolder(prev => ({ ...prev, name: t }))}
+              placeholder="Folder name"
+              placeholderTextColor={COLORS.textDim}
+              style={s.modalInput}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={submitRename}
+            />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={[s.modalBtn, s.modalCancel]} onPress={() => setRenamingFolder(null)}>
+                <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.modalBtn, s.modalCreate, !renamingFolder?.name?.trim() && { opacity: 0.4 }]}
+                disabled={!renamingFolder?.name?.trim()}
+                onPress={submitRename}>
+                <Text style={{ color: '#fff', fontWeight: '800' }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -514,6 +456,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   lightboxCloseText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.62, marginTop: 60 },
   lightboxMeta: {
     backgroundColor: COLORS.surface,
     borderTopWidth: 1, borderTopColor: COLORS.border,
