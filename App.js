@@ -67,13 +67,13 @@ export default function App() {
 
   // ── Drop CRUD ─────────────────────────────────────────────────────────────
   const addDrop = useCallback((isDouble) => {
-    const next = [emptyDrop(isDouble), ...activeProject.drops];
+    const next = [...activeProject.drops, emptyDrop(isDouble)];
     updateActiveProject({ drops: next });
     showToast(isDouble ? '⟷ Double drop added' : '+ Single drop added');
   }, [activeProject, updateActiveProject, showToast]);
 
   const bulkAddDrops = useCallback((newDrops) => {
-    const next = [...newDrops, ...activeProject.drops];
+    const next = [...activeProject.drops, ...newDrops];
     updateActiveProject({ drops: next });
     showToast(`⬇ ${newDrops.length} drops imported`);
   }, [activeProject, updateActiveProject, showToast]);

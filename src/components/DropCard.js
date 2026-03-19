@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Switch,
-  ScrollView, Alert, StyleSheet,
+  Alert, StyleSheet,
 } from 'react-native';
 import { COLORS, STATUS_FIELDS } from '../theme';
 import { completionCount, progressColor } from '../utils';
 
-// ─── Badge ───────────────────────────────────────────────────────────────────
-function Badge({ done, short }) {
+// ─── Tappable Badge ───────────────────────────────────────────────────────────
+function Badge({ done, short, onToggle }) {
   return (
-    <View style={[s.badge, done ? s.badgeDone : s.badgeOff]}>
+    <TouchableOpacity
+      onPress={onToggle}
+      activeOpacity={0.6}
+      style={[s.badge, done ? s.badgeDone : s.badgeOff]}
+    >
       <Text style={[s.badgeText, { color: done ? COLORS.green : COLORS.textMuted }]}>
         {done ? '✓' : '·'} {short}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -34,7 +38,7 @@ function StatusToggle({ label, value, onChange, color }) {
 // ─── DropCard ─────────────────────────────────────────────────────────────────
 export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
   const [expanded, setExpanded] = useState(false);
-  const count = completionCount(drop);
+  const count  = completionCount(drop);
   const pColor = progressColor(drop);
   const isComplete = count === 3;
 
@@ -47,6 +51,11 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
         { text: 'Delete', style: 'destructive', onPress: () => onDelete(drop.id) },
       ]
     );
+  };
+
+  // Quick toggle without opening card
+  const quickToggle = (key) => {
+    onUpdate({ ...drop, [key]: !drop[key] });
   };
 
   return (
@@ -70,15 +79,26 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
               </>
             ) : null}
           </View>
+
+          {/* Badge row — tappable */}
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 }}>
             {drop.idf ? (
               <View style={s.idfPill}>
                 <Text style={s.idfPillText}>{drop.idf}</Text>
               </View>
             ) : null}
-            {STATUS_FIELDS.map(f => <Badge key={f.key} done={drop[f.key]} short={f.short} />)}
+            {STATUS_FIELDS.map(f => (
+              <Badge
+                key={f.key}
+                done={drop[f.key]}
+                short={f.short}
+                onToggle={() => quickToggle(f.key)}
+              />
+            ))}
           </View>
         </View>
+
+        {/* Progress ring + chevron */}
         <View style={{ alignItems: 'center', gap: 4, marginLeft: 8 }}>
           <View style={[s.ring, { borderColor: pColor }]}>
             <Text style={[s.ringText, { color: pColor }]}>{count}/3</Text>
@@ -145,7 +165,7 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
             </View>
           </View>
 
-          {/* Status */}
+          {/* Status toggles */}
           <View>
             <Text style={s.fieldLabel}>STATUS</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -174,7 +194,6 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
             />
           </View>
 
-          {/* Date */}
           <Text style={{ fontSize: 10, color: COLORS.textDim, textAlign: 'right' }}>Added {drop.createdAt}</Text>
 
           {/* Delete */}
@@ -217,10 +236,7 @@ const s = StyleSheet.create({
     paddingVertical: 1,
   },
   doublePillText: {
-    fontSize: 8,
-    fontWeight: '800',
-    color: '#a78bfa',
-    letterSpacing: 0.8,
+    fontSize: 8, fontWeight: '800', color: '#a78bfa', letterSpacing: 0.8,
   },
   idfPill: {
     backgroundColor: 'rgba(148,163,184,0.1)',
@@ -231,15 +247,12 @@ const s = StyleSheet.create({
     paddingVertical: 1,
   },
   idfPillText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: COLORS.textSub,
-    letterSpacing: 0.5,
+    fontSize: 10, fontWeight: '600', color: COLORS.textSub, letterSpacing: 0.5,
   },
   badge: {
     borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderWidth: 1,
   },
   badgeDone: {
@@ -251,96 +264,50 @@ const s = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
   },
   badgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    fontFamily: 'monospace',
+    fontSize: 9, fontWeight: '700', letterSpacing: 0.5, fontFamily: 'monospace',
   },
   ring: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 34, height: 34, borderRadius: 17, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
   },
-  ringText: {
-    fontSize: 9,
-    fontWeight: '800',
-  },
+  ringText: { fontSize: 9, fontWeight: '800' },
   panel: {
-    padding: 13,
-    paddingTop: 0,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-    gap: 14,
-    paddingVertical: 14,
+    padding: 13, paddingTop: 0,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
+    gap: 14, paddingVertical: 14,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
   fieldLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: COLORS.textMuted,
-    marginBottom: 6,
+    fontSize: 10, fontWeight: '800', letterSpacing: 1,
+    color: COLORS.textMuted, marginBottom: 6,
   },
   input: {
     backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 7,
-    padding: 10,
-    color: COLORS.text,
-    fontSize: 13,
-    fontFamily: 'monospace',
+    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 7, padding: 10,
+    color: COLORS.text, fontSize: 13, fontFamily: 'monospace',
   },
   idfBtn: {
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingHorizontal: 11, paddingVertical: 5, borderRadius: 6,
     backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'transparent',
+    borderWidth: 1, borderColor: 'transparent',
   },
   idfBtnActive: {
     backgroundColor: COLORS.amberDim,
     borderColor: 'rgba(245,158,11,0.5)',
   },
-  idfBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.textMuted,
-    letterSpacing: 0.4,
-  },
+  idfBtnText: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.4 },
   toggle: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    gap: 4,
+    flex: 1, alignItems: 'center', paddingVertical: 10,
+    borderRadius: 8, borderWidth: 1.5, gap: 4,
   },
-  toggleLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-  },
+  toggleLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
   deleteBtn: {
     backgroundColor: COLORS.redDim,
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.3)',
-    borderRadius: 8,
-    padding: 11,
-    alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)',
+    borderRadius: 8, padding: 11, alignItems: 'center',
   },
-  deleteBtnText: {
-    color: '#f87171',
-    fontWeight: '800',
-    fontSize: 12,
-    letterSpacing: 0.6,
-  },
+  deleteBtnText: { color: '#f87171', fontWeight: '800', fontSize: 12, letterSpacing: 0.6 },
 });
