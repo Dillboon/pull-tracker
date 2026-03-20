@@ -34,11 +34,10 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
     }
   };
 
-  const StatCard = ({ icon, label, value, color }) => (
-    <View style={[s.statCard, { borderTopColor: color, borderTopWidth: 2 }]}>
-      <Text style={{ fontSize: 22 }}>{icon}</Text>
-      <Text style={[s.statVal, { color }]}>{value}</Text>
-      <Text style={s.statLabel}>{label}</Text>
+  const StatRow = ({ label, value, color }) => (
+    <View style={s.statRow}>
+      <Text style={s.statRowLabel}>{label}</Text>
+      <Text style={[s.statRowValue, { color }]}>{value}</Text>
     </View>
   );
 
@@ -50,17 +49,23 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
       <Text style={s.screenTitle}>Stats</Text>
       <Text style={s.projectLabel} numberOfLines={1}>{project.name}</Text>
 
-      {/* Stat grid */}
-      <View style={s.grid}>
-        <StatCard icon="📦" label="Total Drops"  value={stats.total}   color={COLORS.textSub} />
-        <StatCard icon="⟷"  label="Single Drops" value={stats.singles} color={COLORS.textSub} />
-		<StatCard icon="⟷"  label="Double Drops" value={stats.doubles} color={COLORS.purple}  />
-		{stats.triples > 0 && <StatCard icon="⟷"  label="Triple Drops" value={stats.triples} color={COLORS.teal}   />}
-		{stats.quads   > 0 && <StatCard icon="⟷"  label="Quad Drops"   value={stats.quads}   color={COLORS.orange} />}
-        <StatCard icon="🔧" label="Rough Pulled" value={`${stats.rp}/${stats.total}`}   color={COLORS.amber} />
-        <StatCard icon="🔗" label="Terminated"   value={`${stats.tm}/${stats.total}`}   color={COLORS.blue}  />
-        <StatCard icon="✅" label="Tested"        value={`${stats.ts}/${stats.total}`}   color={COLORS.green} />
-        <StatCard icon="🏁" label="Complete"      value={`${stats.complete}/${stats.total}`} color={COLORS.pink} />
+      {/* Drop Breakdown */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>DROP BREAKDOWN</Text>
+        <StatRow label="Total Drops"  value={stats.total}   color={COLORS.textSub} />
+        <StatRow label="Single Drops" value={stats.singles} color={COLORS.textSub} />
+        <StatRow label="Double Drops" value={stats.doubles} color={COLORS.purple}  />
+        {stats.triples > 0 && <StatRow label="Triple Drops" value={stats.triples} color={COLORS.teal}   />}
+        {stats.quads   > 0 && <StatRow label="Quad Drops"   value={stats.quads}   color={COLORS.orange} />}
+      </View>
+
+      {/* Status Summary */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>STATUS SUMMARY</Text>
+        <StatRow label="Rough Pulled" value={`${stats.rp}/${stats.total}`}       color={COLORS.amber} />
+        <StatRow label="Terminated"   value={`${stats.tm}/${stats.total}`}       color={COLORS.blue}  />
+        <StatRow label="Tested"       value={`${stats.ts}/${stats.total}`}       color={COLORS.green} />
+        <StatRow label="Complete"     value={`${stats.complete}/${stats.total}`} color={COLORS.pink}  />
       </View>
 
       {/* Progress bars */}
@@ -153,13 +158,20 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
 const s = StyleSheet.create({
   screenTitle:  { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.3 },
   projectLabel: { fontSize: 12, color: COLORS.amber, fontWeight: '600', marginBottom: 14, marginTop: 2 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
-  statCard: {
-    width: '47%', backgroundColor: COLORS.surface, borderWidth: 1,
-    borderColor: COLORS.border, borderRadius: 10, padding: 14, gap: 4,
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
-  statVal:   { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
-  statLabel: { fontSize: 10, fontWeight: '600', color: COLORS.textMuted, letterSpacing: 0.5 },
+  statRowLabel: {
+    fontSize: 13, fontWeight: '600', color: COLORS.textSub,
+  },
+  statRowValue: {
+    fontSize: 15, fontWeight: '800', letterSpacing: -0.3,
+  },
   section: {
     backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
     borderRadius: 10, padding: 14, marginBottom: 14,
