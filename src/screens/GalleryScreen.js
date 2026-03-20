@@ -16,7 +16,7 @@ import { uid, today } from '../utils';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-export default function GalleryScreen({ folders, galleryImages, setFolders, setGalleryImages, showToast }) {
+export default function GalleryScreen({ folders, galleryImages, setFolders, setGalleryImages, showToast, deleteFolderWithImages }) {
   const [activeFolder,  setActiveFolder]  = useState(null);
   const [lightbox,      setLightbox]      = useState(null);
   const [newFolderModal,setNewFolderModal] = useState(false);
@@ -103,8 +103,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => {
-          setFolders(folders.filter(f => f.id !== folderId));
-          setGalleryImages(galleryImages.filter(i => i.folderId !== folderId));
+          deleteFolderWithImages(folderId);
           setActiveFolder(null);
           showToast('Folder deleted');
         }},
@@ -382,6 +381,43 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
           </TouchableOpacity>
         )}
       />
+
+      {/* Rename folder modal (also needed here — modal lives in component state,
+          not tied to which branch is active) */}
+      <Modal
+        visible={!!renamingFolder}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRenamingFolder(null)}
+        onShow={() => renameInputRef.current?.focus()}
+      >
+        <View style={s.modalOverlay}>
+          <View style={s.modalBox}>
+            <Text style={s.modalTitle}>Rename Folder</Text>
+            <TextInput
+              ref={renameInputRef}
+              value={renamingFolder?.name ?? ''}
+              onChangeText={t => setRenamingFolder(prev => ({ ...prev, name: t }))}
+              placeholder="Folder name"
+              placeholderTextColor={COLORS.textDim}
+              style={s.modalInput}
+              returnKeyType="done"
+              onSubmitEditing={submitRename}
+            />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={[s.modalBtn, s.modalCancel]} onPress={() => setRenamingFolder(null)}>
+                <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.modalBtn, s.modalCreate, !renamingFolder?.name?.trim() && { opacity: 0.4 }]}
+                disabled={!renamingFolder?.name?.trim()}
+                onPress={submitRename}>
+                <Text style={{ color: '#fff', fontWeight: '800' }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit notes modal */}
       {editingNotes && (

@@ -97,6 +97,15 @@ export default function App() {
     updateActiveProject({ idfList: next });
   }, [updateActiveProject]);
 
+  // ── Gallery folder + image deletion (must be one atomic update to avoid
+  //    stale-closure overwrite when two separate setters fire back-to-back) ──
+  const deleteFolderWithImages = useCallback((folderId) => {
+    updateActiveProject({
+      folders:       (activeProject.folders       ?? []).filter(f => f.id !== folderId),
+      galleryImages: (activeProject.galleryImages ?? []).filter(i => i.folderId !== folderId),
+    });
+  }, [activeProject, updateActiveProject]);
+
   // ── Clear all drops ───────────────────────────────────────────────────────
   const clearAllDrops = useCallback(() => {
     updateActiveProject({ drops: [] });
@@ -151,6 +160,7 @@ export default function App() {
     galleryImages:    activeProject.galleryImages ?? [],
     setFolders:       (next) => updateActiveProject({ folders: next }),
     setGalleryImages: (next) => updateActiveProject({ galleryImages: next }),
+    deleteFolderWithImages,
   };
 
   return (
