@@ -554,6 +554,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 60,
+    paddingBottom: 170,
   },
   lightboxClose: {
     position: 'absolute', top: 48, right: 20, zIndex: 10,
