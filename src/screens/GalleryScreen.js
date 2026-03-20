@@ -10,7 +10,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { COLORS } from '../theme';
 import { uid, today } from '../utils';
 
@@ -408,21 +408,45 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
 
       {/* Lightbox */}
       {lightbox && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setLightbox(null)}>
-          <GestureDetector gesture={combinedGesture}>
-            <Animated.View style={s.lightbox}>
-              <TouchableOpacity style={s.lightboxClose} onPress={() => setLightbox(null)}>
+        <Modal visible transparent animationType="fade" onRequestClose={() => {
+          scale.value = 1;
+          translateX.value = 0;
+          translateY.value = 0;
+          setLightbox(null);
+        }}>
+          {/*
+            Android renders Modal in a separate native window, completely outside
+            the app's GestureHandlerRootView. Without this second root, the
+            GestureDetector has nothing to attach to and silently ignores all touches.
+          */}
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <View style={s.lightbox}>
+
+              {/* ── Gesture zone: image only ──────────────────────────────── */}
+              <GestureDetector gesture={combinedGesture}>
+                <Animated.View style={s.imageCenterContainer}>
+                  <Animated.Image
+                    source={{ uri: lightbox.uri }}
+                    style={[s.lightboxImage, animatedImageStyle]}
+                    resizeMode="contain"
+                  />
+                </Animated.View>
+              </GestureDetector>
+
+              {/* ── Close button (outside GestureDetector — no touch conflicts) */}
+              <TouchableOpacity
+                style={s.lightboxClose}
+                onPress={() => {
+                  scale.value = 1;
+                  translateX.value = 0;
+                  translateY.value = 0;
+                  setLightbox(null);
+                }}
+              >
                 <Text style={s.lightboxCloseText}>✕</Text>
               </TouchableOpacity>
 
-              <View style={s.imageCenterContainer}>
-                <Animated.Image
-                  source={{ uri: lightbox.uri }}
-                  style={[s.lightboxImage, animatedImageStyle]}
-                  resizeMode="contain"
-                />
-              </View>
-
+              {/* ── Meta panel (outside GestureDetector — buttons work normally) */}
               <View style={s.lightboxMeta}>
                 <Text style={s.lightboxName}>{lightbox.name}</Text>
                 <Text style={s.lightboxDate}>{lightbox.createdAt}</Text>
@@ -434,7 +458,10 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                   <TouchableOpacity
                     style={[s.modalBtn, s.lbEditBtn]}
-                    onPress={() => { setEditingNotes({ imageId: lightbox.id, notes: lightbox.notes }); setLightbox(null); }}>
+                    onPress={() => {
+                      setEditingNotes({ imageId: lightbox.id, notes: lightbox.notes });
+                      setLightbox(null);
+                    }}>
                     <Text style={{ color: COLORS.amber, fontWeight: '700' }}>✏  Edit Notes</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -444,8 +471,9 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
                   </TouchableOpacity>
                 </View>
               </View>
-            </Animated.View>
-          </GestureDetector>
+
+            </View>
+          </GestureHandlerRootView>
         </Modal>
       )}
     </View>
