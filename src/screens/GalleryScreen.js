@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
   TextInput, Modal, Image, Alert, Dimensions,
@@ -23,6 +23,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
   const [newFolderName, setNewFolderName] = useState('');
   const [editingNotes,  setEditingNotes]  = useState(null); // { imageId, notes }
   const [renamingFolder, setRenamingFolder] = useState(null); // { id, name }
+  const renameInputRef = useRef(null);
 
   // ── Reanimated Shared Values for Gestures ─────────────────────────────────
   const scale = useSharedValue(1);
@@ -249,17 +250,23 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
         />
 
         {/* Rename folder modal */}
-        <Modal visible={!!renamingFolder} transparent animationType="fade" onRequestClose={() => setRenamingFolder(null)}>
+        <Modal
+          visible={!!renamingFolder}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setRenamingFolder(null)}
+          onShow={() => renameInputRef.current?.focus()}
+        >
           <View style={s.modalOverlay}>
             <View style={s.modalBox}>
               <Text style={s.modalTitle}>Rename Folder</Text>
               <TextInput
+                ref={renameInputRef}
                 value={renamingFolder?.name ?? ''}
                 onChangeText={t => setRenamingFolder(prev => ({ ...prev, name: t }))}
                 placeholder="Folder name"
                 placeholderTextColor={COLORS.textDim}
                 style={s.modalInput}
-                autoFocus
                 returnKeyType="done"
                 onSubmitEditing={submitRename}
               />
