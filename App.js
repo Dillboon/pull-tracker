@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, SafeAreaView, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import ProjectsScreen  from './src/screens/ProjectsScreen';
 import DropsScreen     from './src/screens/DropsScreen';
@@ -123,65 +124,69 @@ export default function App() {
   // ── Projects screen ───────────────────────────────────────────────────────
   if (!activeProject) {
     return (
-      <SafeAreaView style={st.root}>
-        <StatusBar style="light" backgroundColor={COLORS.surface} translucent={false} />
-        <ProjectsScreen
-          projects={projects}
-          setProjects={setProjects}
-          onOpenProject={openProject}
-        />
-        {toast && <Toast msg={toast.msg} type={toast.type} />}
-      </SafeAreaView>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaView style={st.root}>
+          <StatusBar style="light" backgroundColor={COLORS.surface} translucent={false} />
+          <ProjectsScreen
+            projects={projects}
+            setProjects={setProjects}
+            onOpenProject={openProject}
+          />
+          {toast && <Toast msg={toast.msg} type={toast.type} />}
+        </SafeAreaView>
+      </GestureHandlerRootView>
     );
   }
 
   // ── Inside a project ──────────────────────────────────────────────────────
   const screenProps = {
-    drops:        activeProject.drops,
-  idfList:      activeProject.idfList,
-  project:      activeProject,
-  addDrop, bulkAddDrops, updateDrop, deleteDrop,
-  updateIdfs, clearAllDrops, showToast,
-  setProjects, projects,
-  folders:          activeProject.folders       ?? [],
-  galleryImages:    activeProject.galleryImages  ?? [],
-  setFolders:       (next) => updateActiveProject({ folders: next }),
-  setGalleryImages: (next) => updateActiveProject({ galleryImages: next }),
+    drops:            activeProject.drops,
+    idfList:          activeProject.idfList,
+    project:          activeProject,
+    addDrop, bulkAddDrops, updateDrop, deleteDrop,
+    updateIdfs, clearAllDrops, showToast,
+    setProjects, projects,
+    folders:          activeProject.folders       ?? [],
+    galleryImages:    activeProject.galleryImages ?? [],
+    setFolders:       (next) => updateActiveProject({ folders: next }),
+    setGalleryImages: (next) => updateActiveProject({ galleryImages: next }),
   };
 
   return (
-    <SafeAreaView style={st.root}>
-      <StatusBar style="light" backgroundColor={COLORS.surface} translucent={false} />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={st.root}>
+        <StatusBar style="light" backgroundColor={COLORS.surface} translucent={false} />
 
-      {/* Project header bar */}
-      <View style={st.projectBar}>
-        <TouchableOpacity onPress={closeProject} style={st.backBtn} activeOpacity={0.7}>
-          <Text style={st.backArrow}>←</Text>
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={st.projectName} numberOfLines={1}>{activeProject.name}</Text>
-          <Text style={st.projectMeta}>
-            {activeProject.drops.length} drop{activeProject.drops.length !== 1 ? 's' : ''}
-            {activeProject.status === 'archived' ? '  ·  ARCHIVED' : ''}
-          </Text>
-        </View>
-        {activeProject.status === 'archived' && (
-          <View style={st.archivedBadge}>
-            <Text style={st.archivedBadgeText}>ARCHIVED</Text>
+        {/* Project header bar */}
+        <View style={st.projectBar}>
+          <TouchableOpacity onPress={closeProject} style={st.backBtn} activeOpacity={0.7}>
+            <Text style={st.backArrow}>←</Text>
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={st.projectName} numberOfLines={1}>{activeProject.name}</Text>
+            <Text style={st.projectMeta}>
+              {activeProject.drops.length} drop{activeProject.drops.length !== 1 ? 's' : ''}
+              {activeProject.status === 'archived' ? '  ·  ARCHIVED' : ''}
+            </Text>
           </View>
-        )}
-      </View>
+          {activeProject.status === 'archived' && (
+            <View style={st.archivedBadge}>
+              <Text style={st.archivedBadgeText}>ARCHIVED</Text>
+            </View>
+          )}
+        </View>
 
-      <View style={{ flex: 1 }}>
-        {activeTab === 'drops'     && <DropsScreen     {...screenProps} />}
-        {activeTab === 'dashboard' && <DashboardScreen {...screenProps} />}
-        {activeTab === 'settings'  && <SettingsScreen  {...screenProps} />}
-		{activeTab === 'gallery' && <GalleryScreen {...screenProps} />}
-      </View>
+        <View style={{ flex: 1 }}>
+          {activeTab === 'drops'     && <DropsScreen     {...screenProps} />}
+          {activeTab === 'dashboard' && <DashboardScreen {...screenProps} />}
+          {activeTab === 'settings'  && <SettingsScreen  {...screenProps} />}
+          {activeTab === 'gallery'   && <GalleryScreen   {...screenProps} />}
+        </View>
 
-      <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
-    </SafeAreaView>
+        <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
+        {toast && <Toast msg={toast.msg} type={toast.type} />}
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 

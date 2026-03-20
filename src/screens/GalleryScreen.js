@@ -5,6 +5,12 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { COLORS } from '../theme';
 import { uid, today } from '../utils';
 
@@ -17,6 +23,62 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
   const [newFolderName, setNewFolderName] = useState('');
   const [editingNotes,  setEditingNotes]  = useState(null); // { imageId, notes }
   const [renamingFolder, setRenamingFolder] = useState(null); // { id, name }
+
+  // ── Reanimated Shared Values for Gestures ─────────────────────────────────
+  const scale = useSharedValue(1);
+  const baseScale = useSharedValue(1);
+  const initialFocal = useSharedValue({ x: 0, y: 0 });
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const context = useSharedValue({ x: 0, y: 0 });
+
+  const pinchGesture = Gesture.Pinch()
+    .onStart((event) => {
+      baseScale.value = scale.value;
+      initialFocal.value = { x: event.focalX, y: event.focalY };
+    })
+    .onUpdate((event) => {
+      scale.value = baseScale.value * event.scale;
+    })
+    .onEnd(() => {
+      if (scale.value < 1) {
+        scale.value = withSpring(1);
+      } else if (scale.value > 4) {
+        scale.value = withSpring(4);
+      }
+    });
+
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
+      context.value = { x: translateX.value, y: translateY.value };
+    })
+    .onUpdate((event) => {
+      if (scale.value > 1) {
+        translateX.value = context.value.x + event.translationX;
+        translateY.value = context.value.y + event.translationY;
+      }
+    });
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      scale.value = withSpring(1);
+      translateX.value = withSpring(0);
+      translateY.value = withSpring(0);
+    });
+
+  const combinedGesture = Gesture.Race(
+    Gesture.Simultaneous(pinchGesture, panGesture),
+    doubleTapGesture
+  );
+
+  const animatedImageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
 
   // ── Folder CRUD ───────────────────────────────────────────────────────────
   const createFolder = () => {
@@ -286,7 +348,13 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
           </View>
         }
         renderItem={({ item: img }) => (
-          <TouchableOpacity style={s.imageRow} onPress={() => setLightbox(img)} activeOpacity={0.8}>
+          <TouchableOpacity style={s.imageRow} onPress={() => {
+             // Reset shared values when opening an image
+             scale.value = 1;
+             translateX.value = 0;
+             translateY.value = 0;
+             setLightbox(img);
+          }} activeOpacity={0.8}>
             <Image source={{ uri: img.uri }} style={s.rowThumb} />
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={s.imageName} numberOfLines={1}>{img.name}</Text>
@@ -341,35 +409,43 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
       {/* Lightbox */}
       {lightbox && (
         <Modal visible transparent animationType="fade" onRequestClose={() => setLightbox(null)}>
-          <View style={s.lightbox}>
-            <TouchableOpacity style={s.lightboxClose} onPress={() => setLightbox(null)}>
-              <Text style={s.lightboxCloseText}>✕</Text>
-            </TouchableOpacity>
+          <GestureDetector gesture={combinedGesture}>
+            <Animated.View style={s.lightbox}>
+              <TouchableOpacity style={s.lightboxClose} onPress={() => setLightbox(null)}>
+                <Text style={s.lightboxCloseText}>✕</Text>
+              </TouchableOpacity>
 
-            <Image source={{ uri: lightbox.uri }} style={s.lightboxImage} resizeMode="contain" />
-
-            <View style={s.lightboxMeta}>
-              <Text style={s.lightboxName}>{lightbox.name}</Text>
-              <Text style={s.lightboxDate}>{lightbox.createdAt}</Text>
-              {lightbox.notes ? (
-                <Text style={s.lightboxNotes}>{lightbox.notes}</Text>
-              ) : (
-                <Text style={{ color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic' }}>No notes</Text>
-              )}
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                <TouchableOpacity
-                  style={[s.modalBtn, s.lbEditBtn]}
-                  onPress={() => { setEditingNotes({ imageId: lightbox.id, notes: lightbox.notes }); setLightbox(null); }}>
-                  <Text style={{ color: COLORS.amber, fontWeight: '700' }}>✏  Edit Notes</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.modalBtn, s.lbDeleteBtn]}
-                  onPress={() => deleteImage(lightbox.id)}>
-                  <Text style={{ color: COLORS.red, fontWeight: '700' }}>🗑  Delete</Text>
-                </TouchableOpacity>
+              <View style={s.imageCenterContainer}>
+                <Animated.Image
+                  source={{ uri: lightbox.uri }}
+                  style={[s.lightboxImage, animatedImageStyle]}
+                  resizeMode="contain"
+                />
               </View>
-            </View>
-          </View>
+
+              <View style={s.lightboxMeta}>
+                <Text style={s.lightboxName}>{lightbox.name}</Text>
+                <Text style={s.lightboxDate}>{lightbox.createdAt}</Text>
+                {lightbox.notes ? (
+                  <Text style={s.lightboxNotes}>{lightbox.notes}</Text>
+                ) : (
+                  <Text style={{ color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic' }}>No notes</Text>
+                )}
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                  <TouchableOpacity
+                    style={[s.modalBtn, s.lbEditBtn]}
+                    onPress={() => { setEditingNotes({ imageId: lightbox.id, notes: lightbox.notes }); setLightbox(null); }}>
+                    <Text style={{ color: COLORS.amber, fontWeight: '700' }}>✏  Edit Notes</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.modalBtn, s.lbDeleteBtn]}
+                    onPress={() => deleteImage(lightbox.id)}>
+                    <Text style={{ color: COLORS.red, fontWeight: '700' }}>🗑  Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Animated.View>
+          </GestureDetector>
         </Modal>
       )}
     </View>
@@ -444,7 +520,12 @@ const s = StyleSheet.create({
   lightbox: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.96)',
-    justifyContent: 'space-between',
+  },
+  imageCenterContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 60,
   },
   lightboxClose: {
     position: 'absolute', top: 48, right: 20, zIndex: 10,
@@ -453,11 +534,12 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   lightboxCloseText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.62, marginTop: 60 },
+  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.62 },
   lightboxMeta: {
     backgroundColor: COLORS.surface,
     borderTopWidth: 1, borderTopColor: COLORS.border,
     padding: 16, gap: 4,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
   },
   lightboxName:  { fontSize: 15, fontWeight: '800', color: COLORS.text },
   lightboxDate:  { fontSize: 10, color: COLORS.textMuted, marginBottom: 4 },
