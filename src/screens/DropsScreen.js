@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   FlatList, StyleSheet, KeyboardAvoidingView, Platform,
@@ -22,6 +22,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   const [fabOpen,        setFabOpen]        = useState(false);
   const [idfDropdown,    setIdfDropdown]    = useState(false);
   const [statusDropdown, setStatusDropdown] = useState(false);
+  const [searchOpen,     setSearchOpen]     = useState(false);
+  const searchInputRef = useRef(null);
 
   const [lockedOrder, setLockedOrder] = useState(() => drops.map(d => d.id));
 
@@ -37,6 +39,14 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   const hasFilter   = filterIdf !== 'ALL' || filterStatus !== 'ALL';
 
   const closeDropdowns = () => { setIdfDropdown(false); setStatusDropdown(false); };
+
+  // Auto-focus the search input after it mounts
+  useEffect(() => {
+    if (searchOpen) {
+      const t = setTimeout(() => searchInputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [searchOpen]);
 
   const handleRefresh = () => {
     const sorted = [...drops].sort((a, b) => {
@@ -80,90 +90,119 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     >
       {/* ── Filter bar ── */}
       <View style={s.filterBox}>
-        <TextInput
-          value={search}
-          onChangeText={(t) => { setSearch(t); closeDropdowns(); }}
-          placeholder="🔍  Search cable IDs, IDF, notes…"
-          placeholderTextColor={COLORS.textDim}
-          style={s.searchInput}
-        />
-
-        {/* Dropdown row */}
-        <View style={s.dropdownRow}>
-          {/* IDF dropdown */}
-          <View style={{ flex: 1 }}>
+        {searchOpen ? (
+          /* ── Expanded search row ── */
+          <View style={s.dropdownRow}>
             <TouchableOpacity
-              style={[s.dropBtn, idfDropdown && s.dropBtnActive, filterIdf !== 'ALL' && s.dropBtnAmber]}
-              onPress={() => { setIdfDropdown(v => !v); setStatusDropdown(false); }}
-              activeOpacity={0.8}
+              style={s.iconBtn}
+              onPress={() => { setSearchOpen(false); setSearch(''); closeDropdowns(); }}
             >
-              <Text style={[s.dropBtnText, filterIdf !== 'ALL' && { color: COLORS.amber }]}>
-                📍 {idfLabel}
-              </Text>
-              <Text style={[s.dropCaret, idfDropdown && s.dropCaretOpen]}>▾</Text>
+              <Text style={s.iconBtnText}>←</Text>
             </TouchableOpacity>
-
-            {idfDropdown && (
-              <View style={[s.dropMenu, { zIndex: 20 }]}>
-                {['ALL', ...idfList].map(idf => (
-                  <TouchableOpacity
-                    key={idf}
-                    style={[s.dropItem, filterIdf === idf && s.dropItemActive]}
-                    onPress={() => { setFilterIdf(idf); setIdfDropdown(false); }}
-                  >
-                    <Text style={[s.dropItemText, filterIdf === idf && { color: COLORS.amber, fontWeight: '800' }]}>
-                      {idf === 'ALL' ? 'All IDFs' : idf}
-                    </Text>
-                    {filterIdf === idf && <Text style={{ color: COLORS.amber, fontSize: 12 }}>✓</Text>}
-                  </TouchableOpacity>
-                ))}
-              </View>
+            <TextInput
+              ref={searchInputRef}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search cable IDs, IDF, notes…"
+              placeholderTextColor={COLORS.textDim}
+              style={s.searchInputInline}
+              returnKeyType="search"
+              onSubmitEditing={() => searchInputRef.current?.blur()}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity style={s.iconBtn} onPress={() => setSearch('')}>
+                <Text style={s.iconBtnText}>✕</Text>
+              </TouchableOpacity>
             )}
           </View>
+        ) : (
+          /* ── Normal filter row ── */
+          <View style={s.dropdownRow}>
+            {/* IDF dropdown */}
+            <View style={{ flex: 1 }}>
+              <TouchableOpacity
+                style={[s.dropBtn, idfDropdown && s.dropBtnActive, filterIdf !== 'ALL' && s.dropBtnAmber]}
+                onPress={() => { setIdfDropdown(v => !v); setStatusDropdown(false); }}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.dropBtnText, filterIdf !== 'ALL' && { color: COLORS.amber }]}>
+                  📍 {idfLabel}
+                </Text>
+                <Text style={[s.dropCaret, idfDropdown && s.dropCaretOpen]}>▾</Text>
+              </TouchableOpacity>
 
-          {/* Status dropdown */}
-          <View style={{ flex: 1 }}>
-            <TouchableOpacity
-              style={[s.dropBtn, statusDropdown && s.dropBtnActive, filterStatus !== 'ALL' && s.dropBtnBlue]}
-              onPress={() => { setStatusDropdown(v => !v); setIdfDropdown(false); }}
-              activeOpacity={0.8}
-            >
-              <Text style={[s.dropBtnText, filterStatus !== 'ALL' && { color: COLORS.blue }]}>
-                ◈ {statusLabel}
-              </Text>
-              <Text style={[s.dropCaret, statusDropdown && s.dropCaretOpen]}>▾</Text>
-            </TouchableOpacity>
+              {idfDropdown && (
+                <View style={[s.dropMenu, { zIndex: 20 }]}>
+                  {['ALL', ...idfList].map(idf => (
+                    <TouchableOpacity
+                      key={idf}
+                      style={[s.dropItem, filterIdf === idf && s.dropItemActive]}
+                      onPress={() => { setFilterIdf(idf); setIdfDropdown(false); }}
+                    >
+                      <Text style={[s.dropItemText, filterIdf === idf && { color: COLORS.amber, fontWeight: '800' }]}>
+                        {idf === 'ALL' ? 'All IDFs' : idf}
+                      </Text>
+                      {filterIdf === idf && <Text style={{ color: COLORS.amber, fontSize: 12 }}>✓</Text>}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
 
-            {statusDropdown && (
-              <View style={[s.dropMenu, { zIndex: 20 }]}>
-                {STATUS_FILTERS.map(f => (
-                  <TouchableOpacity
-                    key={f.key}
-                    style={[s.dropItem, filterStatus === f.key && s.dropItemActiveBlue]}
-                    onPress={() => { setFilterStatus(f.key); setStatusDropdown(false); }}
-                  >
-                    <Text style={[s.dropItemText, filterStatus === f.key && { color: COLORS.blue, fontWeight: '800' }]}>
-                      {f.label}
-                    </Text>
-                    {filterStatus === f.key && <Text style={{ color: COLORS.blue, fontSize: 12 }}>✓</Text>}
-                  </TouchableOpacity>
-                ))}
-              </View>
+            {/* Status dropdown */}
+            <View style={{ flex: 1 }}>
+              <TouchableOpacity
+                style={[s.dropBtn, statusDropdown && s.dropBtnActive, filterStatus !== 'ALL' && s.dropBtnBlue]}
+                onPress={() => { setStatusDropdown(v => !v); setIdfDropdown(false); }}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.dropBtnText, filterStatus !== 'ALL' && { color: COLORS.blue }]}>
+                  ◈ {statusLabel}
+                </Text>
+                <Text style={[s.dropCaret, statusDropdown && s.dropCaretOpen]}>▾</Text>
+              </TouchableOpacity>
+
+              {statusDropdown && (
+                <View style={[s.dropMenu, { zIndex: 20 }]}>
+                  {STATUS_FILTERS.map(f => (
+                    <TouchableOpacity
+                      key={f.key}
+                      style={[s.dropItem, filterStatus === f.key && s.dropItemActiveBlue]}
+                      onPress={() => { setFilterStatus(f.key); setStatusDropdown(false); }}
+                    >
+                      <Text style={[s.dropItemText, filterStatus === f.key && { color: COLORS.blue, fontWeight: '800' }]}>
+                        {f.label}
+                      </Text>
+                      {filterStatus === f.key && <Text style={{ color: COLORS.blue, fontSize: 12 }}>✓</Text>}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {hasFilter && (
+              <TouchableOpacity
+                style={s.clearBtn}
+                onPress={() => { setFilterIdf('ALL'); setFilterStatus('ALL'); closeDropdowns(); }}
+              >
+                <Text style={s.clearBtnText}>✕</Text>
+              </TouchableOpacity>
             )}
-          </View>
 
-          {hasFilter && (
+            {/* Search icon button */}
             <TouchableOpacity
-              style={s.clearBtn}
-              onPress={() => { setFilterIdf('ALL'); setFilterStatus('ALL'); closeDropdowns(); }}
+              style={[s.iconBtn, search.length > 0 && s.iconBtnActive]}
+              onPress={() => { setSearchOpen(true); closeDropdowns(); }}
             >
-              <Text style={s.clearBtnText}>✕</Text>
+              <Text style={[s.iconBtnText, search.length > 0 && { color: COLORS.blue }]}>🔍</Text>
             </TouchableOpacity>
-          )}
-          <TouchableOpacity style={s.refreshBtn} onPress={handleRefresh}>
-            <Text style={s.refreshBtnText}>⟳</Text>
-          </TouchableOpacity>
-        </View>
+
+            {/* Refresh / sort button */}
+            <TouchableOpacity style={s.iconBtn} onPress={handleRefresh}>
+              <Text style={s.iconBtnText}>⟳</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* ── Drop list ── */}
@@ -258,13 +297,25 @@ const s = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.06)',
     zIndex: 10,
   },
-  searchInput: {
+  searchInputInline: {
+    flex: 1,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 8, padding: 10,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
     color: COLORS.text, fontSize: 13,
-    marginBottom: 8,
   },
+  iconBtn: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+    alignItems: 'center', justifyContent: 'center',
+    minWidth: 36,
+  },
+  iconBtnActive: {
+    backgroundColor: COLORS.blueDim,
+    borderColor: 'rgba(59,130,246,0.4)',
+  },
+  iconBtnText: { color: COLORS.textSub, fontSize: 16 },
   dropdownRow: {
     flexDirection: 'row',
     gap: 8,
@@ -338,14 +389,6 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   clearBtnText: { color: '#f87171', fontSize: 13, fontWeight: '800' },
-  refreshBtn: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
-    justifyContent: 'center',
-  },
-  refreshBtnText: { color: COLORS.textSub, fontSize: 16 },
-
   // ── Empty state ──────────────────────────────────────────────────────────
   empty: { alignItems: 'center', paddingTop: 80, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textDim },
