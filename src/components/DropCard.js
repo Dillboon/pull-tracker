@@ -171,6 +171,11 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
                 <Text style={s.notePillText}>📝</Text>
               </View>
             ) : null}
+            {drop.attention ? (
+              <View style={s.attentionPill}>
+                <Text style={s.notePillText}>⚠️</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -310,7 +315,21 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
 
           {/* Notes */}
           <View>
-            <Text style={s.fieldLabel}>NOTES</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={s.fieldLabel}>NOTES</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: drop.attention ? '#fbbf24' : COLORS.textMuted }}>
+                  ⚠️  ATTENTION
+                </Text>
+                <Switch
+                  value={!!drop.attention}
+                  onValueChange={v => onUpdate({ ...drop, attention: v })}
+                  trackColor={{ false: COLORS.surface2, true: 'rgba(251,191,36,0.4)' }}
+                  thumbColor={drop.attention ? '#fbbf24' : '#6b7280'}
+                  style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                />
+              </View>
+            </View>
             <TextInput
               value={drop.notes}
               onChangeText={t => onUpdate({ ...drop, notes: t })}
@@ -398,6 +417,14 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+  attentionPill: {
+    backgroundColor: 'rgba(251,191,36,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.35)',
     borderRadius: 4,
     paddingHorizontal: 5,
     paddingVertical: 3,

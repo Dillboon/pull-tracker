@@ -8,10 +8,12 @@ import BulkImportModal from '../components/BulkImportModal';
 import { COLORS } from '../theme';
 
 const STATUS_FILTERS = [
-  { key: 'ALL',        label: 'All'         },
-  { key: 'COMPLETE',   label: 'Complete'    },
-  { key: 'INCOMPLETE', label: 'Incomplete'  },
-  { key: 'ROUGH_ONLY', label: 'Pulled Only' },
+  { key: 'ALL',        label: 'All'            },
+  { key: 'COMPLETE',   label: 'Complete'       },
+  { key: 'INCOMPLETE', label: 'Incomplete'     },
+  { key: 'ROUGH_ONLY', label: 'Pulled Only'    },
+  { key: 'NOTES',      label: 'Notes'          },
+  { key: 'ATTENTION',  label: 'Attention Notes'},
 ];
 
 export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop }) {
@@ -74,6 +76,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     if (filterStatus === 'COMPLETE'   && !(d.roughPull && d.terminated && d.tested)) return false;
     if (filterStatus === 'INCOMPLETE' &&  (d.roughPull && d.terminated && d.tested)) return false;
     if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.terminated || d.tested)) return false;
+    if (filterStatus === 'NOTES'      && !d.notes?.trim())                            return false;
+    if (filterStatus === 'ATTENTION'  && !d.attention)                                return false;
     if (search.trim()) {
       const q = search.toLowerCase();
       if (
