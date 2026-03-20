@@ -24,6 +24,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   const [statusDropdown, setStatusDropdown] = useState(false);
   const [searchOpen,     setSearchOpen]     = useState(false);
   const searchInputRef = useRef(null);
+  const [collapseKey,    setCollapseKey]    = useState(0);
+  const [expandedCount,  setExpandedCount]  = useState(0);
 
   const [lockedOrder, setLockedOrder] = useState(() => drops.map(d => d.id));
 
@@ -47,6 +49,11 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
       return () => clearTimeout(t);
     }
   }, [searchOpen]);
+
+  const handleCollapseAll = () => {
+    setCollapseKey(k => k + 1);
+    setExpandedCount(0);
+  };
 
   const handleRefresh = () => {
     const sorted = [...drops].sort((a, b) => {
@@ -197,6 +204,13 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
               <Text style={[s.iconBtnText, search.length > 0 && { color: COLORS.blue }]}>🔍</Text>
             </TouchableOpacity>
 
+            {/* Collapse all — only shown when cards are open */}
+            {expandedCount > 0 && (
+              <TouchableOpacity style={s.iconBtn} onPress={handleCollapseAll}>
+                <Text style={s.iconBtnText}>⊟</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Refresh / sort button */}
             <TouchableOpacity style={s.iconBtn} onPress={handleRefresh}>
               <Text style={s.iconBtnText}>⟳</Text>
@@ -210,7 +224,16 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
         data={filtered}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <DropCard drop={item} onUpdate={updateDrop} onDelete={deleteDrop} idfList={idfList} />
+          <DropCard
+            drop={item}
+            onUpdate={updateDrop}
+            onDelete={deleteDrop}
+            idfList={idfList}
+            collapseKey={collapseKey}
+            onExpandChange={(isExpanded) =>
+              setExpandedCount(n => isExpanded ? n + 1 : Math.max(0, n - 1))
+            }
+          />
         )}
         contentContainerStyle={{ padding: 12, paddingBottom: 100 }}
         ListEmptyComponent={

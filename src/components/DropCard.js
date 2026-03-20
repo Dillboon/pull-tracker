@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Switch,
-  Alert, StyleSheet,
+  Alert, StyleSheet, Animated,
 } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { COLORS, STATUS_FIELDS } from '../theme';
 import { completionCount, progressColor, getGroupType } from '../utils';
 
@@ -38,19 +39,32 @@ function StatusToggle({ label, value, onChange, color }) {
 }
 
 // ─── DropCard ─────────────────────────────────────────────────────────────────
-export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
+export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKey, onExpandChange }) {
   const [expanded, setExpanded] = useState(false);
+  const swipeableRef = useRef(null);
   const count     = completionCount(drop);
   const pColor    = progressColor(drop);
   const isComplete = count === 3;
   const groupType  = getGroupType(drop);
 
+  // Collapse when parent fires collapse-all
+  useEffect(() => {
+    if (collapseKey > 0) setExpanded(false);
+  }, [collapseKey]);
+
+  const toggleExpanded = () => {
+    const next = !expanded;
+    setExpanded(next);
+    onExpandChange?.(next);
+  };
+
   const handleDelete = () => {
+    swipeableRef.current?.close();
     Alert.alert(
       'Delete Drop',
       `Delete ${drop.cableA || 'this drop'}?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel', onPress: () => swipeableRef.current?.close() },
         { text: 'Delete', style: 'destructive', onPress: () => onDelete(drop.id) },
       ]
     );
@@ -75,10 +89,35 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
   if (groupType === 'triple' || groupType === 'quad') headerIds.push(drop.cableC);
   if (groupType === 'quad') headerIds.push(drop.cableD);
 
+  const renderRightActions = (progress, dragX) => {
+    const scale = dragX.interpolate({
+      inputRange: [-80, 0],
+      outputRange: [1, 0.7],
+      extrapolate: 'clamp',
+    });
+    return (
+      <TouchableOpacity
+        style={s.swipeDelete}
+        onPress={handleDelete}
+        activeOpacity={0.8}
+      >
+        <Animated.Text style={[s.swipeDeleteIcon, { transform: [{ scale }] }]}>🗑</Animated.Text>
+        <Animated.Text style={[s.swipeDeleteText, { transform: [{ scale }] }]}>DELETE</Animated.Text>
+      </TouchableOpacity>
+    );
+  };
+
   return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      rightThreshold={40}
+      overshootRight={false}
+      friction={2}
+    >
     <View style={[s.card, { borderLeftColor: pColor, borderColor: isComplete ? 'rgba(34,197,94,0.3)' : COLORS.border }]}>
       {/* ── Header ── */}
-      <TouchableOpacity onPress={() => setExpanded(e => !e)} activeOpacity={0.75} style={s.header}>
+      <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.75} style={s.header}>
         <View style={{ flex: 1, gap: 6 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
             {groupType !== 'single' && (
@@ -291,6 +330,7 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList }) {
         </View>
       )}
     </View>
+    </Swipeable>
   );
 }
 
@@ -422,4 +462,17 @@ const s = StyleSheet.create({
     borderRadius: 8, padding: 11, alignItems: 'center',
   },
   deleteBtnText: { color: '#f87171', fontWeight: '800', fontSize: 12, letterSpacing: 0.6 },
+  swipeDelete: {
+    backgroundColor: '#7f1d1d',
+    borderRadius: 10,
+    marginBottom: 10,
+    width: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+  },
+  swipeDeleteIcon: { fontSize: 18 },
+  swipeDeleteText: { color: '#f87171', fontSize: 9, fontWeight: '800', letterSpacing: 0.8 },
 });
