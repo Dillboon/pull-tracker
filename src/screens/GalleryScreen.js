@@ -23,7 +23,42 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
   const [newFolderName, setNewFolderName] = useState('');
   const [editingNotes,  setEditingNotes]  = useState(null); // { imageId, notes }
   const [renamingFolder, setRenamingFolder] = useState(null); // { id, name }
+  const [reorderMode,    setReorderMode]    = useState(false);
   const renameInputRef = useRef(null);
+
+  // ── Lightbox navigation helpers ───────────────────────────────────────────
+  const resetGesture = () => {
+    scale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+  };
+
+  const folderImages = activeFolder
+    ? galleryImages.filter(i => i.folderId === activeFolder.id)
+    : [];
+
+  const lightboxIndex = lightbox
+    ? folderImages.findIndex(i => i.id === lightbox.id)
+    : -1;
+
+  const goToImage = (img) => {
+    resetGesture();
+    setLightbox(img);
+  };
+
+  // ── Image reorder ─────────────────────────────────────────────────────────
+  const moveImage = (imageId, direction) => {
+    const ids = folderImages.map(i => i.id);
+    const idx = ids.indexOf(imageId);
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= ids.length) return;
+    // Swap in the full galleryImages array
+    const next = [...galleryImages];
+    const aPos = next.findIndex(i => i.id === ids[idx]);
+    const bPos = next.findIndex(i => i.id === ids[newIdx]);
+    [next[aPos], next[bPos]] = [next[bPos], next[aPos]];
+    setGalleryImages(next);
+  };
 
   // ── Reanimated Shared Values for Gestures ─────────────────────────────────
   const scale = useSharedValue(1);
@@ -319,18 +354,23 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
   }
 
   // ── Inside a folder ───────────────────────────────────────────────────────
-  const folderImages = galleryImages.filter(i => i.folderId === activeFolder.id);
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       {/* Folder header */}
       <View style={s.header}>
-        <TouchableOpacity onPress={() => setActiveFolder(null)} style={s.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => { setActiveFolder(null); setReorderMode(false); }} style={s.backBtn} activeOpacity={0.7}>
           <Text style={s.backArrow}>←</Text>
         </TouchableOpacity>
         <TouchableOpacity style={{ flex: 1 }} onPress={() => renameFolder(activeFolder.id, activeFolder.name)}>
           <Text style={s.headerTitle} numberOfLines={1}>{activeFolder.name}</Text>
           <Text style={s.headerSub}>{folderImages.length} PHOTO{folderImages.length !== 1 ? 'S' : ''}  ·  TAP TO RENAME</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.headerBtn, reorderMode && { backgroundColor: COLORS.blueDim, borderColor: 'rgba(59,130,246,0.4)' }]}
+          onPress={() => setReorderMode(v => !v)}
+          activeOpacity={0.8}>
+          <Text style={[s.headerBtnText, reorderMode && { color: COLORS.blue }]}>⇅</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.headerBtn, { backgroundColor: COLORS.redDim, borderColor: 'rgba(239,68,68,0.3)' }]}
@@ -353,14 +393,16 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
             <Text style={s.emptyHint}>Tap "+ Photo" to add from your library</Text>
           </View>
         }
-        renderItem={({ item: img }) => (
-          <TouchableOpacity style={s.imageRow} onPress={() => {
-             // Reset shared values when opening an image
-             scale.value = 1;
-             translateX.value = 0;
-             translateY.value = 0;
-             setLightbox(img);
-          }} activeOpacity={0.8}>
+        renderItem={({ item: img, index }) => (
+          <TouchableOpacity
+            style={s.imageRow}
+            onPress={() => {
+              if (reorderMode) return;
+              resetGesture();
+              setLightbox(img);
+            }}
+            activeOpacity={reorderMode ? 1 : 0.8}
+          >
             <Image source={{ uri: img.uri }} style={s.rowThumb} />
             <View style={{ flex: 1, gap: 3 }}>
               <Text style={s.imageName} numberOfLines={1}>{img.name}</Text>
@@ -368,16 +410,37 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
               {img.notes ? (
                 <Text style={s.imageNotes} numberOfLines={3}>{img.notes}</Text>
               ) : (
-                <TouchableOpacity onPress={() => setEditingNotes({ imageId: img.id, notes: '' })}>
-                  <Text style={s.addNotesBtn}>+ Add notes</Text>
-                </TouchableOpacity>
+                !reorderMode && (
+                  <TouchableOpacity onPress={() => setEditingNotes({ imageId: img.id, notes: '' })}>
+                    <Text style={s.addNotesBtn}>+ Add notes</Text>
+                  </TouchableOpacity>
+                )
               )}
             </View>
-            <TouchableOpacity
-              style={s.editNotesBtn}
-              onPress={() => setEditingNotes({ imageId: img.id, notes: img.notes })}>
-              <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>✏</Text>
-            </TouchableOpacity>
+            {reorderMode ? (
+              <View style={s.reorderBtns}>
+                <TouchableOpacity
+                  style={[s.reorderBtn, index === 0 && s.reorderBtnDisabled]}
+                  onPress={() => moveImage(img.id, -1)}
+                  disabled={index === 0}
+                >
+                  <Text style={[s.reorderBtnText, index === 0 && { opacity: 0.25 }]}>↑</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.reorderBtn, index === folderImages.length - 1 && s.reorderBtnDisabled]}
+                  onPress={() => moveImage(img.id, 1)}
+                  disabled={index === folderImages.length - 1}
+                >
+                  <Text style={[s.reorderBtnText, index === folderImages.length - 1 && { opacity: 0.25 }]}>↓</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={s.editNotesBtn}
+                onPress={() => setEditingNotes({ imageId: img.id, notes: img.notes })}>
+                <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>✏</Text>
+              </TouchableOpacity>
+            )}
           </TouchableOpacity>
         )}
       />
@@ -491,6 +554,28 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
 
               {/* ── Meta panel (outside GestureDetector — buttons work normally) */}
               <View style={s.lightboxMeta}>
+                {/* Navigation row */}
+                {folderImages.length > 1 && (
+                  <View style={s.lightboxNavRow}>
+                    <TouchableOpacity
+                      style={[s.lightboxNavBtn, lightboxIndex === 0 && s.lightboxNavBtnDisabled]}
+                      onPress={() => lightboxIndex > 0 && goToImage(folderImages[lightboxIndex - 1])}
+                      disabled={lightboxIndex === 0}
+                    >
+                      <Text style={[s.lightboxNavText, lightboxIndex === 0 && { opacity: 0.25 }]}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={s.lightboxCounter}>
+                      {lightboxIndex + 1} / {folderImages.length}
+                    </Text>
+                    <TouchableOpacity
+                      style={[s.lightboxNavBtn, lightboxIndex === folderImages.length - 1 && s.lightboxNavBtnDisabled]}
+                      onPress={() => lightboxIndex < folderImages.length - 1 && goToImage(folderImages[lightboxIndex + 1])}
+                      disabled={lightboxIndex === folderImages.length - 1}
+                    >
+                      <Text style={[s.lightboxNavText, lightboxIndex === folderImages.length - 1 && { opacity: 0.25 }]}>→</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 <Text style={s.lightboxName}>{lightbox.name}</Text>
                 <Text style={s.lightboxDate}>{lightbox.createdAt}</Text>
                 {lightbox.notes ? (
@@ -618,6 +703,30 @@ const s = StyleSheet.create({
   lightboxNotes: { fontSize: 13, color: COLORS.textSub, lineHeight: 19 },
   lbEditBtn:   { flex: 1, backgroundColor: COLORS.amberDim, borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)' },
   lbDeleteBtn: { flex: 1, backgroundColor: COLORS.redDim,   borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)'  },
+
+  // ── Lightbox navigation ───────────────────────────────────────────────────
+  lightboxNavRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  lightboxNavBtn: {
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8,
+    width: 40, height: 36, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  lightboxNavBtnDisabled: { opacity: 0.4 },
+  lightboxNavText:   { color: COLORS.blue, fontSize: 18, fontWeight: '700' },
+  lightboxCounter:   { fontSize: 12, fontWeight: '700', color: COLORS.textMuted },
+
+  // ── Reorder controls ──────────────────────────────────────────────────────
+  reorderBtns: { flexDirection: 'column', gap: 4 },
+  reorderBtn: {
+    backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 6,
+    width: 34, height: 30, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  reorderBtnDisabled: { opacity: 0.4 },
+  reorderBtnText: { color: COLORS.blue, fontSize: 16, fontWeight: '800' },
 
   // ── Empty states ──────────────────────────────────────────────────────────
   empty:        { alignItems: 'center', paddingTop: 80, gap: 10 },
