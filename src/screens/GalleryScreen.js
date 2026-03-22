@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -199,6 +200,20 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
 
   const updateNotes = (imageId, notes) => {
     setGalleryImages(galleryImages.map(i => i.id === imageId ? { ...i, notes } : i));
+  };
+
+  const saveImageToDevice = async (img) => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Allow media library access in your device Settings to save photos.');
+        return;
+      }
+      await MediaLibrary.saveToLibraryAsync(img.uri);
+      showToast('📥 Photo saved to gallery');
+    } catch (e) {
+      showToast('Failed to save photo', 'error');
+    }
   };
 
   const deleteImage = (imageId) => {
@@ -593,9 +608,14 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
                     <Text style={{ color: COLORS.amber, fontWeight: '700' }}>✏  Edit Notes</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
+                    style={[s.modalBtn, s.lbSaveBtn]}
+                    onPress={() => saveImageToDevice(lightbox)}>
+                    <Text style={{ color: COLORS.blue, fontWeight: '700' }}>📥  Save</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     style={[s.modalBtn, s.lbDeleteBtn]}
                     onPress={() => deleteImage(lightbox.id)}>
-                    <Text style={{ color: COLORS.red, fontWeight: '700' }}>🗑  Delete</Text>
+                    <Text style={{ color: COLORS.red, fontWeight: '700' }}>🗑</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -702,7 +722,8 @@ const s = StyleSheet.create({
   lightboxDate:  { fontSize: 10, color: COLORS.textMuted, marginBottom: 4 },
   lightboxNotes: { fontSize: 13, color: COLORS.textSub, lineHeight: 19 },
   lbEditBtn:   { flex: 1, backgroundColor: COLORS.amberDim, borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)' },
-  lbDeleteBtn: { flex: 1, backgroundColor: COLORS.redDim,   borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)'  },
+  lbSaveBtn:   { flex: 1, backgroundColor: COLORS.blueDim,  borderWidth: 1, borderColor: 'rgba(59,130,246,0.4)'  },
+  lbDeleteBtn: { flex: 0, paddingHorizontal: 14, backgroundColor: COLORS.redDim, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' },
 
   // ── Lightbox navigation ───────────────────────────────────────────────────
   lightboxNavRow: {
