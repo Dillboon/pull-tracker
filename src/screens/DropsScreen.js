@@ -59,6 +59,12 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 
   const handleRefresh = () => {
     const sorted = [...drops].sort((a, b) => {
+      // Primary: IDF alphabetically
+      const idfA = (a.idf || '').toLowerCase();
+      const idfB = (b.idf || '').toLowerCase();
+      if (idfA < idfB) return -1;
+      if (idfA > idfB) return 1;
+      // Secondary: cable ID numerically
       const numA = parseInt(a.cableA);
       const numB = parseInt(b.cableA);
       const hasA = !isNaN(numA);
