@@ -101,18 +101,23 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
   }), [drops, filterIdf, filterStatus, search, lockedOrder]);
 
-  // Build a set of cable IDs that appear more than once across all drops
+  // Build a set of cable IDs that appear more than once within the same IDF
   const conflictIds = useMemo(() => {
-    const seen = new Map();
+    const seenByIdf = new Map(); // idf → Map<id, count>
     for (const d of drops) {
+      const idf = d.idf || '';
+      if (!seenByIdf.has(idf)) seenByIdf.set(idf, new Map());
+      const seen = seenByIdf.get(idf);
       for (const id of [d.cableA, d.cableB, d.cableC, d.cableD]) {
         if (!id?.trim()) continue;
         seen.set(id, (seen.get(id) ?? 0) + 1);
       }
     }
     const dupes = new Set();
-    for (const [id, count] of seen) {
-      if (count > 1) dupes.add(id);
+    for (const seen of seenByIdf.values()) {
+      for (const [id, count] of seen) {
+        if (count > 1) dupes.add(id);
+      }
     }
     return dupes;
   }, [drops]);
