@@ -32,6 +32,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   const [showScrollUp,   setShowScrollUp]   = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const scrollY        = useRef(0);
+  const prevScrollY    = useRef(0);
   const contentHeight  = useRef(0);
   const layoutHeight   = useRef(0);
   const [collapseKey,    setCollapseKey]    = useState(0);
@@ -61,20 +62,35 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   }, [searchOpen]);
 
   const handleScroll = (e) => {
-    const y        = e.nativeEvent.contentOffset.y;
-    const content  = e.nativeEvent.contentSize.height;
-    const layout   = e.nativeEvent.layoutMeasurement.height;
-    scrollY.current       = y;
+    const y       = e.nativeEvent.contentOffset.y;
+    const content = e.nativeEvent.contentSize.height;
+    const layout  = e.nativeEvent.layoutMeasurement.height;
+    const prev    = prevScrollY.current;
+
     contentHeight.current = content;
     layoutHeight.current  = layout;
 
-    const atTop    = y <= 10;
-    const atBottom = y + layout >= content - 10;
+    const scrollingDown = y > prev;
+    const atTop         = y <= 10;
+    const atBottom      = y + layout >= content - 10;
 
-    setShowScrollUp(!atTop);
-    setShowScrollDown(!atBottom && content > layout);
+    prevScrollY.current = y;
+    scrollY.current     = y;
 
-    // Auto-hide after 1.5s of no scrolling
+    // Show down arrow only when scrolling down and not already at the bottom
+    // Show up arrow only when scrolling up and not already at the top
+    if (scrollingDown && !atBottom) {
+      setShowScrollDown(true);
+      setShowScrollUp(false);
+    } else if (!scrollingDown && !atTop) {
+      setShowScrollUp(true);
+      setShowScrollDown(false);
+    }
+
+    // Always hide both when at the boundary
+    if (atTop)    setShowScrollUp(false);
+    if (atBottom) setShowScrollDown(false);
+
     if (scrollTimer.current) clearTimeout(scrollTimer.current);
     scrollTimer.current = setTimeout(() => {
       setShowScrollUp(false);
@@ -624,7 +640,7 @@ const s = StyleSheet.create({
   },
   scrollArrowBottom: {
     position: 'absolute',
-    bottom: 90, // above the FAB
+    bottom: 58,
     alignSelf: 'center',
     left: '50%',
     marginLeft: -20,
