@@ -204,13 +204,19 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
 
   const saveImageToDevice = async (img) => {
     try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
+      // Check existing permission first to avoid showing a system dialog
+      // over the lightbox Modal (which dismisses it on Android)
+      let { status } = await MediaLibrary.getPermissionsAsync();
+      if (status !== 'granted') {
+        const result = await MediaLibrary.requestPermissionsAsync();
+        status = result.status;
+      }
       if (status !== 'granted') {
         Alert.alert('Permission needed', 'Allow media library access in your device Settings to save photos.');
         return;
       }
-      await MediaLibrary.saveToLibraryAsync(img.uri);
-      showToast('📥 Photo saved to gallery');
+      await MediaLibrary.createAssetAsync(img.uri);
+      showToast('📥 Photo saved to device');
     } catch (e) {
       showToast('Failed to save photo', 'error');
     }
