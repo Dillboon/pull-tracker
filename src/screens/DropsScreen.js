@@ -323,6 +323,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
           </View>
         }
         keyboardShouldPersistTaps="handled"
+        removeClippedSubviews={true}
+        windowSize={5}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         onScrollBeginDrag={() => { closeDropdowns(); setFabOpen(false); }}

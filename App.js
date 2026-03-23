@@ -39,9 +39,14 @@ export default function App() {
   }, []);
 
   // ── Persist ───────────────────────────────────────────────────────────────
-  const persistProjects = useCallback(async (next) => {
-    try { await AsyncStorage.setItem('cable-projects', JSON.stringify(next)); }
-    catch { showToast('Save failed', 'error'); }
+  const persistTimer = useRef(null);
+
+  const persistProjects = useCallback((next) => {
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(async () => {
+      try { await AsyncStorage.setItem('cable-projects', JSON.stringify(next)); }
+      catch { showToast('Save failed', 'error'); }
+    }, 400);
   }, []);
 
   // ── Update projects list + keep activeProject in sync ─────────────────────
