@@ -27,6 +27,13 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   const [statusDropdown, setStatusDropdown] = useState(false);
   const [searchOpen,     setSearchOpen]     = useState(false);
   const searchInputRef = useRef(null);
+  const flatListRef    = useRef(null);
+  const scrollTimer    = useRef(null);
+  const [showScrollUp,   setShowScrollUp]   = useState(false);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const scrollY        = useRef(0);
+  const contentHeight  = useRef(0);
+  const layoutHeight   = useRef(0);
   const [collapseKey,    setCollapseKey]    = useState(0);
   const [expandedCount,  setExpandedCount]  = useState(0);
 
@@ -52,6 +59,28 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
       return () => clearTimeout(t);
     }
   }, [searchOpen]);
+
+  const handleScroll = (e) => {
+    const y        = e.nativeEvent.contentOffset.y;
+    const content  = e.nativeEvent.contentSize.height;
+    const layout   = e.nativeEvent.layoutMeasurement.height;
+    scrollY.current       = y;
+    contentHeight.current = content;
+    layoutHeight.current  = layout;
+
+    const atTop    = y <= 10;
+    const atBottom = y + layout >= content - 10;
+
+    setShowScrollUp(!atTop);
+    setShowScrollDown(!atBottom && content > layout);
+
+    // Auto-hide after 1.5s of no scrolling
+    if (scrollTimer.current) clearTimeout(scrollTimer.current);
+    scrollTimer.current = setTimeout(() => {
+      setShowScrollUp(false);
+      setShowScrollDown(false);
+    }, 1500);
+  };
 
   const handleCollapseAll = () => {
     setCollapseKey(k => k + 1);
@@ -253,6 +282,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 
       {/* ── Drop list ── */}
       <FlatList
+        ref={flatListRef}
         data={filtered}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
@@ -277,6 +307,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
           </View>
         }
         keyboardShouldPersistTaps="handled"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         onScrollBeginDrag={() => { closeDropdowns(); setFabOpen(false); }}
       />
 
@@ -380,6 +412,32 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
             </View>
           </TouchableOpacity>
         </Modal>
+      )}
+
+      {/* ── Scroll jump arrows ── */}
+      {showScrollUp && (
+        <TouchableOpacity
+          style={s.scrollArrowTop}
+          onPress={() => {
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+            setShowScrollUp(false);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={s.scrollArrowText}>▲</Text>
+        </TouchableOpacity>
+      )}
+      {showScrollDown && (
+        <TouchableOpacity
+          style={s.scrollArrowBottom}
+          onPress={() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+            setShowScrollDown(false);
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={s.scrollArrowText}>▼</Text>
+        </TouchableOpacity>
       )}
 
     </KeyboardAvoidingView>
@@ -548,7 +606,38 @@ const s = StyleSheet.create({
   fabMainText:     { color: '#fff', fontSize: 28, fontWeight: '300', lineHeight: 32 },
   fabMainTextOpen: { fontSize: 20, fontWeight: '700' },
 
-  // ── Template picker ──────────────────────────────────────────────────────
+  // ── Scroll jump arrows ──────────────────────────────────────────────────
+  scrollArrowTop: {
+    position: 'absolute',
+    top: 58, // just below the filter bar
+    alignSelf: 'center',
+    left: '50%',
+    marginLeft: -20,
+    width: 40, height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(30,37,48,0.92)',
+    borderWidth: 1, borderColor: COLORS.border,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 6,
+    zIndex: 25,
+  },
+  scrollArrowBottom: {
+    position: 'absolute',
+    bottom: 90, // above the FAB
+    alignSelf: 'center',
+    left: '50%',
+    marginLeft: -20,
+    width: 40, height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(30,37,48,0.92)',
+    borderWidth: 1, borderColor: COLORS.border,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 8,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 6,
+    zIndex: 25,
+  },
+  scrollArrowText: { color: COLORS.blue, fontSize: 13, fontWeight: '800' },
   templateModal: {
     backgroundColor: COLORS.surface, borderRadius: 12,
     borderWidth: 1, borderColor: COLORS.borderHi, overflow: 'hidden',
