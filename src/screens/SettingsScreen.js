@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   ScrollView, Alert, StyleSheet,
@@ -11,12 +11,17 @@ const GROUP_OPTIONS = ['single', 'double', 'triple', 'quad'];
 export default function SettingsScreen({
   drops, idfList, updateIdfs, clearAllDrops,
   project, setProjects, projects,
-  updateProjectNotes, templates, updateTemplates,
+  updateProjectNotes, templates, updateTemplates, showToast,
 }) {
   const [newIdf,        setNewIdf]        = useState('');
   const [editName,      setEditName]      = useState(project.name);
   const [nameEditing,   setNameEditing]   = useState(false);
   const [notes,         setNotes]         = useState(project.notes ?? '');
+
+  // Keep local notes in sync when project updates after save
+  useEffect(() => {
+    setNotes(project.notes ?? '');
+  }, [project.notes]);
   const [newTplName,    setNewTplName]    = useState('');
   const [newTplGroup,   setNewTplGroup]   = useState('single');
   const [newTplIdf,     setNewTplIdf]     = useState('');
@@ -99,6 +104,7 @@ export default function SettingsScreen({
 
   const handleSaveNotes = () => {
     updateProjectNotes(notes);
+    showToast('✓ Notes saved');
   };
 
   const addTemplate = () => {
