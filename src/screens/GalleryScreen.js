@@ -25,6 +25,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
   const [editingNotes,  setEditingNotes]  = useState(null); // { imageId, notes }
   const [renamingFolder, setRenamingFolder] = useState(null); // { id, name }
   const [reorderMode,    setReorderMode]    = useState(false);
+  const [metaExpanded,   setMetaExpanded]   = useState(false);
   const renameInputRef = useRef(null);
 
   // ── Lightbox navigation helpers ───────────────────────────────────────────
@@ -44,6 +45,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
 
   const goToImage = (img) => {
     resetGesture();
+    setMetaExpanded(false);
     setLightbox(img);
   };
 
@@ -541,9 +543,8 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
       {/* Lightbox */}
       {lightbox && (
         <Modal visible transparent animationType="fade" onRequestClose={() => {
-          scale.value = 1;
-          translateX.value = 0;
-          translateY.value = 0;
+          resetGesture();
+          setMetaExpanded(false);
           setLightbox(null);
         }}>
           {/*
@@ -569,66 +570,81 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
               <TouchableOpacity
                 style={s.lightboxClose}
                 onPress={() => {
-                  scale.value = 1;
-                  translateX.value = 0;
-                  translateY.value = 0;
+                  resetGesture();
+                  setMetaExpanded(false);
                   setLightbox(null);
                 }}
               >
                 <Text style={s.lightboxCloseText}>✕</Text>
               </TouchableOpacity>
 
-              {/* ── Meta panel (outside GestureDetector — buttons work normally) */}
+              {/* ── Meta panel — collapsed shows only nav, expanded shows full detail */}
               <View style={s.lightboxMeta}>
-                {/* Navigation row */}
-                {folderImages.length > 1 && (
-                  <View style={s.lightboxNavRow}>
-                    <TouchableOpacity
-                      style={[s.lightboxNavBtn, lightboxIndex === 0 && s.lightboxNavBtnDisabled]}
-                      onPress={() => lightboxIndex > 0 && goToImage(folderImages[lightboxIndex - 1])}
-                      disabled={lightboxIndex === 0}
-                    >
-                      <Text style={[s.lightboxNavText, lightboxIndex === 0 && { opacity: 0.25 }]}>←</Text>
-                    </TouchableOpacity>
+
+                {/* Nav row — always visible */}
+                <View style={s.lightboxNavRow}>
+                  <TouchableOpacity
+                    style={[s.lightboxNavBtn, lightboxIndex === 0 && s.lightboxNavBtnDisabled]}
+                    onPress={() => lightboxIndex > 0 && goToImage(folderImages[lightboxIndex - 1])}
+                    disabled={lightboxIndex === 0}
+                  >
+                    <Text style={[s.lightboxNavText, lightboxIndex === 0 && { opacity: 0.25 }]}>←</Text>
+                  </TouchableOpacity>
+
+                  {/* Tap centre to expand/collapse */}
+                  <TouchableOpacity
+                    style={s.lightboxNavCenter}
+                    onPress={() => setMetaExpanded(v => !v)}
+                    activeOpacity={0.7}
+                  >
                     <Text style={s.lightboxCounter}>
                       {lightboxIndex + 1} / {folderImages.length}
                     </Text>
-                    <TouchableOpacity
-                      style={[s.lightboxNavBtn, lightboxIndex === folderImages.length - 1 && s.lightboxNavBtnDisabled]}
-                      onPress={() => lightboxIndex < folderImages.length - 1 && goToImage(folderImages[lightboxIndex + 1])}
-                      disabled={lightboxIndex === folderImages.length - 1}
-                    >
-                      <Text style={[s.lightboxNavText, lightboxIndex === folderImages.length - 1 && { opacity: 0.25 }]}>→</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-                <Text style={s.lightboxName}>{lightbox.name}</Text>
-                <Text style={s.lightboxDate}>{lightbox.createdAt}</Text>
-                {lightbox.notes ? (
-                  <Text style={s.lightboxNotes}>{lightbox.notes}</Text>
-                ) : (
-                  <Text style={{ color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic' }}>No notes</Text>
-                )}
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                  <TouchableOpacity
-                    style={[s.modalBtn, s.lbEditBtn]}
-                    onPress={() => {
-                      setEditingNotes({ imageId: lightbox.id, notes: lightbox.notes });
-                      setLightbox(null);
-                    }}>
-                    <Text style={{ color: COLORS.amber, fontWeight: '700' }}>✏  Edit Notes</Text>
+                    <Text style={s.lightboxExpandChevron}>{metaExpanded ? '▾' : '▴'}</Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
-                    style={[s.modalBtn, s.lbSaveBtn]}
-                    onPress={() => saveImageToDevice(lightbox)}>
-                    <Text style={{ color: COLORS.blue, fontWeight: '700' }}>📥  Save</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.modalBtn, s.lbDeleteBtn]}
-                    onPress={() => deleteImage(lightbox.id)}>
-                    <Text style={{ color: COLORS.red, fontWeight: '700' }}>🗑</Text>
+                    style={[s.lightboxNavBtn, lightboxIndex === folderImages.length - 1 && s.lightboxNavBtnDisabled]}
+                    onPress={() => lightboxIndex < folderImages.length - 1 && goToImage(folderImages[lightboxIndex + 1])}
+                    disabled={lightboxIndex === folderImages.length - 1}
+                  >
+                    <Text style={[s.lightboxNavText, lightboxIndex === folderImages.length - 1 && { opacity: 0.25 }]}>→</Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* Expanded detail */}
+                {metaExpanded && (
+                  <View style={s.lightboxDetail}>
+                    <Text style={s.lightboxName}>{lightbox.name}</Text>
+                    <Text style={s.lightboxDate}>{lightbox.createdAt}</Text>
+                    {lightbox.notes ? (
+                      <Text style={s.lightboxNotes}>{lightbox.notes}</Text>
+                    ) : (
+                      <Text style={{ color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic' }}>No notes</Text>
+                    )}
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                      <TouchableOpacity
+                        style={[s.modalBtn, s.lbEditBtn]}
+                        onPress={() => {
+                          setEditingNotes({ imageId: lightbox.id, notes: lightbox.notes });
+                          setMetaExpanded(false);
+                          setLightbox(null);
+                        }}>
+                        <Text style={{ color: COLORS.amber, fontWeight: '700' }}>✏  Edit Notes</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[s.modalBtn, s.lbSaveBtn]}
+                        onPress={() => saveImageToDevice(lightbox)}>
+                        <Text style={{ color: COLORS.blue, fontWeight: '700' }}>📥  Save</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[s.modalBtn, s.lbDeleteBtn]}
+                        onPress={() => deleteImage(lightbox.id)}>
+                        <Text style={{ color: COLORS.red, fontWeight: '700' }}>🗑</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </View>
 
             </View>
@@ -717,7 +733,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 60,
-    paddingBottom: 170,
+    paddingBottom: 80,
   },
   lightboxClose: {
     position: 'absolute', top: 48, right: 20, zIndex: 10,
@@ -730,8 +746,11 @@ const s = StyleSheet.create({
   lightboxMeta: {
     backgroundColor: COLORS.surface,
     borderTopWidth: 1, borderTopColor: COLORS.border,
-    padding: 16, gap: 4,
     position: 'absolute', bottom: 0, left: 0, right: 0,
+  },
+  lightboxDetail: {
+    paddingHorizontal: 16, paddingBottom: 16, paddingTop: 12, gap: 4,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
   },
   lightboxName:  { fontSize: 15, fontWeight: '800', color: COLORS.text },
   lightboxDate:  { fontSize: 10, color: COLORS.textMuted, marginBottom: 4 },
@@ -743,8 +762,12 @@ const s = StyleSheet.create({
   // ── Lightbox navigation ───────────────────────────────────────────────────
   lightboxNavRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
   },
+  lightboxNavCenter: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2,
+  },
+  lightboxExpandChevron: { fontSize: 10, color: COLORS.textMuted },
   lightboxNavBtn: {
     backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8,
     width: 40, height: 36, alignItems: 'center', justifyContent: 'center',
