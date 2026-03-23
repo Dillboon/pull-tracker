@@ -388,19 +388,22 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
           <Text style={s.headerSub}>{folderImages.length} PHOTO{folderImages.length !== 1 ? 'S' : ''}  ·  TAP TO RENAME</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[s.headerBtn, reorderMode && { backgroundColor: COLORS.blueDim, borderColor: 'rgba(59,130,246,0.4)' }]}
-          onPress={() => setReorderMode(v => !v)}
-          activeOpacity={0.8}>
-          <Text style={[s.headerBtnText, reorderMode && { color: COLORS.blue }]}>⇅</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[s.headerBtn, { backgroundColor: COLORS.redDim, borderColor: 'rgba(239,68,68,0.3)' }]}
           onPress={() => deleteFolder(activeFolder.id)}>
           <Text style={{ color: COLORS.red, fontWeight: '700', fontSize: 13 }}>🗑</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.headerBtn} onPress={() => pickImages(activeFolder.id)} activeOpacity={0.8}>
-          <Text style={s.headerBtnText}>+ Photo</Text>
-        </TouchableOpacity>
+        {reorderMode ? (
+          <TouchableOpacity
+            style={[s.headerBtn, { backgroundColor: 'rgba(34,197,94,0.15)', borderColor: 'rgba(34,197,94,0.4)' }]}
+            onPress={() => setReorderMode(false)}
+            activeOpacity={0.8}>
+            <Text style={{ color: COLORS.green, fontWeight: '800', fontSize: 15 }}>✓</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={s.headerBtn} onPress={() => pickImages(activeFolder.id)} activeOpacity={0.8}>
+            <Text style={s.headerBtnText}>+ Photo</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <FlatList
@@ -416,12 +419,14 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
         }
         renderItem={({ item: img, index }) => (
           <TouchableOpacity
-            style={s.imageRow}
+            style={[s.imageRow, reorderMode && s.imageRowReordering]}
             onPress={() => {
               if (reorderMode) return;
               resetGesture();
               setLightbox(img);
             }}
+            onLongPress={() => setReorderMode(true)}
+            delayLongPress={400}
             activeOpacity={reorderMode ? 1 : 0.8}
           >
             <Image source={{ uri: img.uri }} style={s.rowThumb} />
@@ -687,6 +692,10 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     alignItems: 'flex-start',
+  },
+  imageRowReordering: {
+    borderColor: 'rgba(59,130,246,0.25)',
+    backgroundColor: 'rgba(59,130,246,0.04)',
   },
   rowThumb:     { width: 72, height: 72, borderRadius: 8, backgroundColor: COLORS.surface2 },
   imageName:    { fontSize: 13, fontWeight: '700', color: COLORS.text },
