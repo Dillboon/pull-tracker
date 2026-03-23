@@ -4,14 +4,22 @@ import {
   ScrollView, Alert, StyleSheet,
 } from 'react-native';
 import { COLORS } from '../theme';
+import { uid } from '../utils';
+
+const GROUP_OPTIONS = ['single', 'double', 'triple', 'quad'];
 
 export default function SettingsScreen({
   drops, idfList, updateIdfs, clearAllDrops,
   project, setProjects, projects,
+  updateProjectNotes, templates, updateTemplates,
 }) {
-  const [newIdf,      setNewIdf]      = useState('');
-  const [editName,    setEditName]    = useState(project.name);
-  const [nameEditing, setNameEditing] = useState(false);
+  const [newIdf,        setNewIdf]        = useState('');
+  const [editName,      setEditName]      = useState(project.name);
+  const [nameEditing,   setNameEditing]   = useState(false);
+  const [notes,         setNotes]         = useState(project.notes ?? '');
+  const [newTplName,    setNewTplName]    = useState('');
+  const [newTplGroup,   setNewTplGroup]   = useState('single');
+  const [newTplIdf,     setNewTplIdf]     = useState('');
   const isArchived = project.status === 'archived';
 
   const addIdf = () => {
@@ -87,6 +95,24 @@ export default function SettingsScreen({
         },
       ]
     );
+  };
+
+  const handleSaveNotes = () => {
+    updateProjectNotes(notes);
+  };
+
+  const addTemplate = () => {
+    const name = newTplName.trim();
+    if (!name) return;
+    const tpl = { id: uid(), name, groupType: newTplGroup, idf: newTplIdf };
+    updateTemplates([...( templates ?? []), tpl]);
+    setNewTplName('');
+    setNewTplIdf('');
+    setNewTplGroup('single');
+  };
+
+  const removeTemplate = (id) => {
+    updateTemplates((templates ?? []).filter(t => t.id !== id));
   };
 
   return (
@@ -202,6 +228,101 @@ export default function SettingsScreen({
         ))}
       </View>
 
+      {/* Project Notes */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>PROJECT NOTES</Text>
+        <Text style={s.hint}>Job address, GC contact, scope, or anything else useful.</Text>
+        <TextInput
+          value={notes}
+          onChangeText={setNotes}
+          onBlur={handleSaveNotes}
+          placeholder="e.g. 123 Main St · GC: John Smith · 555-0100"
+          placeholderTextColor={COLORS.textDim}
+          style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]}
+          multiline
+          editable={!isArchived}
+        />
+        {!isArchived && (
+          <TouchableOpacity
+            style={[s.btn, { backgroundColor: COLORS.blueDim, borderColor: 'rgba(59,130,246,0.4)' }]}
+            onPress={handleSaveNotes}
+          >
+            <Text style={{ color: COLORS.blue, fontWeight: '700', fontSize: 12 }}>Save Notes</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Drop Templates */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>DROP TEMPLATES</Text>
+        <Text style={s.hint}>Save a drop config to quickly add pre-configured drops from the + menu.</Text>
+
+        {(templates ?? []).map(t => (
+          <View key={t.id} style={s.idfRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.idfName}>{t.name}</Text>
+              <Text style={s.idfCount}>
+                {t.groupType.charAt(0).toUpperCase() + t.groupType.slice(1)}
+                {t.idf ? `  ·  ${t.idf}` : ''}
+              </Text>
+            </View>
+            {!isArchived && (
+              <TouchableOpacity onPress={() => removeTemplate(t.id)} style={s.removeBtn}>
+                <Text style={s.removeBtnText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ))}
+
+        {!isArchived && (
+          <View style={{ gap: 8, marginTop: 4 }}>
+            <TextInput
+              value={newTplName}
+              onChangeText={setNewTplName}
+              placeholder="Template name (e.g. IDF-1 Double)"
+              placeholderTextColor={COLORS.textDim}
+              style={s.input}
+              returnKeyType="done"
+            />
+            {/* Group type selector */}
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {GROUP_OPTIONS.map(g => (
+                <TouchableOpacity
+                  key={g}
+                  onPress={() => setNewTplGroup(g)}
+                  style={[s.tplGroupBtn, newTplGroup === g && s.tplGroupBtnActive]}
+                >
+                  <Text style={[s.tplGroupBtnText, newTplGroup === g && { color: COLORS.blue }]}>
+                    {g.charAt(0).toUpperCase() + g.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {/* Optional IDF selector */}
+            {idfList.length > 0 && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {idfList.map(idf => (
+                  <TouchableOpacity
+                    key={idf}
+                    onPress={() => setNewTplIdf(newTplIdf === idf ? '' : idf)}
+                    style={[s.idfBtn, newTplIdf === idf && s.idfBtnActive]}
+                  >
+                    <Text style={[s.idfBtnText, newTplIdf === idf && { color: COLORS.amber }]}>{idf}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <TouchableOpacity
+              style={[s.addBtn, !newTplName.trim() && { opacity: 0.4 }]}
+              onPress={addTemplate}
+              disabled={!newTplName.trim()}
+            >
+              <Text style={s.addBtnText}>+ Save Template</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
       {/* Archive / Restore */}
       {!isArchived ? (
         <View style={s.section}>
@@ -271,8 +392,22 @@ const s = StyleSheet.create({
   removeBtn:    { backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', borderRadius: 5, paddingHorizontal: 10, paddingVertical: 4 },
   removeBtnText:{ color: '#f87171', fontSize: 12, fontWeight: '700' },
   addRow:       { flexDirection: 'row', gap: 8, marginTop: 4 },
-  addBtn:       { backgroundColor: COLORS.amberDim, borderWidth: 1, borderColor: 'rgba(245,158,11,0.5)', borderRadius: 7, paddingHorizontal: 16, justifyContent: 'center' },
+  addBtn:       { backgroundColor: COLORS.amberDim, borderWidth: 1, borderColor: 'rgba(245,158,11,0.5)', borderRadius: 7, paddingVertical: 10, alignItems: 'center' },
   addBtnText:   { color: COLORS.amber, fontWeight: '800', fontSize: 13 },
+  tplGroupBtn: {
+    flex: 1, paddingVertical: 7, borderRadius: 6, alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'transparent',
+  },
+  tplGroupBtnActive: {
+    backgroundColor: COLORS.blueDim, borderColor: 'rgba(59,130,246,0.4)',
+  },
+  tplGroupBtnText: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
+  idfBtn: {
+    paddingHorizontal: 11, paddingVertical: 5, borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'transparent',
+  },
+  idfBtnActive:  { backgroundColor: COLORS.amberDim, borderColor: 'rgba(245,158,11,0.5)' },
+  idfBtnText:    { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
   archiveBtn:   { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: COLORS.border },
   restoreBtn:   { backgroundColor: COLORS.greenDim, borderColor: 'rgba(34,197,94,0.3)' },
   dangerBtn:    { backgroundColor: COLORS.redDim, borderColor: 'rgba(239,68,68,0.3)' },

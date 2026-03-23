@@ -39,13 +39,18 @@ function StatusToggle({ label, value, onChange, color }) {
 }
 
 // ─── DropCard ─────────────────────────────────────────────────────────────────
-export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKey, onExpandChange }) {
+export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKey, onExpandChange, conflictIds }) {
   const [expanded, setExpanded] = useState(false);
   const swipeableRef = useRef(null);
-  const count     = completionCount(drop);
-  const pColor    = progressColor(drop);
+  const count      = completionCount(drop);
+  const pColor     = progressColor(drop);
   const isComplete = count === 3;
   const groupType  = getGroupType(drop);
+
+  // Check if any cable ID on this card is a duplicate
+  const hasConflict = conflictIds && [drop.cableA, drop.cableB, drop.cableC, drop.cableD]
+    .filter(Boolean)
+    .some(id => conflictIds.has(id));
 
   // Collapse when parent fires collapse-all
   useEffect(() => {
@@ -68,6 +73,11 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
         { text: 'Delete', style: 'destructive', onPress: () => onDelete(drop.id) },
       ]
     );
+  };
+
+  const quickCompleteAll = () => {
+    const allDone = drop.roughPull && drop.terminated && drop.tested;
+    onUpdate({ ...drop, roughPull: !allDone, terminated: !allDone, tested: !allDone });
   };
 
   const quickToggle = (key) => onUpdate({ ...drop, [key]: !drop[key] });
@@ -176,14 +186,26 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
                 <Text style={s.notePillText}>⚠️</Text>
               </View>
             ) : null}
+            {hasConflict && (
+              <View style={s.conflictPill}>
+                <Text style={s.conflictPillText}>⚠ DUPE ID</Text>
+              </View>
+            )}
           </View>
         </View>
 
         {/* Progress ring + chevron */}
         <View style={{ alignItems: 'center', gap: 4, marginLeft: 8 }}>
-          <View style={[s.ring, { borderColor: pColor }]}>
-            <Text style={[s.ringText, { color: pColor }]}>{count}/3</Text>
-          </View>
+          <TouchableOpacity
+            onPress={toggleExpanded}
+            onLongPress={quickCompleteAll}
+            delayLongPress={400}
+            activeOpacity={0.7}
+          >
+            <View style={[s.ring, { borderColor: pColor }]}>
+              <Text style={[s.ringText, { color: pColor }]}>{count}/3</Text>
+            </View>
+          </TouchableOpacity>
           <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>{expanded ? '▴' : '▾'}</Text>
         </View>
       </TouchableOpacity>
@@ -428,6 +450,17 @@ const s = StyleSheet.create({
     borderRadius: 4,
     paddingHorizontal: 5,
     paddingVertical: 3,
+  },
+  conflictPill: {
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.4)',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+  conflictPillText: {
+    fontSize: 8, fontWeight: '800', color: '#f87171', letterSpacing: 0.5,
   },
   notePillText: { fontSize: 9 },
   ring: {

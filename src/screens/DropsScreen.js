@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  FlatList, StyleSheet, KeyboardAvoidingView, Platform,
+  FlatList, StyleSheet, KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
 import DropCard from '../components/DropCard';
 import BulkImportModal from '../components/BulkImportModal';
@@ -16,11 +16,12 @@ const STATUS_FILTERS = [
   { key: 'ATTENTION',  label: 'Attention Notes'},
 ];
 
-export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop }) {
+export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, addDropFromTemplate, templates }) {
   const [filterIdf,      setFilterIdf]      = useState('ALL');
   const [filterStatus,   setFilterStatus]   = useState('ALL');
   const [search,         setSearch]         = useState('');
   const [showBulk,       setShowBulk]       = useState(false);
+  const [showTemplates,  setShowTemplates]  = useState(false);
   const [fabOpen,        setFabOpen]        = useState(false);
   const [idfDropdown,    setIdfDropdown]    = useState(false);
   const [statusDropdown, setStatusDropdown] = useState(false);
@@ -99,6 +100,22 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     const bi = lockedOrder.indexOf(b.id);
     return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
   }), [drops, filterIdf, filterStatus, search, lockedOrder]);
+
+  // Build a set of cable IDs that appear more than once across all drops
+  const conflictIds = useMemo(() => {
+    const seen = new Map();
+    for (const d of drops) {
+      for (const id of [d.cableA, d.cableB, d.cableC, d.cableD]) {
+        if (!id?.trim()) continue;
+        seen.set(id, (seen.get(id) ?? 0) + 1);
+      }
+    }
+    const dupes = new Set();
+    for (const [id, count] of seen) {
+      if (count > 1) dupes.add(id);
+    }
+    return dupes;
+  }, [drops]);
 
   return (
     <KeyboardAvoidingView
@@ -240,6 +257,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
             onDelete={deleteDrop}
             idfList={idfList}
             collapseKey={collapseKey}
+            conflictIds={conflictIds}
             onExpandChange={(isExpanded) =>
               setExpandedCount(n => isExpanded ? n + 1 : Math.max(0, n - 1))
             }
@@ -303,6 +321,17 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
               <Text style={s.fabActionIcon}>⬇</Text>
               <Text style={s.fabActionText}>BULK</Text>
             </TouchableOpacity>
+
+            {templates?.length > 0 && (
+              <TouchableOpacity
+                style={[s.fabAction, { backgroundColor: '#92400e' }]}
+                onPress={() => { setFabOpen(false); setShowTemplates(true); }}
+                activeOpacity={0.85}
+              >
+                <Text style={s.fabActionIcon}>⊞</Text>
+                <Text style={s.fabActionText}>TEMPLATE</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -316,6 +345,38 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
           </Text>
         </TouchableOpacity>
       </View>
+      {/* Template picker modal */}
+      {showTemplates && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setShowTemplates(false)}>
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 }}
+            activeOpacity={1}
+            onPress={() => setShowTemplates(false)}
+          >
+            <View style={s.templateModal}>
+              <Text style={s.templateModalTitle}>ADD FROM TEMPLATE</Text>
+              {templates.map(t => (
+                <TouchableOpacity
+                  key={t.id}
+                  style={s.templateRow}
+                  onPress={() => { addDropFromTemplate(t); setShowTemplates(false); }}
+                  activeOpacity={0.75}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.templateName}>{t.name}</Text>
+                    <Text style={s.templateMeta}>
+                      {t.groupType.charAt(0).toUpperCase() + t.groupType.slice(1)}
+                      {t.idf ? `  ·  ${t.idf}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={{ color: COLORS.textMuted, fontSize: 18 }}>+</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
+
     </KeyboardAvoidingView>
   );
 }
@@ -481,4 +542,22 @@ const s = StyleSheet.create({
   },
   fabMainText:     { color: '#fff', fontSize: 28, fontWeight: '300', lineHeight: 32 },
   fabMainTextOpen: { fontSize: 20, fontWeight: '700' },
+
+  // ── Template picker ──────────────────────────────────────────────────────
+  templateModal: {
+    backgroundColor: COLORS.surface, borderRadius: 12,
+    borderWidth: 1, borderColor: COLORS.borderHi, overflow: 'hidden',
+  },
+  templateModalTitle: {
+    fontSize: 10, fontWeight: '800', letterSpacing: 1,
+    color: COLORS.textMuted, padding: 14, paddingBottom: 8,
+  },
+  templateRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
+    gap: 10,
+  },
+  templateName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  templateMeta: { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
 });

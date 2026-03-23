@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, SafeAreaView, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,6 +21,8 @@ export default function App() {
   const [activeTab,      setActiveTab]     = useState('drops');
   const [loaded,         setLoaded]        = useState(false);
   const [toast,          setToast]         = useState(null);
+  const toastTimer      = useRef(null);
+  const pendingDelete   = useRef(null);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -63,9 +65,13 @@ export default function App() {
   }, [activeProject, projects, persistProjects]);
 
   // ── Toast ─────────────────────────────────────────────────────────────────
-  const showToast = useCallback((msg, type = 'info') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 2500);
+  const showToast = useCallback((msg, type = 'info', onUndo = null) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ msg, type, onUndo });
+    toastTimer.current = setTimeout(() => {
+      setToast(null);
+      pendingDelete.current = null;
+    }, onUndo ? 5000 : 2500);
   }, []);
 
   // ── Drop CRUD ─────────────────────────────────────────────────────────────
@@ -87,15 +93,62 @@ export default function App() {
   }, [activeProject, updateActiveProject]);
 
   const deleteDrop = useCallback((id) => {
-    const next = activeProject.drops.filter(d => d.id !== id);
+    const index = activeProject.drops.findIndex(d => d.id === id);
+    const drop  = activeProject.drops[index];
+    const next  = activeProject.drops.filter(d => d.id !== id);
     updateActiveProject({ drops: next });
-    showToast('Drop deleted');
-  }, [activeProject, updateActiveProject, showToast]);
+    pendingDelete.current = { drop, index };
+    showToast('Drop deleted', 'info', () => {
+      // Undo: re-splice drop back at original position
+      if (!pendingDelete.current) return;
+      const { drop: d, index: i } = pendingDelete.current;
+      pendingDelete.current = null;
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      setToast(null);
+      setActiveProject(prev => {
+        if (!prev) return prev;
+        const restored = [...prev.drops];
+        restored.splice(i, 0, d);
+        const updated = { ...prev, drops: restored };
+        const nextProjects = projects.map(p => p.id === updated.id ? updated : p);
+        persistProjects(nextProjects);
+        setProjectsState(nextProjects);
+        return updated;
+      });
+      showToast('↩ Delete undone');
+    });
+  }, [activeProject, updateActiveProject, showToast, projects, persistProjects]);
 
   // ── IDF management ────────────────────────────────────────────────────────
   const updateIdfs = useCallback((next) => {
     updateActiveProject({ idfList: next });
   }, [updateActiveProject]);
+
+  // ── Project notes ─────────────────────────────────────────────────────────
+  const updateProjectNotes = useCallback((notes) => {
+    updateActiveProject({ notes });
+  }, [updateActiveProject]);
+
+  // ── Templates ─────────────────────────────────────────────────────────────
+  const updateTemplates = useCallback((templates) => {
+    updateActiveProject({ templates });
+  }, [updateActiveProject]);
+
+  const addDropFromTemplate = useCallback((template) => {
+    const { uid, today } = require('./src/utils');
+    const drop = {
+      id:         uid(),
+      groupType:  template.groupType,
+      isDouble:   template.groupType === 'double',
+      cableA: '', cableB: '', cableC: '', cableD: '',
+      idf:        template.idf || '',
+      roughPull:  false, terminated: false, tested: false,
+      notes:      '', createdAt: today(),
+    };
+    const next = [...activeProject.drops, drop];
+    updateActiveProject({ drops: next });
+    showToast(`+ Drop added from "${template.name}"`);
+  }, [activeProject, updateActiveProject, showToast]);
 
   // ── Gallery folder + image deletion (must be one atomic update to avoid
   //    stale-closure overwrite when two separate setters fire back-to-back) ──
@@ -142,7 +195,7 @@ export default function App() {
             setProjects={setProjects}
             onOpenProject={openProject}
           />
-          {toast && <Toast msg={toast.msg} type={toast.type} />}
+          {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} />}
         </SafeAreaView>
       </GestureHandlerRootView>
     );
@@ -156,6 +209,10 @@ export default function App() {
     addDrop, bulkAddDrops, updateDrop, deleteDrop,
     updateIdfs, clearAllDrops, showToast,
     setProjects, projects,
+    updateProjectNotes,
+    templates:        activeProject.templates ?? [],
+    updateTemplates,
+    addDropFromTemplate,
     folders:          activeProject.folders       ?? [],
     galleryImages:    activeProject.galleryImages ?? [],
     setFolders:       (next) => updateActiveProject({ folders: next }),
@@ -195,7 +252,7 @@ export default function App() {
         </View>
 
         <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
-        {toast && <Toast msg={toast.msg} type={toast.type} />}
+        {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} />}
       </SafeAreaView>
     </GestureHandlerRootView>
   );
