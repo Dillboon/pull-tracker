@@ -137,7 +137,6 @@ export async function exportXLSX(drops, projectName = '') {
   const leftAlign   = { horizontal: 'left',   vertical: 'middle' };
 
   // ── Cable Drops sheet ─────────────────────────────────────────────────────
-  // Columns: IDF | Type | Cable ID(s) | Rough Pull | Terminated | Tested | Complete | Attention | Notes | Date
   const ws = wb.addWorksheet('Cable Drops', {
     views: [{ state: 'frozen', ySplit: 3 }],
     tabColor: { argb: 'FF3B82F6' },
@@ -188,7 +187,6 @@ export async function exportXLSX(drops, projectName = '') {
   headerRow.getCell(3).alignment = leftAlign;
   headerRow.getCell(9).alignment = leftAlign;
 
-  // Yes/No dropdown validation props
   const dvYesNo = {
     type: 'list', allowBlank: false,
     showErrorMessage: true,
@@ -199,6 +197,8 @@ export async function exportXLSX(drops, projectName = '') {
   // Data rows
   sorted.forEach((d, i) => {
     const rowNum    = 4 + i;
+    d._mainRowNum   = rowNum; // Save this row number to link the IDF sheet later
+    
     const cable     = getCableLabel(d);
     const typeLabel = getTypeLabel(d);
     const isEven    = i % 2 === 0;
@@ -218,7 +218,6 @@ export async function exportXLSX(drops, projectName = '') {
     ]);
     row.height = 18;
 
-    // Complete formula: ✓ if all three Yes
     row.getCell(7).value = {
       formula: `IF(AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes"),"✓","✗")`,
     };
@@ -226,47 +225,25 @@ export async function exportXLSX(drops, projectName = '') {
     row.eachCell((cell, colNum) => {
       cell.border = thinBorder;
       switch (colNum) {
-        case 1:
-          cell.font = idfFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
-        case 2:
-          cell.font = doubleFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
-        case 3:
-          cell.font = monoFont; cell.fill = baseFill; cell.alignment = leftAlign; break;
+        case 1: cell.font = idfFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
+        case 2: cell.font = doubleFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
+        case 3: cell.font = monoFont; cell.fill = baseFill; cell.alignment = leftAlign; break;
         case 4:
-          cell.fill = d.roughPull  ? yesFill : noFill;
-          cell.font = d.roughPull  ? yesFont : noFont;
-          cell.alignment = centerAlign; break;
         case 5:
-          cell.fill = d.terminated ? yesFill : noFill;
-          cell.font = d.terminated ? yesFont : noFont;
-          cell.alignment = centerAlign; break;
         case 6:
-          cell.fill = d.tested     ? yesFill : noFill;
-          cell.font = d.tested     ? yesFont : noFont;
-          cell.alignment = centerAlign; break;
-        case 7: // Complete (formula)
-          cell.fill = baseFill; cell.alignment = centerAlign;
-          cell.font = (d.roughPull && d.terminated && d.tested)
-            ? { bold: true, color: { argb: 'FF16A34A' }, size: 11, name: 'Calibri' }
-            : { bold: true, color: { argb: 'FFDC2626' }, size: 11, name: 'Calibri' };
-          break;
+        case 7:
+          cell.fill = baseFill; cell.alignment = centerAlign; break;
         case 8: // Attention
-          cell.fill = d.attention
-            ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7ED' } }
-            : baseFill;
-          cell.font = d.attention
-            ? { bold: true, color: { argb: 'FFD97706' }, size: 10, name: 'Calibri' }
-            : { ...dimFont, color: { argb: 'FF94A3B8' } };
+          cell.fill = d.attention ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7ED' } } : baseFill;
+          cell.font = d.attention ? { bold: true, color: { argb: 'FFD97706' }, size: 10, name: 'Calibri' } : { ...dimFont, color: { argb: 'FF94A3B8' } };
           cell.alignment = centerAlign; break;
         case 9:
-          cell.font = dimFont; cell.fill = baseFill;
-          cell.alignment = { ...leftAlign, wrapText: true }; break;
+          cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true }; break;
         case 10:
           cell.font = dimFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
       }
     });
 
-    // Yes/No dropdowns on Rough Pull, Terminated, Tested
     row.getCell(4).dataValidation = dvYesNo;
     row.getCell(5).dataValidation = dvYesNo;
     row.getCell(6).dataValidation = dvYesNo;
@@ -274,20 +251,20 @@ export async function exportXLSX(drops, projectName = '') {
 
   ws.autoFilter = { from: 'A3', to: 'J3' };
 
-  // Conditional formatting — keeps cols D:F green/red after user edits dropdowns
+  // Conditional formatting - using cellIs avoids exceljs corruption bugs
   if (total > 0) {
     ws.addConditionalFormatting({
       ref: `D4:F${lastDataRow}`,
       rules: [
         {
-          type: 'containsText', priority: 1, text: 'Yes',
+          type: 'cellIs', operator: 'equal', formulae: ['"Yes"'],
           style: {
             fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } },
             font: { bold: true, color: { argb: 'FF065F46' } },
           },
         },
         {
-          type: 'containsText', priority: 2, text: 'No',
+          type: 'cellIs', operator: 'equal', formulae: ['"No"'],
           style: {
             fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } },
             font: { bold: true, color: { argb: 'FF991B1B' } },
@@ -295,19 +272,18 @@ export async function exportXLSX(drops, projectName = '') {
         },
       ],
     });
-    // Complete column conditional formatting
     ws.addConditionalFormatting({
       ref: `G4:G${lastDataRow}`,
       rules: [
         {
-          type: 'containsText', priority: 1, text: '✓',
+          type: 'cellIs', operator: 'equal', formulae: ['"✓"'],
           style: {
             fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } },
             font: { bold: true, color: { argb: 'FF065F46' }, size: 11 },
           },
         },
         {
-          type: 'containsText', priority: 2, text: '✗',
+          type: 'cellIs', operator: 'equal', formulae: ['"✗"'],
           style: {
             fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } },
             font: { bold: true, color: { argb: 'FF991B1B' }, size: 11 },
@@ -318,21 +294,17 @@ export async function exportXLSX(drops, projectName = '') {
   }
 
   // ── Summary sheet ─────────────────────────────────────────────────────────
-  const ws2 = wb.addWorksheet('Summary', {
-    tabColor: { argb: 'FF22C55E' },
-  });
+  const ws2 = wb.addWorksheet('Summary', { tabColor: { argb: 'FF22C55E' } });
   ws2.columns = [{ width: 22 }, { width: 14 }, { width: 14 }];
 
-  // Title
   ws2.mergeCells('A1:C1');
-  const s2title     = ws2.getCell('A1');
-  s2title.value     = `Summary${projectName ? `  —  ${projectName}` : ''}`;
-  s2title.font      = { bold: true, size: 13, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
-  s2title.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1628' } };
+  const s2title = ws2.getCell('A1');
+  s2title.value = `Summary${projectName ? `  —  ${projectName}` : ''}`;
+  s2title.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
+  s2title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1628' } };
   s2title.alignment = leftAlign;
   ws2.getRow(1).height = 26;
 
-  // Headers
   const s2hdr = ws2.addRow(['Metric', 'Count', '% Complete']);
   s2hdr.height = 20;
   s2hdr.eachCell(cell => {
@@ -341,23 +313,18 @@ export async function exportXLSX(drops, projectName = '') {
   });
   s2hdr.getCell(1).alignment = leftAlign;
 
-  // Helper: plain data row
   const addSRow = (metric, count, pct) => {
-    const rowIdx = ws2.rowCount; // row number after adding
-    const row    = ws2.addRow([metric, count, pct ?? '']);
-    row.height   = 18;
-    const fill   = ws2.rowCount % 2 === 0 ? evenFill : oddFill;
+    const row = ws2.addRow([metric, count, pct ?? '']);
+    row.height = 18;
+    const fill = ws2.rowCount % 2 === 0 ? evenFill : oddFill;
     row.eachCell((cell, col) => {
-      cell.fill   = fill; cell.border = thinBorder;
-      cell.font   = col === 2 ? { ...bodyFont, bold: true } : bodyFont;
+      cell.fill = fill; cell.border = thinBorder;
+      cell.font = col === 2 ? { ...bodyFont, bold: true } : bodyFont;
       cell.alignment = col === 1 ? leftAlign : centerAlign;
     });
-    if (pct !== null && pct !== undefined && pct !== '') {
-      row.getCell(3).numFmt = '0.0%';
-    }
+    if (pct !== null && pct !== undefined && pct !== '') row.getCell(3).numFmt = '0.0%';
   };
 
-  // Helper: formula row (live count + % from Cable Drops sheet)
   const addFormulaRow = (metric, colLetter) => {
     const row = ws2.addRow([
       metric,
@@ -394,9 +361,7 @@ export async function exportXLSX(drops, projectName = '') {
   const addSubHeader = (label) => {
     const row = ws2.addRow([label, '', '']);
     row.height = 16;
-    row.eachCell(cell => {
-      cell.font = subHdrFont; cell.fill = subHdrFill; cell.border = thinBorder;
-    });
+    row.eachCell(cell => { cell.font = subHdrFont; cell.fill = subHdrFill; cell.border = thinBorder; });
     ws2.mergeCells(`A${ws2.rowCount}:C${ws2.rowCount}`);
   };
 
@@ -405,12 +370,10 @@ export async function exportXLSX(drops, projectName = '') {
     ws2.getRow(ws2.rowCount).height = 6;
   };
 
-  // Project info
   addSRow('Project', projectName || '—', null);
   addSRow('Total Drops', total, null);
   addSeparator();
 
-  // Drop types
   addSubHeader('Drop Types');
   const singles = sorted.filter(d => getGroupType(d) === 'single').length;
   const doubles = sorted.filter(d => getGroupType(d) === 'double').length;
@@ -422,7 +385,6 @@ export async function exportXLSX(drops, projectName = '') {
   if (quads   > 0) addSRow('Quad Drops',   quads,   quads   / total);
   addSeparator();
 
-  // Status — live formulas
   addSubHeader('Status Progress  (live — updates when you edit Yes/No)');
   addFormulaRow('Rough Pulled', 'D');
   addFormulaRow('Terminated',   'E');
@@ -430,12 +392,10 @@ export async function exportXLSX(drops, projectName = '') {
   addCompleteFormulaRow('Fully Complete');
   addSeparator();
 
-  // Attention
   addSubHeader('Flags');
   addSRow('Attention Items', attnCount, total > 0 ? attnCount / total : 0);
   addSeparator();
 
-  // Footer
   const dateRow = ws2.addRow(['Report Generated', new Date().toLocaleString(), '']);
   dateRow.height = 18;
   dateRow.eachCell((cell, col) => {
@@ -446,9 +406,7 @@ export async function exportXLSX(drops, projectName = '') {
   // ── Per-IDF Breakdown sheet ───────────────────────────────────────────────
   const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
   if (idfs.length > 0) {
-    const ws3 = wb.addWorksheet('By IDF', {
-      tabColor: { argb: 'FFF59E0B' },
-    });
+    const ws3 = wb.addWorksheet('By IDF', { tabColor: { argb: 'FFF59E0B' } });
     ws3.columns = [
       { width: 12 }, { width: 10 }, { width: 22 },
       { width: 13 }, { width: 13 }, { width: 10 },
@@ -456,10 +414,10 @@ export async function exportXLSX(drops, projectName = '') {
     ];
 
     ws3.mergeCells('A1:H1');
-    const ws3title     = ws3.getCell('A1');
-    ws3title.value     = `By IDF Closet${projectName ? `  —  ${projectName}` : ''}`;
-    ws3title.font      = { bold: true, size: 13, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
-    ws3title.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1628' } };
+    const ws3title = ws3.getCell('A1');
+    ws3title.value = `By IDF Closet  (Live View)${projectName ? `  —  ${projectName}` : ''}`;
+    ws3title.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
+    ws3title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1628' } };
     ws3title.alignment = leftAlign;
     ws3.getRow(1).height = 26;
 
@@ -467,26 +425,27 @@ export async function exportXLSX(drops, projectName = '') {
 
     idfs.forEach(idf => {
       const idrops = sorted.filter(d => d.idf === idf);
-      const iRp    = idrops.filter(d => d.roughPull).length;
-      const iTm    = idrops.filter(d => d.terminated).length;
-      const iTs    = idrops.filter(d => d.tested).length;
-      const iComp  = idrops.filter(d => d.roughPull && d.terminated && d.tested).length;
-
       ws3Row++;
 
-      // IDF header
+      // Create LIVE headers using COUNTIFS pointing to the main sheet
+      const rpFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$D$4:$D$${lastDataRow}, "Yes")`;
+      const tmFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$E$4:$E$${lastDataRow}, "Yes")`;
+      const tsFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$F$4:$F$${lastDataRow}, "Yes")`;
+      const compFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$D$4:$D$${lastDataRow}, "Yes", 'Cable Drops'!$E$4:$E$${lastDataRow}, "Yes", 'Cable Drops'!$F$4:$F$${lastDataRow}, "Yes")`;
+
       ws3.mergeCells(`A${ws3Row}:H${ws3Row}`);
-      const idfHdrCell   = ws3.getCell(`A${ws3Row}`);
-      idfHdrCell.value   = `${idf}  —  ${idrops.length} drops  |  RP: ${iRp}  TM: ${iTm}  TS: ${iTs}  Complete: ${iComp}/${idrops.length} (${total > 0 ? Math.round(iComp/idrops.length*100) : 0}%)`;
-      idfHdrCell.font    = { bold: true, color: { argb: 'FFFBBF24' }, size: 10, name: 'Calibri' };
-      idfHdrCell.fill    = headerFill;
-      idfHdrCell.border  = thinBorder;
+      const idfHdrCell = ws3.getCell(`A${ws3Row}`);
+      idfHdrCell.value = {
+        formula: `"${idf}  —  ${idrops.length} drops  |  RP: "&${rpFormula}&"  TM: "&${tmFormula}&"  TS: "&${tsFormula}&"  Complete: "&${compFormula}&"/${idrops.length}"`
+      };
+      idfHdrCell.font = { bold: true, color: { argb: 'FFFBBF24' }, size: 10, name: 'Calibri' };
+      idfHdrCell.fill = headerFill;
+      idfHdrCell.border = thinBorder;
       idfHdrCell.alignment = leftAlign;
       ws3.getRow(ws3Row).height = 18;
 
       ws3Row++;
 
-      // Column headers for this IDF block
       const iHdrRow = ws3.addRow(['Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Notes', '']);
       ws3Row = ws3.rowCount;
       iHdrRow.height = 16;
@@ -497,20 +456,20 @@ export async function exportXLSX(drops, projectName = '') {
       iHdrRow.getCell(2).alignment = leftAlign;
       iHdrRow.getCell(7).alignment = leftAlign;
 
-      // Data rows for this IDF
+      // Data rows for this IDF are now dynamic formula links to 'Cable Drops'
       idrops.forEach((d, i) => {
         ws3Row++;
-        const cable     = getCableLabel(d);
+        const cable = getCableLabel(d);
         const typeLabel = getTypeLabel(d);
-        const isEven    = i % 2 === 0;
-        const baseFill  = isEven ? evenFill : oddFill;
+        const isEven = i % 2 === 0;
+        const baseFill = isEven ? evenFill : oddFill;
 
         const r = ws3.addRow([
           typeLabel, cable,
-          d.roughPull  ? 'Yes' : 'No',
-          d.terminated ? 'Yes' : 'No',
-          d.tested     ? 'Yes' : 'No',
-          (d.roughPull && d.terminated && d.tested) ? '✓' : '✗',
+          { formula: `'Cable Drops'!D${d._mainRowNum}` }, // Linked to main sheet
+          { formula: `'Cable Drops'!E${d._mainRowNum}` },
+          { formula: `'Cable Drops'!F${d._mainRowNum}` },
+          { formula: `'Cable Drops'!G${d._mainRowNum}` },
           d.notes || '',
           '',
         ]);
@@ -521,37 +480,40 @@ export async function exportXLSX(drops, projectName = '') {
             case 1: cell.font = doubleFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
             case 2: cell.font = monoFont;   cell.fill = baseFill; cell.alignment = leftAlign;   break;
             case 3:
-              cell.fill = d.roughPull  ? yesFill : noFill;
-              cell.font = d.roughPull  ? yesFont : noFont;
-              cell.alignment = centerAlign; break;
             case 4:
-              cell.fill = d.terminated ? yesFill : noFill;
-              cell.font = d.terminated ? yesFont : noFont;
-              cell.alignment = centerAlign; break;
             case 5:
-              cell.fill = d.tested     ? yesFill : noFill;
-              cell.font = d.tested     ? yesFont : noFont;
-              cell.alignment = centerAlign; break;
             case 6:
-              cell.fill = (d.roughPull && d.terminated && d.tested) ? yesFill : noFill;
-              cell.font = (d.roughPull && d.terminated && d.tested)
-                ? { bold: true, color: { argb: 'FF065F46' }, size: 11, name: 'Calibri' }
-                : { bold: true, color: { argb: 'FF991B1B' }, size: 11, name: 'Calibri' };
-              cell.alignment = centerAlign; break;
+              cell.fill = baseFill; cell.alignment = centerAlign; break;
             case 7:
-              cell.font = dimFont; cell.fill = baseFill;
-              cell.alignment = { ...leftAlign, wrapText: true }; break;
+              cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true }; break;
             default:
               cell.fill = baseFill; break;
           }
         });
       });
 
-      // Spacer row between IDFs
       ws3Row++;
       ws3.addRow(['', '', '', '', '', '', '', '']);
       ws3.getRow(ws3.rowCount).height = 8;
     });
+
+    // Mirror conditional formatting to the By IDF sheet so colors update here as well
+    if (ws3.rowCount > 1) {
+      ws3.addConditionalFormatting({
+        ref: `C1:E${ws3.rowCount}`,
+        rules: [
+          { type: 'cellIs', operator: 'equal', formulae: ['"Yes"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' } } } },
+          { type: 'cellIs', operator: 'equal', formulae: ['"No"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }, font: { bold: true, color: { argb: 'FF991B1B' } } } }
+        ],
+      });
+      ws3.addConditionalFormatting({
+        ref: `F1:F${ws3.rowCount}`,
+        rules: [
+          { type: 'cellIs', operator: 'equal', formulae: ['"✓"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' }, size: 11 } } },
+          { type: 'cellIs', operator: 'equal', formulae: ['"✗"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }, font: { bold: true, color: { argb: 'FF991B1B' }, size: 11 } } }
+        ],
+      });
+    }
   }
 
   // ── Write & share ─────────────────────────────────────────────────────────
@@ -567,13 +529,4 @@ export async function exportXLSX(drops, projectName = '') {
     dialogTitle: `Share ${projectName || 'Cable Pull'} Report (Excel)`,
     UTI: 'com.microsoft.excel.xlsx',
   });
-}
-
-function _arrayBufferToBase64(buffer) {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
 }
