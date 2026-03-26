@@ -530,3 +530,27 @@ export async function exportXLSX(drops, projectName = '') {
     UTI: 'com.microsoft.excel.xlsx',
   });
 }
+
+  // ── Write & share ─────────────────────────────────────────────────────────
+  const buffer   = await wb.xlsx.writeBuffer();
+  const base64   = _arrayBufferToBase64(buffer);
+  const safeName = (projectName || 'cable-pull').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  const fileUri  = FileSystem.cacheDirectory + `${safeName}-tracker.xlsx`;
+  await FileSystem.writeAsStringAsync(fileUri, base64, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  await Sharing.shareAsync(fileUri, {
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    dialogTitle: `Share ${projectName || 'Cable Pull'} Report (Excel)`,
+    UTI: 'com.microsoft.excel.xlsx',
+  });
+}
+
+function _arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
