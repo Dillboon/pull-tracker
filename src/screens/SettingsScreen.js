@@ -25,6 +25,8 @@ export default function SettingsScreen({
   const [newTplName,    setNewTplName]    = useState('');
   const [newTplGroup,   setNewTplGroup]   = useState('single');
   const [newTplIdf,     setNewTplIdf]     = useState('');
+  const [editingIdf,    setEditingIdf]    = useState(null); // current idf name being edited
+  const [editingIdfVal, setEditingIdfVal] = useState('');
   const isArchived = project.status === 'archived';
 
   const addIdf = () => {
@@ -48,6 +50,24 @@ export default function SettingsScreen({
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: () => updateIdfs(idfList.filter(i => i !== idf)) },
     ]);
+  };
+
+  const submitIdfRename = (oldIdf) => {
+    const val = editingIdfVal.trim().toUpperCase();
+    setEditingIdf(null);
+    if (!val || val === oldIdf) return;
+    if (idfList.includes(val)) {
+      Alert.alert('Already exists', `"${val}" is already in the list.`);
+      return;
+    }
+    // Rename in idfList and update all drops assigned to it
+    updateIdfs(idfList.map(i => i === oldIdf ? val : i));
+    const renamedDrops = drops.map(d => d.idf === oldIdf ? { ...d, idf: val } : d);
+    // Use setProjects to atomically update both idfList and drops
+    setProjects(projects.map(p => p.id === project.id
+      ? { ...p, idfList: idfList.map(i => i === oldIdf ? val : i), drops: renamedDrops }
+      : p
+    ));
   };
 
   const handleRename = () => {
@@ -178,17 +198,49 @@ export default function SettingsScreen({
         <Text style={s.sectionTitle}>IDF CLOSETS</Text>
         <Text style={s.hint}>These IDF closets belong to this project only.</Text>
         {idfList.map(idf => {
-          const count = drops.filter(d => d.idf === idf).length;
+          const count    = drops.filter(d => d.idf === idf).length;
+          const isEditing = editingIdf === idf;
           return (
             <View key={idf} style={s.idfRow}>
               <View style={{ flex: 1 }}>
-                <Text style={s.idfName}>{idf}</Text>
-                {count > 0 && (
-                  <Text style={s.idfCount}>{count} drop{count !== 1 ? 's' : ''} assigned</Text>
+                {isEditing ? (
+                  <TextInput
+                    value={editingIdfVal}
+                    onChangeText={t => setEditingIdfVal(t.toUpperCase())}
+                    onSubmitEditing={() => submitIdfRename(idf)}
+                    onBlur={() => submitIdfRename(idf)}
+                    autoFocus
+                    autoCapitalize="characters"
+                    returnKeyType="done"
+                    style={[s.input, { paddingVertical: 6, fontSize: 13 }]}
+                  />
+                ) : (
+                  <>
+                    <Text style={s.idfName}>{idf}</Text>
+                    {count > 0 && (
+                      <Text style={s.idfCount}>{count} drop{count !== 1 ? 's' : ''} assigned</Text>
+                    )}
+                  </>
                 )}
               </View>
-              {!isArchived && (
-                <TouchableOpacity onPress={() => removeIdf(idf)} style={s.removeBtn}>
+              {!isArchived && !isEditing && (
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <TouchableOpacity
+                    onPress={() => { setEditingIdf(idf); setEditingIdfVal(idf); }}
+                    style={s.editBtn}
+                  >
+                    <Text style={s.editBtnText}>✏</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => removeIdf(idf)} style={s.removeBtn}>
+                    <Text style={s.removeBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {isEditing && (
+                <TouchableOpacity
+                  onPress={() => setEditingIdf(null)}
+                  style={[s.removeBtn, { marginLeft: 6 }]}
+                >
                   <Text style={s.removeBtnText}>✕</Text>
                 </TouchableOpacity>
               )}
@@ -397,6 +449,8 @@ const s = StyleSheet.create({
   idfCount:     { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
   removeBtn:    { backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', borderRadius: 5, paddingHorizontal: 10, paddingVertical: 4 },
   removeBtnText:{ color: '#f87171', fontSize: 12, fontWeight: '700' },
+  editBtn:      { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: COLORS.border, borderRadius: 5, paddingHorizontal: 10, paddingVertical: 4 },
+  editBtnText:  { color: COLORS.textMuted, fontSize: 12 },
   addRow:       { flexDirection: 'row', gap: 8, marginTop: 4 },
   addBtn:       { backgroundColor: COLORS.amberDim, borderWidth: 1, borderColor: 'rgba(245,158,11,0.5)', borderRadius: 7, paddingVertical: 10, alignItems: 'center' },
   addBtnText:   { color: COLORS.amber, fontWeight: '800', fontSize: 13 },
