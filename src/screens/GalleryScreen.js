@@ -25,6 +25,7 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
   const [editingNotes,  setEditingNotes]  = useState(null); // { imageId, notes }
   const [renamingFolder, setRenamingFolder] = useState(null); // { id, name }
   const [reorderMode,    setReorderMode]    = useState(false);
+  const [folderReorderMode, setFolderReorderMode] = useState(false);
   const [metaExpanded,   setMetaExpanded]   = useState(false);
   const renameInputRef = useRef(null);
 
@@ -61,6 +62,16 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
     const bPos = next.findIndex(i => i.id === ids[newIdx]);
     [next[aPos], next[bPos]] = [next[bPos], next[aPos]];
     setGalleryImages(next);
+  };
+
+  // ── Folder reorder ────────────────────────────────────────────────────────
+  const moveFolder = (folderId, direction) => {
+    const idx = folders.findIndex(f => f.id === folderId);
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= folders.length) return;
+    const next = [...folders];
+    [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+    setFolders(next);
   };
 
   // ── Reanimated Shared Values for Gestures ─────────────────────────────────
@@ -247,6 +258,14 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
           <TouchableOpacity style={s.headerBtn} onPress={() => setNewFolderModal(true)} activeOpacity={0.8}>
             <Text style={s.headerBtnText}>+ New Folder</Text>
           </TouchableOpacity>
+          {folderReorderMode && (
+            <TouchableOpacity
+              style={[s.headerBtn, { backgroundColor: 'rgba(34,197,94,0.15)', borderColor: 'rgba(34,197,94,0.4)' }]}
+              onPress={() => setFolderReorderMode(false)}
+              activeOpacity={0.8}>
+              <Text style={{ color: COLORS.green, fontWeight: '800', fontSize: 15 }}>✓</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <FlatList
@@ -263,11 +282,17 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
               </TouchableOpacity>
             </View>
           }
-          renderItem={({ item: folder }) => {
+          renderItem={({ item: folder, index }) => {
             const imgs   = galleryImages.filter(i => i.folderId === folder.id);
             const latest = imgs.slice(-3).reverse();
             return (
-              <TouchableOpacity style={s.folderCard} onPress={() => setActiveFolder(folder)} activeOpacity={0.75}>
+              <TouchableOpacity
+                style={[s.folderCard, folderReorderMode && s.imageRowReordering]}
+                onPress={() => { if (folderReorderMode) return; setActiveFolder(folder); }}
+                onLongPress={() => setFolderReorderMode(true)}
+                delayLongPress={400}
+                activeOpacity={folderReorderMode ? 1 : 0.75}
+              >
                 {/* Stacked thumbnail preview */}
                 <View style={s.thumbStack}>
                   {imgs.length === 0 ? (
@@ -300,7 +325,26 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
                   ) : null}
                 </View>
 
-                <Text style={{ color: COLORS.textMuted, fontSize: 20, paddingLeft: 4 }}>›</Text>
+                {folderReorderMode ? (
+                  <View style={s.reorderBtns}>
+                    <TouchableOpacity
+                      style={[s.reorderBtn, index === 0 && s.reorderBtnDisabled]}
+                      onPress={() => moveFolder(folder.id, -1)}
+                      disabled={index === 0}
+                    >
+                      <Text style={[s.reorderBtnText, index === 0 && { opacity: 0.25 }]}>↑</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[s.reorderBtn, index === folders.length - 1 && s.reorderBtnDisabled]}
+                      onPress={() => moveFolder(folder.id, 1)}
+                      disabled={index === folders.length - 1}
+                    >
+                      <Text style={[s.reorderBtnText, index === folders.length - 1 && { opacity: 0.25 }]}>↓</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Text style={{ color: COLORS.textMuted, fontSize: 20, paddingLeft: 4 }}>›</Text>
+                )}
               </TouchableOpacity>
             );
           }}
