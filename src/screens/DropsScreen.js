@@ -128,7 +128,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
     if (filterStatus === 'COMPLETE'   && !(d.roughPull && d.terminated && d.tested)) return false;
     if (filterStatus === 'INCOMPLETE' &&  (d.roughPull && d.terminated && d.tested)) return false;
-	if (filterStatus === 'TERMINATED' && (!d.terminated || d.roughPull || d.tested)) return false;
+	if (filterStatus === 'TERMINATED' && (!d.roughPull && d.terminated || d.tested)) return false;
     if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.terminated || d.tested)) return false;
     if (filterStatus === 'NOTES' && (!d.notes?.trim() || d.attention))               return false;
     if (filterStatus === 'ATTENTION'  && !d.attention)                               return false;
