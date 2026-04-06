@@ -11,6 +11,7 @@ const STATUS_FILTERS = [
   { key: 'ALL',        label: 'All'            },
   { key: 'COMPLETE',   label: 'Complete'       },
   { key: 'INCOMPLETE', label: 'Incomplete'     },
+  { key: 'TERMINATED', label: 'Terminated'     },
   { key: 'ROUGH_ONLY', label: 'Pulled Only'    },
   { key: 'NOTES',      label: 'Notes'          },
   { key: 'ATTENTION',  label: 'Attention Notes'},
@@ -127,9 +128,10 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
     if (filterStatus === 'COMPLETE'   && !(d.roughPull && d.terminated && d.tested)) return false;
     if (filterStatus === 'INCOMPLETE' &&  (d.roughPull && d.terminated && d.tested)) return false;
+	if (filterStatus === 'TERMINATED' && !d.terminated)                              return false;
     if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.terminated || d.tested)) return false;
-    if (filterStatus === 'NOTES'      && !d.notes?.trim())                            return false;
-    if (filterStatus === 'ATTENTION'  && !d.attention)                                return false;
+    if (filterStatus === 'NOTES' && (!d.notes?.trim() || d.attention))               return false;
+    if (filterStatus === 'ATTENTION'  && !d.attention)                               return false;
     if (search.trim()) {
       const q = search.toLowerCase();
       if (
