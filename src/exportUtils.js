@@ -143,16 +143,16 @@ export async function exportXLSX(drops, projectName = '') {
   });
 
   ws.columns = [
-    { key: 'idf',        width: 10 },
+    { key: 'idf',        width: 12 },
     { key: 'type',       width: 10 },
-    { key: 'cable',      width: 10 },
-    { key: 'roughPull',  width: 10 },
-    { key: 'terminated', width: 10 },
+    { key: 'cable',      width: 10 }, // auto-fit
+    { key: 'roughPull',  width: 13 },
+    { key: 'terminated', width: 13 },
     { key: 'tested',     width: 10 },
-    { key: 'complete',   width: 10 },
-    { key: 'attention',  width: 10 },
-    { key: 'notes',      width: 10 },
-    { key: 'date',       width: 10 },
+    { key: 'complete',   width: 11 },
+    { key: 'attention',  width: 11 },
+    { key: 'notes',      width: 10 }, // auto-fit
+    { key: 'date',       width: 10 }, // auto-fit
   ];
 
   // Title row (A1:J1)
@@ -298,11 +298,11 @@ export async function exportXLSX(drops, projectName = '') {
   autoFitColumns(ws, {
     9:  { min: 20, max: 45 }, // Notes — wrap is on, so cap width
     10: { min: 14, max: 26 }, // Date  — locale strings can be ~22 chars
-  });
+  }, [3, 9, 10]); // only resize: Cable ID, Notes, Date
 
   // ── Summary sheet ─────────────────────────────────────────────────────────
   const ws2 = wb.addWorksheet('Summary', { tabColor: { argb: 'FF22C55E' } });
-  ws2.columns = [{ width: 10 }, { width: 10 }, { width: 10 }];
+  ws2.columns = [{ width: 10 }, { width: 14 }, { width: 14 }];
 
   ws2.mergeCells('A1:C1');
   const s2title = ws2.getCell('A1');
@@ -377,8 +377,7 @@ export async function exportXLSX(drops, projectName = '') {
     ws2.getRow(ws2.rowCount).height = 6;
   };
 
-  addSRow('Project', projectName || '—', null);
-  addSRow('Total Drops', total, null);
+  addSRow('Total Drops', total, { formula: `IFERROR(COUNTIFS('Cable Drops'!D4:D${lastDataRow},"Yes",'Cable Drops'!E4:E${lastDataRow},"Yes",'Cable Drops'!F4:F${lastDataRow},"Yes")/${total},0)` });
   addSeparator();
 
   addSubHeader('Drop Types');
@@ -414,15 +413,15 @@ export async function exportXLSX(drops, projectName = '') {
     1: { min: 18, max: 36 }, // Metric label
     2: { min: 10, max: 24 }, // Count / value
     3: { min: 12, max: 18 }, // % Complete
-  });
+  }, [1]); // only resize: Metric label
 
   // ── Per-IDF Breakdown sheet ───────────────────────────────────────────────
   const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
   if (idfs.length > 0) {
     const ws3 = wb.addWorksheet('By IDF', { tabColor: { argb: 'FFF59E0B' } });
     ws3.columns = [
-      { width: 10 }, { width: 10 }, { width: 10 },
-      { width: 10 }, { width: 10 }, { width: 10 },
+      { width: 10 }, { width: 10 }, { width: 13 },
+      { width: 13 }, { width: 10 }, { width: 11 },
       { width: 10 }, { width: 10 },
     ];
 
@@ -530,7 +529,7 @@ export async function exportXLSX(drops, projectName = '') {
 
     autoFitColumns(ws3, {
       7: { min: 20, max: 45 }, // Notes — wrap is on, so cap width
-    });
+    }, [2, 7]); // only resize: Cable ID, Notes
   }
 
   // ── Write & share ─────────────────────────────────────────────────────────
@@ -553,15 +552,19 @@ export async function exportXLSX(drops, projectName = '') {
  * ExcelJS has no built-in auto-fit, so we scan every cell and measure length.
  * @param {ExcelJS.Worksheet} worksheet
  * @param {Object} [overrides]  - map of 1-based col index → { min, max } width clamps
+ * @param {number[]} [only]     - if provided, only these 1-based column indices are resized
  */
-function autoFitColumns(worksheet, overrides = {}) {
+function autoFitColumns(worksheet, overrides = {}, only = null) {
   const DEFAULT_MIN = 8;
   const DEFAULT_MAX = 50;
 
   worksheet.columns.forEach((column, colIdx) => {
     if (!column || !column.eachCell) return;
 
-    const { min = DEFAULT_MIN, max = DEFAULT_MAX } = overrides[colIdx + 1] || {};
+    const colNum = colIdx + 1;
+    if (only && !only.includes(colNum)) return; // skip fixed-width columns
+
+    const { min = DEFAULT_MIN, max = DEFAULT_MAX } = overrides[colNum] || {};
     let maxLen = min;
 
     column.eachCell({ includeEmpty: false }, (cell) => {
