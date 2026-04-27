@@ -143,16 +143,16 @@ export async function exportXLSX(drops, projectName = '') {
   });
 
   ws.columns = [
-    { key: 'idf',        width: 12 },
+    { key: 'idf',        width: 10 },
     { key: 'type',       width: 10 },
-    { key: 'cable',      width: 22 },
-    { key: 'roughPull',  width: 13 },
-    { key: 'terminated', width: 13 },
+    { key: 'cable',      width: 10 },
+    { key: 'roughPull',  width: 10 },
+    { key: 'terminated', width: 10 },
     { key: 'tested',     width: 10 },
-    { key: 'complete',   width: 11 },
-    { key: 'attention',  width: 11 },
-    { key: 'notes',      width: 36 },
-    { key: 'date',       width: 13 },
+    { key: 'complete',   width: 10 },
+    { key: 'attention',  width: 10 },
+    { key: 'notes',      width: 10 },
+    { key: 'date',       width: 10 },
   ];
 
   // Title row (A1:J1)
@@ -293,9 +293,16 @@ export async function exportXLSX(drops, projectName = '') {
     });
   }
 
+  // Auto-fit column widths based on actual cell content.
+  // Notes (col 9) and Date (col 10) get custom clamps so they don't blow out.
+  autoFitColumns(ws, {
+    9:  { min: 20, max: 45 }, // Notes — wrap is on, so cap width
+    10: { min: 14, max: 26 }, // Date  — locale strings can be ~22 chars
+  });
+
   // ── Summary sheet ─────────────────────────────────────────────────────────
   const ws2 = wb.addWorksheet('Summary', { tabColor: { argb: 'FF22C55E' } });
-  ws2.columns = [{ width: 22 }, { width: 14 }, { width: 14 }];
+  ws2.columns = [{ width: 10 }, { width: 10 }, { width: 10 }];
 
   ws2.mergeCells('A1:C1');
   const s2title = ws2.getCell('A1');
@@ -403,14 +410,20 @@ export async function exportXLSX(drops, projectName = '') {
     cell.alignment = col === 1 ? leftAlign : centerAlign;
   });
 
+  autoFitColumns(ws2, {
+    1: { min: 18, max: 36 }, // Metric label
+    2: { min: 10, max: 24 }, // Count / value
+    3: { min: 12, max: 18 }, // % Complete
+  });
+
   // ── Per-IDF Breakdown sheet ───────────────────────────────────────────────
   const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
   if (idfs.length > 0) {
     const ws3 = wb.addWorksheet('By IDF', { tabColor: { argb: 'FFF59E0B' } });
     ws3.columns = [
-      { width: 12 }, { width: 10 }, { width: 22 },
-      { width: 13 }, { width: 13 }, { width: 10 },
-      { width: 11 }, { width: 36 },
+      { width: 10 }, { width: 10 }, { width: 10 },
+      { width: 10 }, { width: 10 }, { width: 10 },
+      { width: 10 }, { width: 10 },
     ];
 
     ws3.mergeCells('A1:H1');
@@ -514,6 +527,10 @@ export async function exportXLSX(drops, projectName = '') {
         ],
       });
     }
+
+    autoFitColumns(ws3, {
+      7: { min: 20, max: 45 }, // Notes — wrap is on, so cap width
+    });
   }
 
   // ── Write & share ─────────────────────────────────────────────────────────
@@ -528,6 +545,50 @@ export async function exportXLSX(drops, projectName = '') {
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     dialogTitle: `Share ${projectName || 'Cable Pull'} Report (Excel)`,
     UTI: 'com.microsoft.excel.xlsx',
+  });
+}
+
+/**
+ * Auto-fits column widths based on actual cell content.
+ * ExcelJS has no built-in auto-fit, so we scan every cell and measure length.
+ * @param {ExcelJS.Worksheet} worksheet
+ * @param {Object} [overrides]  - map of 1-based col index → { min, max } width clamps
+ */
+function autoFitColumns(worksheet, overrides = {}) {
+  const DEFAULT_MIN = 8;
+  const DEFAULT_MAX = 50;
+
+  worksheet.columns.forEach((column, colIdx) => {
+    if (!column || !column.eachCell) return;
+
+    const { min = DEFAULT_MIN, max = DEFAULT_MAX } = overrides[colIdx + 1] || {};
+    let maxLen = min;
+
+    column.eachCell({ includeEmpty: false }, (cell) => {
+      const v = cell.value;
+      let len = 0;
+
+      if (v === null || v === undefined) return;
+      if (typeof v === 'string')       len = v.length;
+      else if (typeof v === 'number')  len = String(v).length;
+      else if (v instanceof Date)      len = v.toLocaleString().length;
+      else if (typeof v === 'object') {
+        if (v.richText) {
+          // RichText array
+          len = v.richText.reduce((acc, r) => acc + (r.text?.length ?? 0), 0);
+        } else if (v.formula) {
+          // Formula cells — use the cached result if available, else a small default
+          len = v.result != null ? String(v.result).length : 6;
+        } else if (v.text != null) {
+          len = String(v.text).length;
+        }
+      }
+
+      if (len > maxLen) maxLen = len;
+    });
+
+    // +2 gives a little breathing room on either side of the text
+    column.width = Math.min(maxLen + 2, max);
   });
 }
 
