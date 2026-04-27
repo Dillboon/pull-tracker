@@ -114,16 +114,12 @@ export async function exportXLSX(drops, projectName = '') {
   const subHdrFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E2D40' } };
   const evenFill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3EEFF' } };
   const oddFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE9E0FF' } };
-  const yesFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
-  const noFill     = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
 
   const headerFont  = { bold: true, color: { argb: 'FFFBBF24' }, size: 10, name: 'Calibri' };
   const subHdrFont  = { bold: true, color: { argb: 'FF94A3B8' }, size: 9,  name: 'Calibri' };
   const bodyFont    = { size: 10, name: 'Calibri' };
   const monoFont    = { size: 10, name: 'Courier New' };
   const dimFont     = { size: 9,  name: 'Calibri', color: { argb: 'FF64748B' } };
-  const yesFont     = { bold: true, color: { argb: 'FF065F46' }, size: 10, name: 'Calibri' };
-  const noFont      = { bold: true, color: { argb: 'FF991B1B' }, size: 10, name: 'Calibri' };
   const doubleFont  = { bold: true, color: { argb: 'FF7C3AED' }, size: 10, name: 'Calibri' };
   const idfFont     = { bold: true, color: { argb: 'FF1E40AF' }, size: 10, name: 'Calibri' };
 
@@ -136,11 +132,25 @@ export async function exportXLSX(drops, projectName = '') {
   const centerAlign = { horizontal: 'center', vertical: 'middle' };
   const leftAlign   = { horizontal: 'left',   vertical: 'middle' };
 
+  // Shared Print Setup for "Boss Mode" formatting
+  const sharedPageSetup = {
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: { left: 0.25, right: 0.25, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 }
+  };
+  const sharedHeaderFooter = { oddFooter: '&RPage &P of &N' };
+
   // ── Cable Drops sheet ─────────────────────────────────────────────────────
   const ws = wb.addWorksheet('Cable Drops', {
     views: [{ state: 'frozen', ySplit: 3 }],
     tabColor: { argb: 'FF3B82F6' },
   });
+
+  // Apply print readiness
+  ws.pageSetup = { ...sharedPageSetup, printTitlesRow: '1:3' };
+  ws.headerFooter = sharedHeaderFooter;
 
   ws.columns = [
     { key: 'idf',        width: 12 },
@@ -231,6 +241,9 @@ export async function exportXLSX(drops, projectName = '') {
         case 4:
         case 5:
         case 6:
+          cell.fill = baseFill; cell.alignment = centerAlign; 
+          cell.protection = { locked: false }; // UNLOCK for user edits
+          break;
         case 7:
           cell.fill = baseFill; cell.alignment = centerAlign; break;
         case 8: // Attention
@@ -238,7 +251,9 @@ export async function exportXLSX(drops, projectName = '') {
           cell.font = d.attention ? { bold: true, color: { argb: 'FFD97706' }, size: 10, name: 'Calibri' } : { ...dimFont, color: { argb: 'FF94A3B8' } };
           cell.alignment = centerAlign; break;
         case 9:
-          cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true }; break;
+          cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true }; 
+          cell.protection = { locked: false }; // UNLOCK for notes
+          break;
         case 10:
           cell.font = dimFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
       }
@@ -291,17 +306,42 @@ export async function exportXLSX(drops, projectName = '') {
         },
       ],
     });
+    // Visual Workflow Anomaly Detection (e.g. Tested but not rough pulled)
+    ws.addConditionalFormatting({
+      ref: `A4:J${lastDataRow}`,
+      rules: [
+        {
+          type: 'expression',
+          formulae: ['AND($F4="Yes", OR($E4="No", $D4="No"))'],
+          style: { 
+            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } },
+            font: { color: { argb: 'FFE11D48' } }
+          }
+        }
+      ]
+    });
   }
 
   // Auto-fit column widths based on actual cell content.
-  // Notes (col 9) and Date (col 10) get custom clamps so they don't blow out.
   autoFitColumns(ws, {
     9:  { min: 20, max: 45 }, // Notes — wrap is on, so cap width
     10: { min: 14, max: 26 }, // Date  — locale strings can be ~22 chars
   }, [9, 10]); // only resize: Notes, Date
 
+  // Protect the sheet so users only edit unlocked fields (Yes/No and Notes)
+  await ws.protect('password', {
+    selectLockedCells: true,
+    selectUnlockedCells: true,
+    formatColumns: true, 
+    autoFilter: true,    
+    sort: true           
+  });
+
   // ── Summary sheet ─────────────────────────────────────────────────────────
   const ws2 = wb.addWorksheet('Summary', { tabColor: { argb: 'FF22C55E' } });
+  
+  ws2.pageSetup = sharedPageSetup;
+  ws2.headerFooter = sharedHeaderFooter;
   ws2.columns = [{ width: 10 }, { width: 14 }, { width: 14 }];
 
   ws2.mergeCells('A1:C1');
@@ -409,16 +449,40 @@ export async function exportXLSX(drops, projectName = '') {
     cell.alignment = col === 1 ? leftAlign : centerAlign;
   });
 
+  // Add Visual Data Bars to % Complete column
+  ws2.addConditionalFormatting({
+    ref: `C1:C${ws2.rowCount}`,
+    rules: [
+      {
+        type: 'dataBar',
+        cfvo: [{ type: 'num', value: 0 }, { type: 'num', value: 1 }], 
+        color: { argb: 'FF10B981' }, 
+        gradient: false, 
+        border: false
+      }
+    ]
+  });
+
   autoFitColumns(ws2, {
     1: { min: 18, max: 36 }, // Metric label
     2: { min: 10, max: 24 }, // Count / value
     3: { min: 12, max: 18 }, // % Complete
   }, [1]); // only resize: Metric label
 
+  // Protect Summary sheet from arbitrary edits 
+  await ws2.protect('password', {
+    selectLockedCells: true,
+    selectUnlockedCells: true
+  });
+
   // ── Per-IDF Breakdown sheet ───────────────────────────────────────────────
   const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
   if (idfs.length > 0) {
     const ws3 = wb.addWorksheet('By IDF', { tabColor: { argb: 'FFF59E0B' } });
+    
+    ws3.pageSetup = { ...sharedPageSetup, printTitlesRow: '1:1' };
+    ws3.headerFooter = sharedHeaderFooter;
+    
     ws3.columns = [
       { width: 10 }, { width: 10 }, { width: 13 },
       { width: 13 }, { width: 10 }, { width: 11 },
@@ -525,11 +589,30 @@ export async function exportXLSX(drops, projectName = '') {
           { type: 'cellIs', operator: 'equal', formulae: ['"✗"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }, font: { bold: true, color: { argb: 'FF991B1B' }, size: 11 } } }
         ],
       });
+      ws3.addConditionalFormatting({
+        ref: `A1:G${ws3.rowCount}`,
+        rules: [
+          {
+            type: 'expression',
+            formulae: ['AND($E1="Yes", OR($D1="No", $C1="No"))'],
+            style: { 
+              fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } },
+              font: { color: { argb: 'FFE11D48' } }
+            }
+          }
+        ]
+      });
     }
 
     autoFitColumns(ws3, {
       7: { min: 20, max: 45 }, // Notes — wrap is on, so cap width
     }, [2, 7]); // only resize: Cable ID, Notes
+    
+    // Protect By IDF sheet (it strictly pulls live data, shouldn't be edited)
+    await ws3.protect('password', {
+      selectLockedCells: true,
+      selectUnlockedCells: true
+    });
   }
 
   // ── Write & share ─────────────────────────────────────────────────────────
