@@ -590,8 +590,8 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
       if (len > maxLen) maxLen = len;
     });
 
-    // +1 gives a little breathing room on either side of the text
-    column.width = Math.min(maxLen + 1 max);
+    // +2 gives a little breathing room on either side of the text
+    column.width = Math.min(maxLen + 2, max);
   });
 }
 
