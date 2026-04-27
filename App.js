@@ -1,4 +1,3 @@
-import 'react-native-get-random-values';
 import 'react-native-gesture-handler';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, SafeAreaView, TouchableOpacity, Text, StyleSheet } from 'react-native';
