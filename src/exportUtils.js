@@ -145,7 +145,7 @@ export async function exportXLSX(drops, projectName = '') {
   ws.columns = [
     { key: 'idf',        width: 12 },
     { key: 'type',       width: 10 },
-    { key: 'cable',      width: 10 }, // auto-fit
+    { key: 'cable',      width: Math.max(12, ...sorted.map(d => getCableLabel(d).length)) + 2 },
     { key: 'roughPull',  width: 13 },
     { key: 'terminated', width: 13 },
     { key: 'tested',     width: 10 },
@@ -298,7 +298,7 @@ export async function exportXLSX(drops, projectName = '') {
   autoFitColumns(ws, {
     9:  { min: 20, max: 45 }, // Notes — wrap is on, so cap width
     10: { min: 14, max: 26 }, // Date  — locale strings can be ~22 chars
-  }, [3, 9, 10]); // only resize: Cable ID, Notes, Date
+  }, [9, 10]); // only resize: Notes, Date
 
   // ── Summary sheet ─────────────────────────────────────────────────────────
   const ws2 = wb.addWorksheet('Summary', { tabColor: { argb: 'FF22C55E' } });
