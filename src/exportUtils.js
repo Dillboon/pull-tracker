@@ -315,12 +315,14 @@ export async function exportXLSX(drops, projectName = '') {
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
-      printTitlesRow: '1:2', // Repeats the Title and Header rows
+      printTitlesRow: '1:2',
     }
   });
-  ws2.columns = [{ width: 10 }, { width: 14 }, { width: 14 }];
+  
+  // Added a 4th column for the visual progress bar
+  ws2.columns = [{ width: 10 }, { width: 14 }, { width: 14 }, { width: 26 }];
 
-  ws2.mergeCells('A1:C1');
+  ws2.mergeCells('A1:D1');
   const s2title = ws2.getCell('A1');
   s2title.value = `Summary${projectName ? `  —  ${projectName}` : ''}`;
   s2title.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
@@ -328,72 +330,87 @@ export async function exportXLSX(drops, projectName = '') {
   s2title.alignment = leftAlign;
   ws2.getRow(1).height = 26;
 
-  const s2hdr = ws2.addRow(['Metric', 'Count', '% Complete']);
+  const s2hdr = ws2.addRow(['Metric', 'Count', '% Complete', 'Progress']);
   s2hdr.height = 20;
   s2hdr.eachCell(cell => {
     cell.font = headerFont; cell.fill = headerFill;
     cell.alignment = centerAlign; cell.border = thinBorder;
   });
   s2hdr.getCell(1).alignment = leftAlign;
+  s2hdr.getCell(4).alignment = leftAlign;
 
-  const addSRow = (metric, count, pct) => {
-    const row = ws2.addRow([metric, count, pct ?? '']);
+  const addSRow = (metric, count, pct, barColor = 'FF94A3B8') => {
+    let barCellContent = '';
+    if (typeof pct === 'number') {
+      barCellContent = "█".repeat(Math.round(pct * 20)); // 20 blocks = 100%
+    } else if (pct && pct.formula) {
+      barCellContent = { formula: `REPT("█", ROUND(${pct.formula}*20, 0))` };
+    }
+
+    const row = ws2.addRow([metric, count, pct ?? '', barCellContent]);
     row.height = 18;
     const fill = ws2.rowCount % 2 === 0 ? evenFill : oddFill;
     row.eachCell((cell, col) => {
       cell.fill = fill; cell.border = thinBorder;
       cell.font = col === 2 ? { ...bodyFont, bold: true } : bodyFont;
-      cell.alignment = col === 1 ? leftAlign : centerAlign;
+      cell.alignment = col === 1 ? leftAlign : (col === 4 ? leftAlign : centerAlign);
     });
     if (pct !== null && pct !== undefined && pct !== '') row.getCell(3).numFmt = '0.0%';
+    row.getCell(4).font = { color: { argb: barColor }, size: 9 };
   };
 
-  const addFormulaRow = (metric, colLetter) => {
+  const addFormulaRow = (metric, colLetter, barColor) => {
+    const pctFormula = `IFERROR(COUNTIF('Cable Drops'!${colLetter}4:${colLetter}${lastDataRow},"Yes")/${total},0)`;
     const row = ws2.addRow([
       metric,
       { formula: `COUNTIF('Cable Drops'!${colLetter}4:${colLetter}${lastDataRow},"Yes")` },
-      { formula: `IFERROR(COUNTIF('Cable Drops'!${colLetter}4:${colLetter}${lastDataRow},"Yes")/${total},0)` },
+      { formula: pctFormula },
+      { formula: `REPT("█", ROUND(${pctFormula}*20, 0))` },
     ]);
     row.height = 18;
     const fill = ws2.rowCount % 2 === 0 ? evenFill : oddFill;
     row.eachCell((cell, col) => {
       cell.fill = fill; cell.border = thinBorder;
       cell.font = col === 2 ? { ...bodyFont, bold: true } : bodyFont;
-      cell.alignment = col === 1 ? leftAlign : centerAlign;
+      cell.alignment = col === 1 ? leftAlign : (col === 4 ? leftAlign : centerAlign);
     });
     row.getCell(3).numFmt = '0.0%';
+    row.getCell(4).font = { color: { argb: barColor }, size: 9 };
   };
 
-  const addCompleteFormulaRow = (metric) => {
+  const addCompleteFormulaRow = (metric, barColor) => {
     const ref = `'Cable Drops'!D4:D${lastDataRow},"Yes",'Cable Drops'!E4:E${lastDataRow},"Yes",'Cable Drops'!F4:F${lastDataRow},"Yes"`;
+    const pctFormula = `IFERROR(COUNTIFS(${ref})/${total},0)`;
     const row = ws2.addRow([
       metric,
       { formula: `COUNTIFS(${ref})` },
-      { formula: `IFERROR(COUNTIFS(${ref})/${total},0)` },
+      { formula: pctFormula },
+      { formula: `REPT("█", ROUND(${pctFormula}*20, 0))` },
     ]);
     row.height = 18;
     const fill = ws2.rowCount % 2 === 0 ? evenFill : oddFill;
     row.eachCell((cell, col) => {
       cell.fill = fill; cell.border = thinBorder;
       cell.font = col === 2 ? { ...bodyFont, bold: true } : bodyFont;
-      cell.alignment = col === 1 ? leftAlign : centerAlign;
+      cell.alignment = col === 1 ? leftAlign : (col === 4 ? leftAlign : centerAlign);
     });
     row.getCell(3).numFmt = '0.0%';
+    row.getCell(4).font = { color: { argb: barColor }, size: 9 };
   };
 
   const addSubHeader = (label) => {
-    const row = ws2.addRow([label, '', '']);
+    const row = ws2.addRow([label, '', '', '']);
     row.height = 16;
     row.eachCell(cell => { cell.font = subHdrFont; cell.fill = subHdrFill; cell.border = thinBorder; });
-    ws2.mergeCells(`A${ws2.rowCount}:C${ws2.rowCount}`);
+    ws2.mergeCells(`A${ws2.rowCount}:D${ws2.rowCount}`);
   };
 
   const addSeparator = () => {
-    ws2.addRow(['', '', '']);
+    ws2.addRow(['', '', '', '']);
     ws2.getRow(ws2.rowCount).height = 6;
   };
 
-  addSRow('Total Drops', total, { formula: `IFERROR(COUNTIFS('Cable Drops'!D4:D${lastDataRow},"Yes",'Cable Drops'!E4:E${lastDataRow},"Yes",'Cable Drops'!F4:F${lastDataRow},"Yes")/${total},0)` });
+  addSRow('Total Drops', total, { formula: `IFERROR(COUNTIFS('Cable Drops'!D4:D${lastDataRow},"Yes",'Cable Drops'!E4:E${lastDataRow},"Yes",'Cable Drops'!F4:F${lastDataRow},"Yes")/${total},0)` }, 'FF16A34A');
   addSeparator();
 
   addSubHeader('Drop Types');
@@ -401,24 +418,24 @@ export async function exportXLSX(drops, projectName = '') {
   const doubles = sorted.filter(d => getGroupType(d) === 'double').length;
   const triples = sorted.filter(d => getGroupType(d) === 'triple').length;
   const quads   = sorted.filter(d => getGroupType(d) === 'quad').length;
-  addSRow('Single Drops', singles, total > 0 ? singles / total : 0);
-  addSRow('Double Drops', doubles, total > 0 ? doubles / total : 0);
-  if (triples > 0) addSRow('Triple Drops', triples, triples / total);
-  if (quads   > 0) addSRow('Quad Drops',   quads,   quads   / total);
+  addSRow('Single Drops', singles, total > 0 ? singles / total : 0, 'FF94A3B8');
+  addSRow('Double Drops', doubles, total > 0 ? doubles / total : 0, 'FF94A3B8');
+  if (triples > 0) addSRow('Triple Drops', triples, triples / total, 'FF94A3B8');
+  if (quads   > 0) addSRow('Quad Drops',   quads,   quads   / total, 'FF94A3B8');
   addSeparator();
 
   addSubHeader('Status Progress  (live — updates when you edit Yes/No)');
-  addFormulaRow('Rough Pulled', 'D');
-  addFormulaRow('Terminated',   'E');
-  addFormulaRow('Tested',       'F');
-  addCompleteFormulaRow('Fully Complete');
+  addFormulaRow('Rough Pulled', 'D', 'FFD97706'); // Amber
+  addFormulaRow('Terminated',   'E', 'FF2563EB'); // Blue
+  addFormulaRow('Tested',       'F', 'FF16A34A'); // Green
+  addCompleteFormulaRow('Fully Complete', 'FF16A34A');
   addSeparator();
 
   addSubHeader('Flags');
-  addSRow('Attention Items', attnCount, total > 0 ? attnCount / total : 0);
+  addSRow('Attention Items', attnCount, total > 0 ? attnCount / total : 0, 'FFDC2626'); // Red
   addSeparator();
 
-  const dateRow = ws2.addRow(['Report Generated', new Date().toLocaleString(), '']);
+  const dateRow = ws2.addRow(['Report Generated', new Date().toLocaleString(), '', '']);
   dateRow.height = 18;
   dateRow.eachCell((cell, col) => {
     cell.fill = oddFill; cell.border = thinBorder; cell.font = dimFont;
@@ -429,7 +446,8 @@ export async function exportXLSX(drops, projectName = '') {
     1: { min: 18, max: 36 }, // Metric label
     2: { min: 10, max: 24 }, // Count / value
     3: { min: 12, max: 18 }, // % Complete
-  }, [1]); // only resize: Metric label
+    4: { min: 26, max: 30 }, // Progress bar
+  }, [1, 4]);
 
   // ── Per-IDF Breakdown sheet ───────────────────────────────────────────────
   const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
