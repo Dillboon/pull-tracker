@@ -396,22 +396,22 @@ export async function exportXLSX(drops, projectName = '') {
   addSRow('Total Drops', total, { formula: `IFERROR(COUNTIFS('Cable Drops'!D4:D${lastDataRow},"Yes",'Cable Drops'!E4:E${lastDataRow},"Yes",'Cable Drops'!F4:F${lastDataRow},"Yes")/${total},0)` });
   addSeparator();
 
-  addSubHeader('Drop Types');
-  const singles = sorted.filter(d => getGroupType(d) === 'single').length;
-  const doubles = sorted.filter(d => getGroupType(d) === 'double').length;
-  const triples = sorted.filter(d => getGroupType(d) === 'triple').length;
-  const quads   = sorted.filter(d => getGroupType(d) === 'quad').length;
-  addSRow('Single Drops', singles, total > 0 ? singles / total : 0);
-  addSRow('Double Drops', doubles, total > 0 ? doubles / total : 0);
-  if (triples > 0) addSRow('Triple Drops', triples, triples / total);
-  if (quads   > 0) addSRow('Quad Drops',   quads,   quads   / total);
-  addSeparator();
-
   addSubHeader('Status Progress  (live — updates when you edit Yes/No)');
   addFormulaRow('Rough Pulled', 'D');
   addFormulaRow('Terminated',   'E');
   addFormulaRow('Tested',       'F');
   addCompleteFormulaRow('Fully Complete');
+  addSeparator();
+
+  addSubHeader('Drop Types');
+  const singles = sorted.filter(d => getGroupType(d) === 'single').length;
+  const doubles = sorted.filter(d => getGroupType(d) === 'double').length;
+  const triples = sorted.filter(d => getGroupType(d) === 'triple').length;
+  const quads   = sorted.filter(d => getGroupType(d) === 'quad').length;
+  addSRow('Single Drops', singles, null);
+  addSRow('Double Drops', doubles, null);
+  if (triples > 0) addSRow('Triple Drops', triples, null);
+  if (quads   > 0) addSRow('Quad Drops',   quads,   null);
   addSeparator();
 
   addSubHeader('Flags');
