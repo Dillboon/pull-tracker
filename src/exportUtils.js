@@ -415,7 +415,7 @@ export async function exportXLSX(drops, projectName = '') {
   addSeparator();
 
   addSubHeader('Flags');
-  addSRow('Attention Items', attnCount, total > 0 ? attnCount / total : 0);
+  addSRow('Attention Items', attnCount, null);
   addSeparator();
 
   const dateRow = ws2.addRow(['Report Generated', new Date().toLocaleString(), '']);
