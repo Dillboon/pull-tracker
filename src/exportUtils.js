@@ -140,6 +140,13 @@ export async function exportXLSX(drops, projectName = '') {
   const ws = wb.addWorksheet('Cable Drops', {
     views: [{ state: 'frozen', ySplit: 3 }],
     tabColor: { argb: 'FF3B82F6' },
+    pageSetup: {
+      orientation: 'landscape',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0, // 0 allows it to stretch to as many pages vertically as needed
+      printTitlesRow: '1:3', // Repeats the Title, Subtitle, and Header rows on every page
+    }
   });
 
   ws.columns = [
@@ -301,7 +308,16 @@ export async function exportXLSX(drops, projectName = '') {
   }, [9, 10]); // only resize: Notes, Date
 
   // ── Summary sheet ─────────────────────────────────────────────────────────
-  const ws2 = wb.addWorksheet('Summary', { tabColor: { argb: 'FF22C55E' } });
+  const ws2 = wb.addWorksheet('Summary', { 
+    tabColor: { argb: 'FF22C55E' },
+    pageSetup: {
+      orientation: 'landscape',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      printTitlesRow: '1:2', // Repeats the Title and Header rows
+    }
+  });
   ws2.columns = [{ width: 10 }, { width: 14 }, { width: 14 }];
 
   ws2.mergeCells('A1:C1');
@@ -418,7 +434,16 @@ export async function exportXLSX(drops, projectName = '') {
   // ── Per-IDF Breakdown sheet ───────────────────────────────────────────────
   const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
   if (idfs.length > 0) {
-    const ws3 = wb.addWorksheet('By IDF', { tabColor: { argb: 'FFF59E0B' } });
+    const ws3 = wb.addWorksheet('By IDF', { 
+      tabColor: { argb: 'FFF59E0B' },
+      pageSetup: {
+        orientation: 'landscape',
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        printTitlesRow: '1:1', // Repeats the main title row (closet headers are dynamic/inline)
+      }
+    });
     ws3.columns = [
       { width: 10 }, { width: 10 }, { width: 13 },
       { width: 13 }, { width: 10 }, { width: 11 },
