@@ -116,9 +116,8 @@ function typeName(drop) {
 
 // Ensure logical separation of states
 function isAttention(drop) {
-  const any  = drop.roughPull || drop.terminated || drop.tested;
-  const done = drop.roughPull && drop.terminated && drop.tested;
-  return any && !done;
+  // Directly read the explicit attention state from the app data
+  return drop.attention === true; 
 }
 
 // ── Group Summary sheet ──────────────────────────────────────────────────────
