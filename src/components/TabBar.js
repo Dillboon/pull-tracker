@@ -4,8 +4,8 @@ import { COLORS } from '../theme';
 
 const TABS = [
   { key: 'drops',     icon: '≡',  label: 'Drops'   },
-  { key: 'devices',   icon: '⬡',  label: 'Devices' },
   { key: 'dashboard', icon: '◈',  label: 'Stats'   },
+  { key: 'gallery',   icon: '▣', label: 'Gallery' },
   { key: 'settings',  icon: '⚙',  label: 'Config'  },
 ];
 
@@ -46,11 +46,11 @@ const s = StyleSheet.create({
     gap: 2,
     position: 'relative',
   },
-  icon:  { fontSize: 16, color: COLORS.textMuted },
-  label: { fontSize: 9,  fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 },
+  icon:  { fontSize: 18, color: COLORS.textMuted },
+  label: { fontSize: 10, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 },
   indicator: {
     position: 'absolute',
-    top: 0, left: '20%', right: '20%',
+    top: 0, left: '25%', right: '25%',
     height: 2,
     backgroundColor: COLORS.amber,
     borderRadius: 1,

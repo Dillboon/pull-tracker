@@ -1,237 +1,356 @@
 /**
  * exportGroupUtils.js
  *
- * Exports all projects in a group as a single Excel workbook:
- *   Sheet 1  →  Summary (all projects, high-level stats)
- *   Sheet 2+ →  One sheet per project (all drops, styled)
- *
- * Place this file at:  src/exportGroupUtils.js
- * Import in ProjectsScreen:  import { exportGroupToExcel } from '../exportGroupUtils';
+ * Enhanced Group "Export All" — visually polished and optimized for project 
+ * manager workflows (frozen panes, auto-filters, true numeric percentages, wrapping).
  */
 
 import * as FileSystem from 'expo-file-system';
 import * as Sharing    from 'expo-sharing';
 import ExcelJS         from 'exceljs';
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Exact colour palette from the reference export ──────────────────────────
+const C = {
+  navyDeep:   'FF0A1628',   // title banner bg
+  navyMid:    'FF0F172A',   // subtitle bar bg
+  navyHeader: 'FF0F2744',   // column-header bg
+  navySection:'FF1E2D40',   // section-label bg (By IDF style)
+  amber:      'FFFBBF24',   // column header text
+  white:      'FFFFFFFF',
+  purple1:    'FFF3EEFF',   // row alt A (lighter)
+  purple2:    'FFE9E0FF',   // row alt B (slightly deeper)
+  idfBlue:    'FF1E40AF',   // IDF cell text
+  typeViolet: 'FF7C3AED',   // Type cell text
+  slate:      'FF64748B',   // notes / date text
+  muted:      'FF94A3B8',   // subtitle / section-label text
+  attnFill:   'FFFFF7ED',   // attention row bg (warm yellow)
+  attnText:   'FFD97706',   // attention text (amber)
+  greenText:  'FF16A34A',   // ✓ colour (kept for summary %)
+  borderSubtle: 'FFCBD5E1'  // subtle grey for cell borders
+};
 
-function arrayBufferToBase64(buffer) {
+// ── Utility: ArrayBuffer → base64 ───────────────────────────────────────────
+function toBase64(buffer) {
   const bytes = new Uint8Array(buffer);
-  let binary  = '';
+  let out = '';
   for (let i = 0; i < bytes.length; i += 8192) {
-    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + 8192, bytes.length)));
+    out += String.fromCharCode(...bytes.subarray(i, Math.min(i + 8192, bytes.length)));
   }
-  return btoa(binary);
+  return btoa(out);
 }
 
-function styleHeader(row, hexColor = '1E3A5F') {
-  row.height = 22;
-  row.eachCell({ includeEmpty: true }, (cell) => {
-    cell.font      = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-    cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${hexColor}` } };
-    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    cell.border    = { bottom: { style: 'thin', color: { argb: 'FF93C5FD' } } };
+// ── Cell styling helpers ─────────────────────────────────────────────────────
+
+function applyFill(cell, argb) {
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+}
+
+function applyFont(cell, { argb, bold = false, size = 10, italic = false } = {}) {
+  cell.font = {
+    name: 'Calibri',
+    size,
+    bold,
+    italic,
+    color: argb ? { argb } : undefined,
+  };
+}
+
+function applyAlign(cell, horizontal = 'left', vertical = 'middle', wrapText = false) {
+  cell.alignment = { horizontal, vertical, wrapText };
+}
+
+function applyBorders(cell) {
+  cell.border = {
+    top: { style: 'thin', color: { argb: C.borderSubtle } },
+    left: { style: 'thin', color: { argb: C.borderSubtle } },
+    bottom: { style: 'thin', color: { argb: C.borderSubtle } },
+    right: { style: 'thin', color: { argb: C.borderSubtle } }
+  };
+}
+
+// Stamp a full banner row (title / subtitle style)
+function bannerRow(ws, rowNum, text, bgArgb, fgArgb, sz, height) {
+  const row = ws.getRow(rowNum);
+  row.height = height;
+  const cell = row.getCell(1);
+  cell.value = text;
+  applyFill(cell, bgArgb);
+  applyFont(cell, { argb: fgArgb, bold: true, size: sz });
+  applyAlign(cell, 'left');
+  return row;
+}
+
+// Column-header row (amber text on navy)
+function headerRow(ws, rowNum, labels, height = 20) {
+  const row = ws.getRow(rowNum);
+  row.height = height;
+  labels.forEach((label, i) => {
+    const cell = row.getCell(i + 1);
+    cell.value = label;
+    applyFill(cell, C.navyHeader);
+    applyFont(cell, { argb: C.amber, bold: true, size: 10 });
+    applyAlign(cell, i === 0 || i === 2 || i === 8 ? 'left' : 'center'); 
+    // Borders on headers add a crisp finish
+    cell.border = {
+      top: { style: 'medium', color: { argb: C.navyDeep } },
+      bottom: { style: 'medium', color: { argb: C.navyDeep } }
+    };
   });
+  return row;
 }
 
-function checkCell(cell) {
-  cell.font      = { bold: true, color: { argb: 'FF16A34A' }, size: 12 };
-  cell.alignment = { horizontal: 'center', vertical: 'middle' };
+function rowFill(i) {
+  return i % 2 === 0 ? C.purple1 : C.purple2;
 }
 
-function setColWidths(ws, widths) {
-  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+function cableIds(drop) {
+  return [drop.cableA, drop.cableB, drop.cableC, drop.cableD]
+    .filter(Boolean)
+    .join(' / ');
 }
 
-// ── Summary sheet ──────────────────────────────────────────────────────────
+function typeName(drop) {
+  const t = drop.groupType || (drop.isDouble ? 'double' : 'single');
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+// Ensure logical separation of states
+function isAttention(drop) {
+  // Directly read the explicit attention state from the app data
+  return drop.attention === true; 
+}
+
+// ── Group Summary sheet ──────────────────────────────────────────────────────
 
 function buildSummarySheet(wb, group, projects) {
-  const ws = wb.addWorksheet('Summary');
-  setColWidths(ws, [28, 8, 9, 10, 9, 8, 9]);
+  const ws  = wb.addWorksheet('Group Summary');
+  const NUM = 7; 
 
-  // Title row
-  const title = ws.addRow([
-    `Group Export: ${group.name}  ·  ${new Date().toLocaleDateString('en-US', {
-      year: 'numeric', month: 'long', day: 'numeric',
-    })}`,
-  ]);
-  title.getCell(1).font      = { bold: true, size: 14, color: { argb: 'FF1E40AF' } };
-  title.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
-  title.height               = 28;
-  ws.mergeCells('A1:G1');
+  [36, 12, 12, 14, 12, 12, 12].forEach((w, i) => {
+    ws.getColumn(i + 1).width = w;
+  });
 
-  ws.addRow([]); // spacer
+  // Freeze top 3 rows (banners and headers)
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
 
-  // Header
-  const headerRow = ws.addRow(['Project', 'Drops', 'Pulled', 'Terminated', 'Tested', 'Done', '% Done']);
-  styleHeader(headerRow, '1E3A5F');
+  const titleText = `Group Export  —  ${group.name}  |  Generated: ${new Date().toLocaleString()}`;
+  bannerRow(ws, 1, titleText, C.navyDeep, C.white, 13, 26);
+  ws.mergeCells(1, 1, 1, NUM);
 
-  // Data rows
+  const allDrops   = projects.reduce((s, p) => s + p.drops.length, 0);
+  const allPulled  = projects.reduce((s, p) => s + p.drops.filter(d => d.roughPull).length, 0);
+  const allTerm    = projects.reduce((s, p) => s + p.drops.filter(d => d.terminated).length, 0);
+  const allTested  = projects.reduce((s, p) => s + p.drops.filter(d => d.tested).length, 0);
+  const allDone    = projects.reduce((s, p) => s + p.drops.filter(d => d.roughPull && d.terminated && d.tested).length, 0);
+  const allAttn    = projects.reduce((s, p) => s + p.drops.filter(d => isAttention(d)).length, 0);
+
+  const subtitleText = `${projects.length} projects  |  Total: ${allDrops}  |  Rough pulled: ${allPulled}  |  Terminated: ${allTerm}  |  Tested: ${allTested}  |  Complete: ${allDone}  |  Attention: ${allAttn}`;
+  bannerRow(ws, 2, subtitleText, C.navyMid, C.muted, 9, 18);
+  ws.mergeCells(2, 1, 2, NUM);
+
+  headerRow(ws, 3, ['Project', 'Total Drops', 'Rough Pulled', 'Terminated', 'Tested', 'Completed', '% Done'], 20);
+
+  // Auto-filter for the summary data
+  ws.autoFilter = {
+    from: { row: 3, column: 1 },
+    to: { row: 3, column: NUM }
+  };
+
   projects.forEach((p, i) => {
-    const total    = p.drops.length;
-    const pulled   = p.drops.filter(d => d.roughPull).length;
-    const term     = p.drops.filter(d => d.terminated).length;
-    const tested   = p.drops.filter(d => d.tested).length;
-    const done     = p.drops.filter(d => d.roughPull && d.terminated && d.tested).length;
-    const pct      = total > 0 ? Math.round((done / total) * 100) : 0;
+    const total  = p.drops.length;
+    const pulled = p.drops.filter(d => d.roughPull).length;
+    const term   = p.drops.filter(d => d.terminated).length;
+    const tested = p.drops.filter(d => d.tested).length;
+    const done   = p.drops.filter(d => d.roughPull && d.terminated && d.tested).length;
+    const pct    = total > 0 ? (done / total) : 0; // Export as raw decimal for native Excel % format
+    const fill   = rowFill(i);
 
-    const row = ws.addRow([p.name, total, pulled, term, tested, done, total > 0 ? `${pct}%` : '—']);
-    row.height = 18;
+    const row  = ws.getRow(i + 4);
+    row.height = 20;
 
-    if (i % 2 === 1) {
-      row.eachCell({ includeEmpty: true }, (cell) => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
-      });
-    }
-    // Colour the % cell
-    const pctCell = row.getCell(7);
-    pctCell.font = {
-      bold: true,
-      color: { argb: pct === 100 ? 'FF16A34A' : pct > 0 ? 'FFD97706' : 'FF94A3B8' },
-    };
-    pctCell.alignment = { horizontal: 'center' };
+    const vals   = [p.name, total, pulled, term, tested, done, total > 0 ? pct : 0];
+    const aligns = ['left','center','center','center','center','center','center'];
 
-    // Align number columns
-    [2, 3, 4, 5, 6].forEach(col => {
-      row.getCell(col).alignment = { horizontal: 'center' };
+    vals.forEach((v, ci) => {
+      const cell = row.getCell(ci + 1);
+      cell.value = v;
+      applyFill(cell, fill);
+      applyBorders(cell);
+      applyFont(cell, { size: 10, bold: ci === 0 });
+      applyAlign(cell, aligns[ci]);
+      
+      // True Excel percentage formatting
+      if (ci === 6) { 
+        cell.numFmt = '0%'; 
+        const pctColor = pct === 1 ? C.greenText : pct > 0 ? C.attnText : C.muted;
+        applyFont(cell, { argb: pctColor, bold: true, size: 10 });
+      }
     });
   });
 
-  // Totals row
-  const allDrops  = projects.reduce((s, p) => s + p.drops.length, 0);
-  const allPulled = projects.reduce((s, p) => s + p.drops.filter(d => d.roughPull).length, 0);
-  const allTerm   = projects.reduce((s, p) => s + p.drops.filter(d => d.terminated).length, 0);
-  const allTest   = projects.reduce((s, p) => s + p.drops.filter(d => d.tested).length, 0);
-  const allDone   = projects.reduce((s, p) => s + p.drops.filter(d => d.roughPull && d.terminated && d.tested).length, 0);
-  const totalPct  = allDrops > 0 ? Math.round((allDone / allDrops) * 100) : 0;
-
-  ws.addRow([]); // spacer before totals
-  const totalsRow = ws.addRow(['TOTAL', allDrops, allPulled, allTerm, allTest, allDone, `${totalPct}%`]);
-  styleHeader(totalsRow, '1E3A5F');
-  totalsRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+  // Totals row at the bottom
+  const totRow = ws.getRow(projects.length + 4);
+  totRow.height = 22;
+  const totalPct = allDrops > 0 ? (allDone / allDrops) : 0;
+  const totVals = ['TOTAL PORTFOLIO', allDrops, allPulled, allTerm, allTested, allDone, totalPct];
+  
+  totVals.forEach((v, ci) => {
+    const cell = totRow.getCell(ci + 1);
+    cell.value = v;
+    applyFill(cell, C.navyHeader);
+    applyBorders(cell);
+    applyFont(cell, { argb: C.amber, bold: true, size: 11 });
+    applyAlign(cell, ci === 0 ? 'left' : 'center');
+    if (ci === 6) cell.numFmt = '0%';
+  });
 }
 
-// ── Per-project sheet ──────────────────────────────────────────────────────
+// ── Per-project drop sheet ───────────────────────────────────────────────────
 
-function buildProjectSheet(wb, project) {
-  // Sanitise sheet name: max 31 chars, no special chars Excel won't accept
-  const sheetName = project.name
-    .replace(/[\\/*?[\]:]/g, '')
-    .trim()
-    .slice(0, 31);
+function buildProjectSheet(wb, project, sheetName) {
+  const ws  = wb.addWorksheet(sheetName);
+  const NUM = 10; 
 
-  const ws = wb.addWorksheet(sheetName);
-  setColWidths(ws, [5, 9, 14, 14, 14, 14, 12, 11, 12, 9, 26, 12]);
+  const widths = [12, 14, 22, 13, 13, 13, 11, 14, 50, 15];
+  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
-  // Title
-  const title = ws.addRow([
-    `Project: ${project.name}  ·  Exported ${new Date().toLocaleDateString('en-US', {
-      year: 'numeric', month: 'long', day: 'numeric',
-    })}`,
-  ]);
-  title.getCell(1).font      = { bold: true, size: 12, color: { argb: 'FF1E40AF' } };
-  title.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
-  title.height               = 24;
-  ws.mergeCells(`A1:L1`);
+  // Freeze panes so PMs don't lose headers while scrolling through drops
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
 
-  // Stats mini-bar
-  const total  = project.drops.length;
-  const pulled = project.drops.filter(d => d.roughPull).length;
-  const term   = project.drops.filter(d => d.terminated).length;
-  const tested = project.drops.filter(d => d.tested).length;
-  const done   = project.drops.filter(d => d.roughPull && d.terminated && d.tested).length;
-  const pct    = total > 0 ? Math.round((done / total) * 100) : 0;
+  const total   = project.drops.length;
+  const pulled  = project.drops.filter(d => d.roughPull).length;
+  const term    = project.drops.filter(d => d.terminated).length;
+  const tested  = project.drops.filter(d => d.tested).length;
+  const attn    = project.drops.filter(d => isAttention(d)).length;
 
-  const stats = ws.addRow([
-    `${total} drops  ·  ${pulled} pulled  ·  ${term} terminated  ·  ${tested} tested  ·  ${done} done  (${pct}% complete)`,
-  ]);
-  stats.getCell(1).font      = { italic: true, color: { argb: 'FF64748B' }, size: 10 };
-  stats.getCell(1).alignment = { horizontal: 'left' };
-  ws.mergeCells(`A2:L2`);
+  const titleText = `CablePull Field Tracker  —  ${project.name}`;
+  bannerRow(ws, 1, titleText, C.navyDeep, C.white, 13, 26);
+  ws.mergeCells(1, 1, 1, NUM);
 
-  ws.addRow([]); // spacer
+  const subtitle = `Generated: ${new Date().toLocaleString()}  |  Total: ${total}  |  Rough pulled: ${pulled}  |  Terminated: ${term}  |  Tested: ${tested}  |  Attention: ${attn}`;
+  bannerRow(ws, 2, subtitle, C.navyMid, C.muted, 9, 18);
+  ws.mergeCells(2, 1, 2, NUM);
 
-  // Header
-  const headers = ['#', 'Type', 'Cable A', 'Cable B', 'Cable C', 'Cable D',
-    'IDF', 'Rough Pull', 'Terminated', 'Tested', 'Notes', 'Created'];
-  const headerRow = ws.addRow(headers);
-  styleHeader(headerRow, '1E3A5F');
-  headerRow.height = 22;
+  const headers = ['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Attention', 'Notes', 'Date Added'];
+  headerRow(ws, 3, headers, 22);
 
-  // Data rows
-  project.drops.forEach((d, i) => {
-    const type = d.groupType
-      ? (d.groupType.charAt(0).toUpperCase() + d.groupType.slice(1))
-      : (d.isDouble ? 'Double' : 'Single');
+  // Auto-filter applied to the data columns
+  ws.autoFilter = {
+    from: { row: 3, column: 1 },
+    to: { row: 3, column: NUM }
+  };
 
-    const row = ws.addRow([
-      i + 1,
-      type,
-      d.cableA    || '',
-      d.cableB    || '',
-      d.cableC    || '',
-      d.cableD    || '',
-      d.idf       || '',
-      d.roughPull  ? '✓' : '',
-      d.terminated ? '✓' : '',
-      d.tested     ? '✓' : '',
-      d.notes     || '',
-      d.createdAt || '',
-    ]);
-    row.height = 18;
+  project.drops.forEach((drop, i) => {
+    const row     = ws.getRow(i + 4);
+    // Allow dynamic height if notes are long, but set a comfortable minimum
+    row.height    = 22; 
+    const fill    = rowFill(i);
+    const attnYes = isAttention(drop);
+    const done    = drop.roughPull && drop.terminated && drop.tested;
 
-    // Alternate row tint
-    if (i % 2 === 1) {
-      row.eachCell({ includeEmpty: true }, (cell) => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
-      });
-    }
+    // A – IDF
+    const idfCell = row.getCell(1);
+    idfCell.value = drop.idf || '';
+    applyFill(idfCell, fill);
+    applyBorders(idfCell);
+    applyFont(idfCell, { argb: C.idfBlue, bold: true, size: 10 });
+    applyAlign(idfCell, 'center');
 
-    // Centre + colour checkmark cells (cols 8, 9, 10)
-    [8, 9, 10].forEach(col => {
+    // B – Type
+    const typeCell = row.getCell(2);
+    typeCell.value = typeName(drop);
+    applyFill(typeCell, fill);
+    applyBorders(typeCell);
+    applyFont(typeCell, { argb: C.typeViolet, bold: true, size: 10 });
+    applyAlign(typeCell, 'center');
+
+    // C – Cable ID(s)
+    const cableCell = row.getCell(3);
+    cableCell.value = cableIds(drop);
+    applyFill(cableCell, fill);
+    applyBorders(cableCell);
+    applyFont(cableCell, { size: 10 });
+    applyAlign(cableCell, 'left');
+
+    // D, E, F, G – Tracking States
+    const states = [
+      { col: 4, val: drop.roughPull },
+      { col: 5, val: drop.terminated },
+      { col: 6, val: drop.tested },
+      { col: 7, val: done }
+    ];
+
+    states.forEach(({ col, val }) => {
       const cell = row.getCell(col);
-      cell.alignment = { horizontal: 'center', vertical: 'middle' };
-      if (cell.value === '✓') checkCell(cell);
+      cell.value = val ? 'Yes' : 'No';
+      applyFill(cell, fill);
+      applyBorders(cell);
+      // Give visual weight to completed steps
+      applyFont(cell, { size: 10, argb: val ? undefined : C.muted });
+      applyAlign(cell, 'center');
     });
 
-    // Centre # and Type columns
-    [1, 2].forEach(col => {
-      row.getCell(col).alignment = { horizontal: 'center', vertical: 'middle' };
-    });
+    // H – Attention
+    const attnCell = row.getCell(8);
+    if (attnYes) {
+      attnCell.value = '⚠ Yes';
+      applyFill(attnCell, C.attnFill);
+      applyFont(attnCell, { argb: C.attnText, bold: true, size: 10 });
+    } else {
+      attnCell.value = 'No';
+      applyFill(attnCell, fill);
+      applyFont(attnCell, { argb: C.muted, size: 10 });
+    }
+    applyBorders(attnCell);
+    applyAlign(attnCell, 'center');
+
+    // I – Notes (Word Wrap Enabled)
+    const notesCell = row.getCell(9);
+    notesCell.value = drop.notes || '';
+    applyFill(notesCell, fill);
+    applyBorders(notesCell);
+    applyFont(notesCell, { argb: C.slate, size: 9 });
+    applyAlign(notesCell, 'left', 'middle', true); // True = wrap text
+
+    // J – Date Added
+    const dateCell = row.getCell(10);
+    dateCell.value = drop.createdAt || '';
+    applyFill(dateCell, fill);
+    applyBorders(dateCell);
+    applyFont(dateCell, { argb: C.slate, size: 9 });
+    applyAlign(dateCell, 'center');
   });
-
-  // IDF list footnote
-  if (project.idfList?.length > 0) {
-    ws.addRow([]);
-    const idfRow = ws.addRow([`IDF Closets: ${project.idfList.join(', ')}`]);
-    idfRow.getCell(1).font      = { italic: true, color: { argb: 'FF64748B' }, size: 10 };
-    idfRow.getCell(1).alignment = { horizontal: 'left' };
-    ws.mergeCells(`A${idfRow.number}:L${idfRow.number}`);
-  }
 }
 
-// ── Main export function ───────────────────────────────────────────────────
+// ── Main export function ─────────────────────────────────────────────────────
 
 export async function exportGroupToExcel(group, projects) {
   if (!projects || projects.length === 0) {
     throw new Error('No projects to export.');
   }
 
-  const wb    = new ExcelJS.Workbook();
-  wb.creator  = 'CablePull Tracker';
-  wb.created  = new Date();
+  const wb   = new ExcelJS.Workbook();
+  wb.creator = 'CablePull Tracker';
+  wb.created = new Date();
 
-  // Summary tab first, then one tab per project
   buildSummarySheet(wb, group, projects);
+
+  const usedNames = new Set(['Group Summary']);
   for (const project of projects) {
-    buildProjectSheet(wb, project);
+    let name = project.name.replace(/[\\/*?[\]:]/g, '').trim().slice(0, 31);
+    let candidate = name;
+    let suffix = 2;
+    while (usedNames.has(candidate)) {
+      candidate = name.slice(0, 28) + ` ${suffix++}`;
+    }
+    usedNames.add(candidate);
+    buildProjectSheet(wb, project, candidate);
   }
 
-  // Write → base64 → cache file → share
   const buffer   = await wb.xlsx.writeBuffer();
-  const base64   = arrayBufferToBase64(buffer);
+  const base64   = toBase64(buffer);
   const safeName = group.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
-  const filename = `${safeName}_export_${Date.now()}.xlsx`;
+  const filename = `${safeName}_GroupExport_${Date.now()}.xlsx`;
   const uri      = FileSystem.cacheDirectory + filename;
 
   await FileSystem.writeAsStringAsync(uri, base64, {
