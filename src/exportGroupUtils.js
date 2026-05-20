@@ -1,16 +1,8 @@
 /**
  * exportGroupUtils.js
  *
- * Group "Export All" — replicates the exact visual style of the individual
- * project export (dark navy banner, amber headers, purple alternating rows,
- * amber attention flags, etc.).
- *
- * Sheet layout per workbook:
- *   Sheet 1  →  Group Summary  (all projects, combined stats)
- *   Sheet 2+ →  One "Cable Drops" style sheet per project
- *
- * Place at:  src/exportGroupUtils.js
- * Import:    import { exportGroupToExcel } from '../exportGroupUtils';
+ * Enhanced Group "Export All" — visually polished and optimized for project 
+ * manager workflows (frozen panes, auto-filters, true numeric percentages, wrapping).
  */
 
 import * as FileSystem from 'expo-file-system';
@@ -34,6 +26,7 @@ const C = {
   attnFill:   'FFFFF7ED',   // attention row bg (warm yellow)
   attnText:   'FFD97706',   // attention text (amber)
   greenText:  'FF16A34A',   // ✓ colour (kept for summary %)
+  borderSubtle: 'FFCBD5E1'  // subtle grey for cell borders
 };
 
 // ── Utility: ArrayBuffer → base64 ───────────────────────────────────────────
@@ -62,8 +55,17 @@ function applyFont(cell, { argb, bold = false, size = 10, italic = false } = {})
   };
 }
 
-function applyAlign(cell, horizontal = 'left', vertical = 'middle') {
-  cell.alignment = { horizontal, vertical, wrapText: false };
+function applyAlign(cell, horizontal = 'left', vertical = 'middle', wrapText = false) {
+  cell.alignment = { horizontal, vertical, wrapText };
+}
+
+function applyBorders(cell) {
+  cell.border = {
+    top: { style: 'thin', color: { argb: C.borderSubtle } },
+    left: { style: 'thin', color: { argb: C.borderSubtle } },
+    bottom: { style: 'thin', color: { argb: C.borderSubtle } },
+    right: { style: 'thin', color: { argb: C.borderSubtle } }
+  };
 }
 
 // Stamp a full banner row (title / subtitle style)
@@ -87,30 +89,32 @@ function headerRow(ws, rowNum, labels, height = 20) {
     cell.value = label;
     applyFill(cell, C.navyHeader);
     applyFont(cell, { argb: C.amber, bold: true, size: 10 });
-    applyAlign(cell, i === 0 || i === 2 || i === 8 ? 'left' : 'center');  // Notes left; rest center
+    applyAlign(cell, i === 0 || i === 2 || i === 8 ? 'left' : 'center'); 
+    // Borders on headers add a crisp finish
+    cell.border = {
+      top: { style: 'medium', color: { argb: C.navyDeep } },
+      bottom: { style: 'medium', color: { argb: C.navyDeep } }
+    };
   });
   return row;
 }
 
-// Alternating row fill (purple1 / purple2)
 function rowFill(i) {
   return i % 2 === 0 ? C.purple1 : C.purple2;
 }
 
-// Derive cable ID string from a drop object
 function cableIds(drop) {
   return [drop.cableA, drop.cableB, drop.cableC, drop.cableD]
     .filter(Boolean)
     .join(' / ');
 }
 
-// Capitalise first letter of groupType
 function typeName(drop) {
   const t = drop.groupType || (drop.isDouble ? 'double' : 'single');
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-// Attention logic: started but not complete
+// Ensure logical separation of states
 function isAttention(drop) {
   const any  = drop.roughPull || drop.terminated || drop.tested;
   const done = drop.roughPull && drop.terminated && drop.tested;
@@ -121,92 +125,99 @@ function isAttention(drop) {
 
 function buildSummarySheet(wb, group, projects) {
   const ws  = wb.addWorksheet('Group Summary');
-  const NUM = 7; // number of columns
+  const NUM = 7; 
 
-  // Column widths
-  [36, 9, 10, 13, 10, 8, 10].forEach((w, i) => {
+  [36, 12, 12, 14, 12, 12, 12].forEach((w, i) => {
     ws.getColumn(i + 1).width = w;
   });
 
-  // Row 1 — title banner
-  const titleText =
-    `Group Export  —  ${group.name}  |  Generated: ${new Date().toLocaleString()}`;
+  // Freeze top 3 rows (banners and headers)
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
+
+  const titleText = `Group Export  —  ${group.name}  |  Generated: ${new Date().toLocaleString()}`;
   bannerRow(ws, 1, titleText, C.navyDeep, C.white, 13, 26);
   ws.mergeCells(1, 1, 1, NUM);
 
-  // Row 2 — combined stats bar
   const allDrops   = projects.reduce((s, p) => s + p.drops.length, 0);
   const allPulled  = projects.reduce((s, p) => s + p.drops.filter(d => d.roughPull).length, 0);
   const allTerm    = projects.reduce((s, p) => s + p.drops.filter(d => d.terminated).length, 0);
   const allTested  = projects.reduce((s, p) => s + p.drops.filter(d => d.tested).length, 0);
-  const allDone    = projects.reduce((s, p) =>
-    s + p.drops.filter(d => d.roughPull && d.terminated && d.tested).length, 0);
+  const allDone    = projects.reduce((s, p) => s + p.drops.filter(d => d.roughPull && d.terminated && d.tested).length, 0);
   const allAttn    = projects.reduce((s, p) => s + p.drops.filter(d => isAttention(d)).length, 0);
 
-  const subtitleText =
-    `${projects.length} projects  |  Total: ${allDrops}  |  Rough pulled: ${allPulled}  |  Terminated: ${allTerm}  |  Tested: ${allTested}  |  Complete: ${allDone}  |  Attention: ${allAttn}`;
+  const subtitleText = `${projects.length} projects  |  Total: ${allDrops}  |  Rough pulled: ${allPulled}  |  Terminated: ${allTerm}  |  Tested: ${allTested}  |  Complete: ${allDone}  |  Attention: ${allAttn}`;
   bannerRow(ws, 2, subtitleText, C.navyMid, C.muted, 9, 18);
   ws.mergeCells(2, 1, 2, NUM);
 
-  // Row 3 — column headers
-  headerRow(ws, 3, ['Project', 'Drops', 'Pulled', 'Terminated', 'Tested', 'Done', '% Done'], 20);
-  // Override col 1 (Project) alignment to left already done above
+  headerRow(ws, 3, ['Project', 'Total Drops', 'Rough Pulled', 'Terminated', 'Tested', 'Completed', '% Done'], 20);
 
-  // Rows 4+ — one per project
+  // Auto-filter for the summary data
+  ws.autoFilter = {
+    from: { row: 3, column: 1 },
+    to: { row: 3, column: NUM }
+  };
+
   projects.forEach((p, i) => {
     const total  = p.drops.length;
     const pulled = p.drops.filter(d => d.roughPull).length;
     const term   = p.drops.filter(d => d.terminated).length;
     const tested = p.drops.filter(d => d.tested).length;
     const done   = p.drops.filter(d => d.roughPull && d.terminated && d.tested).length;
-    const pct    = total > 0 ? Math.round((done / total) * 100) : 0;
+    const pct    = total > 0 ? (done / total) : 0; // Export as raw decimal for native Excel % format
     const fill   = rowFill(i);
 
     const row  = ws.getRow(i + 4);
-    row.height = 18;
+    row.height = 20;
 
-    const vals  = [p.name, total, pulled, term, tested, done, total > 0 ? `${pct}%` : '—'];
+    const vals   = [p.name, total, pulled, term, tested, done, total > 0 ? pct : 0];
     const aligns = ['left','center','center','center','center','center','center'];
 
     vals.forEach((v, ci) => {
       const cell = row.getCell(ci + 1);
       cell.value = v;
       applyFill(cell, fill);
+      applyBorders(cell);
       applyFont(cell, { size: 10, bold: ci === 0 });
       applyAlign(cell, aligns[ci]);
+      
+      // True Excel percentage formatting
+      if (ci === 6) { 
+        cell.numFmt = '0%'; 
+        const pctColor = pct === 1 ? C.greenText : pct > 0 ? C.attnText : C.muted;
+        applyFont(cell, { argb: pctColor, bold: true, size: 10 });
+      }
     });
-
-    // Colour the % cell
-    const pctCell = row.getCell(7);
-    const pctColor = pct === 100 ? C.greenText : pct > 0 ? C.attnText : C.muted;
-    applyFont(pctCell, { argb: pctColor, bold: true, size: 10 });
   });
 
-  // Totals row
+  // Totals row at the bottom
   const totRow = ws.getRow(projects.length + 4);
-  totRow.height = 20;
-  const totalPct = allDrops > 0 ? Math.round((allDone / allDrops) * 100) : 0;
-  const totVals = ['TOTAL', allDrops, allPulled, allTerm, allTested, allDone, `${totalPct}%`];
+  totRow.height = 22;
+  const totalPct = allDrops > 0 ? (allDone / allDrops) : 0;
+  const totVals = ['TOTAL PORTFOLIO', allDrops, allPulled, allTerm, allTested, allDone, totalPct];
+  
   totVals.forEach((v, ci) => {
     const cell = totRow.getCell(ci + 1);
     cell.value = v;
     applyFill(cell, C.navyHeader);
-    applyFont(cell, { argb: C.amber, bold: true, size: 10 });
+    applyBorders(cell);
+    applyFont(cell, { argb: C.amber, bold: true, size: 11 });
     applyAlign(cell, ci === 0 ? 'left' : 'center');
+    if (ci === 6) cell.numFmt = '0%';
   });
 }
 
-// ── Per-project drop sheet (Cable Drops format) ──────────────────────────────
+// ── Per-project drop sheet ───────────────────────────────────────────────────
 
 function buildProjectSheet(wb, project, sheetName) {
   const ws  = wb.addWorksheet(sheetName);
-  const NUM = 10; // columns A–J
+  const NUM = 10; 
 
-  // Column widths (match reference exactly)
-  const widths = [12, 10, 19, 13, 13, 10, 11, 13, 45, 13];
+  const widths = [12, 14, 22, 13, 13, 13, 11, 14, 50, 15];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
-  // ── Row 1: Title banner ──
+  // Freeze panes so PMs don't lose headers while scrolling through drops
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
+
   const total   = project.drops.length;
   const pulled  = project.drops.filter(d => d.roughPull).length;
   const term    = project.drops.filter(d => d.terminated).length;
@@ -217,28 +228,23 @@ function buildProjectSheet(wb, project, sheetName) {
   bannerRow(ws, 1, titleText, C.navyDeep, C.white, 13, 26);
   ws.mergeCells(1, 1, 1, NUM);
 
-  // ── Row 2: Stats subtitle ──
   const subtitle = `Generated: ${new Date().toLocaleString()}  |  Total: ${total}  |  Rough pulled: ${pulled}  |  Terminated: ${term}  |  Tested: ${tested}  |  Attention: ${attn}`;
   bannerRow(ws, 2, subtitle, C.navyMid, C.muted, 9, 18);
   ws.mergeCells(2, 1, 2, NUM);
 
-  // ── Row 3: Column headers ──
   const headers = ['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Attention', 'Notes', 'Date Added'];
-  const hdrAligns = ['center','center','left','center','center','center','center','center','left','center'];
-  const hRow = ws.getRow(3);
-  hRow.height = 20;
-  headers.forEach((label, i) => {
-    const cell = hRow.getCell(i + 1);
-    cell.value = label;
-    applyFill(cell, C.navyHeader);
-    applyFont(cell, { argb: C.amber, bold: true, size: 10 });
-    applyAlign(cell, hdrAligns[i]);
-  });
+  headerRow(ws, 3, headers, 22);
 
-  // ── Data rows (row 4+) ──
+  // Auto-filter applied to the data columns
+  ws.autoFilter = {
+    from: { row: 3, column: 1 },
+    to: { row: 3, column: NUM }
+  };
+
   project.drops.forEach((drop, i) => {
     const row     = ws.getRow(i + 4);
-    row.height    = 18;
+    // Allow dynamic height if notes are long, but set a comfortable minimum
+    row.height    = 22; 
     const fill    = rowFill(i);
     const attnYes = isAttention(drop);
     const done    = drop.roughPull && drop.terminated && drop.tested;
@@ -247,6 +253,7 @@ function buildProjectSheet(wb, project, sheetName) {
     const idfCell = row.getCell(1);
     idfCell.value = drop.idf || '';
     applyFill(idfCell, fill);
+    applyBorders(idfCell);
     applyFont(idfCell, { argb: C.idfBlue, bold: true, size: 10 });
     applyAlign(idfCell, 'center');
 
@@ -254,6 +261,7 @@ function buildProjectSheet(wb, project, sheetName) {
     const typeCell = row.getCell(2);
     typeCell.value = typeName(drop);
     applyFill(typeCell, fill);
+    applyBorders(typeCell);
     applyFont(typeCell, { argb: C.typeViolet, bold: true, size: 10 });
     applyAlign(typeCell, 'center');
 
@@ -261,38 +269,29 @@ function buildProjectSheet(wb, project, sheetName) {
     const cableCell = row.getCell(3);
     cableCell.value = cableIds(drop);
     applyFill(cableCell, fill);
+    applyBorders(cableCell);
     applyFont(cableCell, { size: 10 });
     applyAlign(cableCell, 'left');
 
-    // D – Rough Pull
-    const rpCell = row.getCell(4);
-    rpCell.value = drop.roughPull ? 'Yes' : 'No';
-    applyFill(rpCell, fill);
-    applyFont(rpCell, { size: 11 });
-    applyAlign(rpCell, 'center');
+    // D, E, F, G – Tracking States
+    const states = [
+      { col: 4, val: drop.roughPull },
+      { col: 5, val: drop.terminated },
+      { col: 6, val: drop.tested },
+      { col: 7, val: done }
+    ];
 
-    // E – Terminated
-    const tmCell = row.getCell(5);
-    tmCell.value = drop.terminated ? 'Yes' : 'No';
-    applyFill(tmCell, fill);
-    applyFont(tmCell, { size: 11 });
-    applyAlign(tmCell, 'center');
+    states.forEach(({ col, val }) => {
+      const cell = row.getCell(col);
+      cell.value = val ? 'Yes' : 'No';
+      applyFill(cell, fill);
+      applyBorders(cell);
+      // Give visual weight to completed steps
+      applyFont(cell, { size: 10, argb: val ? undefined : C.muted });
+      applyAlign(cell, 'center');
+    });
 
-    // F – Tested
-    const tsCell = row.getCell(6);
-    tsCell.value = drop.tested ? 'Yes' : 'No';
-    applyFill(tsCell, fill);
-    applyFont(tsCell, { size: 11 });
-    applyAlign(tsCell, 'center');
-
-    // G – Complete
-    const compCell = row.getCell(7);
-    compCell.value = done ? 'Yes' : '';
-    applyFill(compCell, fill);
-    applyFont(compCell, { size: 11 });
-    applyAlign(compCell, 'center');
-
-    // H – Attention (special style when flagged)
+    // H – Attention
     const attnCell = row.getCell(8);
     if (attnYes) {
       attnCell.value = '⚠ Yes';
@@ -301,21 +300,24 @@ function buildProjectSheet(wb, project, sheetName) {
     } else {
       attnCell.value = 'No';
       applyFill(attnCell, fill);
-      applyFont(attnCell, { argb: C.muted, size: 9 });
+      applyFont(attnCell, { argb: C.muted, size: 10 });
     }
+    applyBorders(attnCell);
     applyAlign(attnCell, 'center');
 
-    // I – Notes
+    // I – Notes (Word Wrap Enabled)
     const notesCell = row.getCell(9);
     notesCell.value = drop.notes || '';
     applyFill(notesCell, fill);
+    applyBorders(notesCell);
     applyFont(notesCell, { argb: C.slate, size: 9 });
-    applyAlign(notesCell, 'left');
+    applyAlign(notesCell, 'left', 'middle', true); // True = wrap text
 
     // J – Date Added
     const dateCell = row.getCell(10);
     dateCell.value = drop.createdAt || '';
     applyFill(dateCell, fill);
+    applyBorders(dateCell);
     applyFont(dateCell, { argb: C.slate, size: 9 });
     applyAlign(dateCell, 'center');
   });
@@ -332,15 +334,11 @@ export async function exportGroupToExcel(group, projects) {
   wb.creator = 'CablePull Tracker';
   wb.created = new Date();
 
-  // Sheet 1: group-level summary
   buildSummarySheet(wb, group, projects);
 
-  // Sheets 2+: one per project (match individual export layout)
   const usedNames = new Set(['Group Summary']);
   for (const project of projects) {
-    // Sanitise to Excel's 31-char, no-special-chars rule
     let name = project.name.replace(/[\\/*?[\]:]/g, '').trim().slice(0, 31);
-    // Deduplicate if two projects share a truncated name
     let candidate = name;
     let suffix = 2;
     while (usedNames.has(candidate)) {
@@ -350,7 +348,6 @@ export async function exportGroupToExcel(group, projects) {
     buildProjectSheet(wb, project, candidate);
   }
 
-  // Serialize → base64 → cache → share
   const buffer   = await wb.xlsx.writeBuffer();
   const base64   = toBase64(buffer);
   const safeName = group.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
