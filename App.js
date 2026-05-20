@@ -1,42 +1,43 @@
-import 'react-native-gesture-handler';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, SafeAreaView, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import ProjectsScreen  from './src/screens/ProjectsScreen';
 import DropsScreen     from './src/screens/DropsScreen';
+import DevicesScreen   from './src/screens/DevicesScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import SettingsScreen  from './src/screens/SettingsScreen';
-import GalleryScreen   from './src/screens/GalleryScreen';
 import TabBar          from './src/components/TabBar';
 import Toast           from './src/components/Toast';
 import { COLORS }      from './src/theme';
-import { emptyDrop }   from './src/utils';
+import { emptyDrop, emptyDevice } from './src/utils';
 
 export default function App() {
-  const [projects,       setProjectsState] = useState([]);
-  const [groups,         setGroupsState]   = useState([]);   // ← new
-  const [activeProject,  setActiveProject] = useState(null);
-  const [activeTab,      setActiveTab]     = useState('drops');
-  const [loaded,         setLoaded]        = useState(false);
-  const [toast,          setToast]         = useState(null);
-  const toastTimer      = useRef(null);
-  const pendingDelete   = useRef(null);
-  const persistTimer    = useRef(null);
-  const persistGrpTimer = useRef(null);    // ← new
+  const [projects,      setProjectsState] = useState([]);
+  const [activeProject, setActiveProject] = useState(null);
+  const [activeTab,     setActiveTab]     = useState('drops');
+  const [loaded,        setLoaded]        = useState(false);
+  const [toast,         setToast]         = useState(null);
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
-        const [projectData, groupData] = await Promise.all([
-          AsyncStorage.getItem('cable-projects'),
-          AsyncStorage.getItem('cable-groups'),      // ← new
-        ]);
-        if (projectData) setProjectsState(JSON.parse(projectData));
-        if (groupData)   setGroupsState(JSON.parse(groupData));  // ← new
+        const data = await AsyncStorage.getItem('cable-projects');
+        if (data) {
+          const parsed = JSON.parse(data);
+          // Migrate old projects that don't have devices/deviceTypeList yet
+          const migrated = parsed.map(p => ({
+            ...p,
+            devices:        p.devices        ?? [],
+            deviceTypeList: p.deviceTypeList ?? [
+              'Camera','Card Reader','Access Point','Door Controller',
+              'Intercom','Motion Sensor','Speaker','Display/Monitor','Other',
+            ],
+          }));
+          setProjectsState(migrated);
+        }
       } catch (e) {
         console.error('Load error:', e);
       } finally {
@@ -45,22 +46,10 @@ export default function App() {
     })();
   }, []);
 
-  // ── Persist projects ───────────────────────────────────────────────────────
-  const persistProjects = useCallback((next) => {
-    if (persistTimer.current) clearTimeout(persistTimer.current);
-    persistTimer.current = setTimeout(async () => {
-      try { await AsyncStorage.setItem('cable-projects', JSON.stringify(next)); }
-      catch { showToast('Save failed', 'error'); }
-    }, 400);
-  }, []);
-
-  // ── Persist groups (debounced) ─────────────────────────────────────────────
-  const persistGroups = useCallback((next) => {
-    if (persistGrpTimer.current) clearTimeout(persistGrpTimer.current);
-    persistGrpTimer.current = setTimeout(async () => {
-      try { await AsyncStorage.setItem('cable-groups', JSON.stringify(next)); }
-      catch { showToast('Group save failed', 'error'); }
-    }, 400);
+  // ── Persist ───────────────────────────────────────────────────────────────
+  const persistProjects = useCallback(async (next) => {
+    try { await AsyncStorage.setItem('cable-projects', JSON.stringify(next)); }
+    catch { showToast('Save failed', 'error'); }
   }, []);
 
   // ── Update projects list + keep activeProject in sync ─────────────────────
@@ -71,17 +60,11 @@ export default function App() {
     if (activeProject) {
       const updated = resolved.find(p => p.id === activeProject.id);
       if (updated) setActiveProject(updated);
+      else setActiveProject(null); // project was deleted
     }
   }, [projects, activeProject, persistProjects]);
 
-  // ── Update groups list ─────────────────────────────────────────────────────
-  const setGroups = useCallback((next) => {
-    const resolved = typeof next === 'function' ? next(groups) : next;
-    setGroupsState(resolved);
-    persistGroups(resolved);
-  }, [groups, persistGroups]);
-
-  // ── Update a single project's fields ──────────────────────────────────────
+  // ── Update a single project's fields ─────────────────────────────────────
   const updateActiveProject = useCallback((changes) => {
     const updated = { ...activeProject, ...changes };
     setActiveProject(updated);
@@ -91,102 +74,72 @@ export default function App() {
   }, [activeProject, projects, persistProjects]);
 
   // ── Toast ─────────────────────────────────────────────────────────────────
-  const showToast = useCallback((msg, type = 'info', onUndo = null) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ msg, type, onUndo });
-    toastTimer.current = setTimeout(() => {
-      setToast(null);
-      pendingDelete.current = null;
-    }, onUndo ? 5000 : 2500);
+  const showToast = useCallback((msg, type = 'info') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 2500);
   }, []);
 
   // ── Drop CRUD ─────────────────────────────────────────────────────────────
   const addDrop = useCallback((isDouble) => {
-    const next = [...activeProject.drops, emptyDrop(isDouble)];
+    const next = [...(activeProject.drops || []), emptyDrop(isDouble)];
     updateActiveProject({ drops: next });
     showToast(isDouble ? '⟷ Double drop added' : '+ Single drop added');
   }, [activeProject, updateActiveProject, showToast]);
 
   const bulkAddDrops = useCallback((newDrops) => {
-    const next = [...activeProject.drops, ...newDrops];
+    const next = [...(activeProject.drops || []), ...newDrops];
     updateActiveProject({ drops: next });
     showToast(`⬇ ${newDrops.length} drops imported`);
   }, [activeProject, updateActiveProject, showToast]);
 
   const updateDrop = useCallback((updated) => {
-    const next = activeProject.drops.map(d => d.id === updated.id ? updated : d);
+    const next = (activeProject.drops || []).map(d => d.id === updated.id ? updated : d);
     updateActiveProject({ drops: next });
   }, [activeProject, updateActiveProject]);
 
   const deleteDrop = useCallback((id) => {
-    const index = activeProject.drops.findIndex(d => d.id === id);
-    const drop  = activeProject.drops[index];
-    const next  = activeProject.drops.filter(d => d.id !== id);
+    const next = (activeProject.drops || []).filter(d => d.id !== id);
     updateActiveProject({ drops: next });
-    pendingDelete.current = { drop, index };
-    showToast('Drop deleted', 'info', () => {
-      if (!pendingDelete.current) return;
-      const { drop: d, index: i } = pendingDelete.current;
-      pendingDelete.current = null;
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-      setToast(null);
-      setActiveProject(prev => {
-        if (!prev) return prev;
-        const restored = [...prev.drops];
-        restored.splice(i, 0, d);
-        const updated = { ...prev, drops: restored };
-        const nextProjects = projects.map(p => p.id === updated.id ? updated : p);
-        persistProjects(nextProjects);
-        setProjectsState(nextProjects);
-        return updated;
-      });
-      showToast('↩ Delete undone');
-    });
-  }, [activeProject, updateActiveProject, showToast, projects, persistProjects]);
+    showToast('Drop deleted');
+  }, [activeProject, updateActiveProject, showToast]);
+
+  // ── Device CRUD ───────────────────────────────────────────────────────────
+  const addDevice = useCallback(() => {
+    const next = [...(activeProject.devices || []), emptyDevice()];
+    updateActiveProject({ devices: next });
+    showToast('📟 Device added');
+  }, [activeProject, updateActiveProject, showToast]);
+
+  const updateDevice = useCallback((updated) => {
+    const next = (activeProject.devices || []).map(d => d.id === updated.id ? updated : d);
+    updateActiveProject({ devices: next });
+  }, [activeProject, updateActiveProject]);
+
+  const deleteDevice = useCallback((id) => {
+    const next = (activeProject.devices || []).filter(d => d.id !== id);
+    updateActiveProject({ devices: next });
+    showToast('Device deleted');
+  }, [activeProject, updateActiveProject, showToast]);
 
   // ── IDF management ────────────────────────────────────────────────────────
   const updateIdfs = useCallback((next) => {
     updateActiveProject({ idfList: next });
   }, [updateActiveProject]);
 
-  // ── Project notes ─────────────────────────────────────────────────────────
-  const updateProjectNotes = useCallback((notes) => {
-    updateActiveProject({ notes });
+  // ── Device type management ────────────────────────────────────────────────
+  const updateDeviceTypeList = useCallback((next) => {
+    updateActiveProject({ deviceTypeList: next });
   }, [updateActiveProject]);
 
-  // ── Templates ─────────────────────────────────────────────────────────────
-  const updateTemplates = useCallback((templates) => {
-    updateActiveProject({ templates });
-  }, [updateActiveProject]);
-
-  const addDropFromTemplate = useCallback((template) => {
-    const { uid, today } = require('./src/utils');
-    const drop = {
-      id:         uid(),
-      groupType:  template.groupType,
-      isDouble:   template.groupType === 'double',
-      cableA: '', cableB: '', cableC: '', cableD: '',
-      idf:        template.idf || '',
-      roughPull:  false, terminated: false, tested: false,
-      notes:      '', createdAt: today(),
-    };
-    const next = [...activeProject.drops, drop];
-    updateActiveProject({ drops: next });
-    showToast(`+ Drop added from "${template.name}"`);
-  }, [activeProject, updateActiveProject, showToast]);
-
-  // ── Gallery folder + image deletion ───────────────────────────────────────
-  const deleteFolderWithImages = useCallback((folderId) => {
-    updateActiveProject({
-      folders:       (activeProject.folders       ?? []).filter(f => f.id !== folderId),
-      galleryImages: (activeProject.galleryImages ?? []).filter(i => i.folderId !== folderId),
-    });
-  }, [activeProject, updateActiveProject]);
-
-  // ── Clear all drops ───────────────────────────────────────────────────────
+  // ── Clear all ─────────────────────────────────────────────────────────────
   const clearAllDrops = useCallback(() => {
     updateActiveProject({ drops: [] });
     showToast('All drops cleared');
+  }, [updateActiveProject, showToast]);
+
+  const clearAllDevices = useCallback(() => {
+    updateActiveProject({ devices: [] });
+    showToast('All devices cleared');
   }, [updateActiveProject, showToast]);
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -211,76 +164,69 @@ export default function App() {
   // ── Projects screen ───────────────────────────────────────────────────────
   if (!activeProject) {
     return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaView style={st.root}>
-          <StatusBar style="light" backgroundColor={COLORS.surface} translucent={false} />
-          <ProjectsScreen
-            projects={projects}
-            setProjects={setProjects}
-            onOpenProject={openProject}
-            groups={groups}          // ← new
-            setGroups={setGroups}    // ← new
-          />
-          {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} />}
-        </SafeAreaView>
-      </GestureHandlerRootView>
+      <SafeAreaView style={st.root}>
+        <StatusBar style="light" backgroundColor={COLORS.surface} translucent={false} />
+        <ProjectsScreen
+          projects={projects}
+          setProjects={setProjects}
+          onOpenProject={openProject}
+        />
+        {toast && <Toast msg={toast.msg} type={toast.type} />}
+      </SafeAreaView>
     );
   }
 
   // ── Inside a project ──────────────────────────────────────────────────────
+  const drops          = activeProject.drops          || [];
+  const devices        = activeProject.devices        || [];
+  const idfList        = activeProject.idfList        || [];
+  const deviceTypeList = activeProject.deviceTypeList || [];
+
   const screenProps = {
-    drops:            activeProject.drops,
-    idfList:          activeProject.idfList,
-    project:          activeProject,
+    drops, devices, idfList, deviceTypeList,
+    project: activeProject,
     addDrop, bulkAddDrops, updateDrop, deleteDrop,
-    updateIdfs, clearAllDrops, showToast,
-    setProjects, projects,
-    updateProjectNotes,
-    templates:        activeProject.templates ?? [],
-    updateTemplates,
-    addDropFromTemplate,
-    folders:          activeProject.folders       ?? [],
-    galleryImages:    activeProject.galleryImages ?? [],
-    setFolders:       (next) => updateActiveProject({ folders: next }),
-    setGalleryImages: (next) => updateActiveProject({ galleryImages: next }),
-    deleteFolderWithImages,
+    addDevice, updateDevice, deleteDevice,
+    updateIdfs, updateDeviceTypeList,
+    clearAllDrops, clearAllDevices,
+    showToast, setProjects, projects,
   };
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={st.root}>
-        <StatusBar style="light" backgroundColor={COLORS.surface} translucent={false} />
+    <SafeAreaView style={st.root}>
+      <StatusBar style="light" backgroundColor={COLORS.surface} translucent={false} />
 
-        {/* Project header bar */}
-        <View style={st.projectBar}>
-          <TouchableOpacity onPress={closeProject} style={st.backBtn} activeOpacity={0.7}>
-            <Text style={st.backArrow}>←</Text>
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={st.projectName} numberOfLines={1}>{activeProject.name}</Text>
-            <Text style={st.projectMeta}>
-              {activeProject.drops.length} drop{activeProject.drops.length !== 1 ? 's' : ''}
-              {activeProject.status === 'archived' ? '  ·  ARCHIVED' : ''}
-            </Text>
-          </View>
-          {activeProject.status === 'archived' && (
-            <View style={st.archivedBadge}>
-              <Text style={st.archivedBadgeText}>ARCHIVED</Text>
-            </View>
-          )}
-        </View>
-
+      {/* Project header bar */}
+      <View style={st.projectBar}>
+        <TouchableOpacity onPress={closeProject} style={st.backBtn} activeOpacity={0.7}>
+          <Text style={st.backArrow}>←</Text>
+        </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          {activeTab === 'drops'     && <DropsScreen     {...screenProps} />}
-          {activeTab === 'dashboard' && <DashboardScreen {...screenProps} />}
-          {activeTab === 'settings'  && <SettingsScreen  {...screenProps} />}
-          {activeTab === 'gallery'   && <GalleryScreen   {...screenProps} />}
+          <Text style={st.projectName} numberOfLines={1}>{activeProject.name}</Text>
+          <Text style={st.projectMeta}>
+            {drops.length} drop{drops.length !== 1 ? 's' : ''}
+            {'  ·  '}
+            {devices.length} device{devices.length !== 1 ? 's' : ''}
+            {activeProject.status === 'archived' ? '  ·  ARCHIVED' : ''}
+          </Text>
         </View>
+        {activeProject.status === 'archived' && (
+          <View style={st.archivedBadge}>
+            <Text style={st.archivedBadgeText}>ARCHIVED</Text>
+          </View>
+        )}
+      </View>
 
-        <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
-        {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} />}
-      </SafeAreaView>
-    </GestureHandlerRootView>
+      <View style={{ flex: 1 }}>
+        {activeTab === 'drops'     && <DropsScreen     {...screenProps} />}
+        {activeTab === 'devices'   && <DevicesScreen   {...screenProps} />}
+        {activeTab === 'dashboard' && <DashboardScreen {...screenProps} />}
+        {activeTab === 'settings'  && <SettingsScreen  {...screenProps} />}
+      </View>
+
+      <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
+      {toast && <Toast msg={toast.msg} type={toast.type} />}
+    </SafeAreaView>
   );
 }
 
@@ -288,32 +234,22 @@ const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   projectBar: {
     backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 10, gap: 10,
   },
   backBtn: {
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 8,
-    width: 36, height: 36,
+    borderRadius: 8, width: 36, height: 36,
     alignItems: 'center', justifyContent: 'center',
   },
-  backArrow:    { color: COLORS.blue, fontSize: 20, fontWeight: '700' },
-  projectName:  { fontSize: 15, fontWeight: '800', color: COLORS.text, letterSpacing: -0.2 },
-  projectMeta:  { fontSize: 10, color: COLORS.textMuted, marginTop: 1 },
+  backArrow:   { color: COLORS.blue, fontSize: 20, fontWeight: '700' },
+  projectName: { fontSize: 15, fontWeight: '800', color: COLORS.text, letterSpacing: -0.2 },
+  projectMeta: { fontSize: 10, color: COLORS.textMuted, marginTop: 1 },
   archivedBadge: {
-    backgroundColor: 'rgba(148,163,184,0.15)',
-    borderRadius: 5,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.25)',
+    backgroundColor: 'rgba(148,163,184,0.15)', borderRadius: 5,
+    paddingHorizontal: 7, paddingVertical: 3,
+    borderWidth: 1, borderColor: 'rgba(148,163,184,0.25)',
   },
-  archivedBadgeText: {
-    fontSize: 9, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.8,
-  },
+  archivedBadgeText: { fontSize: 9, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.8 },
 });
