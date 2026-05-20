@@ -17,19 +17,26 @@ import { emptyDrop }   from './src/utils';
 
 export default function App() {
   const [projects,       setProjectsState] = useState([]);
+  const [groups,         setGroupsState]   = useState([]);   // ← new
   const [activeProject,  setActiveProject] = useState(null);
   const [activeTab,      setActiveTab]     = useState('drops');
   const [loaded,         setLoaded]        = useState(false);
   const [toast,          setToast]         = useState(null);
   const toastTimer      = useRef(null);
   const pendingDelete   = useRef(null);
+  const persistTimer    = useRef(null);
+  const persistGrpTimer = useRef(null);    // ← new
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
-        const data = await AsyncStorage.getItem('cable-projects');
-        if (data) setProjectsState(JSON.parse(data));
+        const [projectData, groupData] = await Promise.all([
+          AsyncStorage.getItem('cable-projects'),
+          AsyncStorage.getItem('cable-groups'),      // ← new
+        ]);
+        if (projectData) setProjectsState(JSON.parse(projectData));
+        if (groupData)   setGroupsState(JSON.parse(groupData));  // ← new
       } catch (e) {
         console.error('Load error:', e);
       } finally {
@@ -38,14 +45,21 @@ export default function App() {
     })();
   }, []);
 
-  // ── Persist ───────────────────────────────────────────────────────────────
-  const persistTimer = useRef(null);
-
+  // ── Persist projects ───────────────────────────────────────────────────────
   const persistProjects = useCallback((next) => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
     persistTimer.current = setTimeout(async () => {
       try { await AsyncStorage.setItem('cable-projects', JSON.stringify(next)); }
       catch { showToast('Save failed', 'error'); }
+    }, 400);
+  }, []);
+
+  // ── Persist groups (debounced) ─────────────────────────────────────────────
+  const persistGroups = useCallback((next) => {
+    if (persistGrpTimer.current) clearTimeout(persistGrpTimer.current);
+    persistGrpTimer.current = setTimeout(async () => {
+      try { await AsyncStorage.setItem('cable-groups', JSON.stringify(next)); }
+      catch { showToast('Group save failed', 'error'); }
     }, 400);
   }, []);
 
@@ -60,7 +74,14 @@ export default function App() {
     }
   }, [projects, activeProject, persistProjects]);
 
-  // ── Update a single project's fields ─────────────────────────────────────
+  // ── Update groups list ─────────────────────────────────────────────────────
+  const setGroups = useCallback((next) => {
+    const resolved = typeof next === 'function' ? next(groups) : next;
+    setGroupsState(resolved);
+    persistGroups(resolved);
+  }, [groups, persistGroups]);
+
+  // ── Update a single project's fields ──────────────────────────────────────
   const updateActiveProject = useCallback((changes) => {
     const updated = { ...activeProject, ...changes };
     setActiveProject(updated);
@@ -104,7 +125,6 @@ export default function App() {
     updateActiveProject({ drops: next });
     pendingDelete.current = { drop, index };
     showToast('Drop deleted', 'info', () => {
-      // Undo: re-splice drop back at original position
       if (!pendingDelete.current) return;
       const { drop: d, index: i } = pendingDelete.current;
       pendingDelete.current = null;
@@ -155,8 +175,7 @@ export default function App() {
     showToast(`+ Drop added from "${template.name}"`);
   }, [activeProject, updateActiveProject, showToast]);
 
-  // ── Gallery folder + image deletion (must be one atomic update to avoid
-  //    stale-closure overwrite when two separate setters fire back-to-back) ──
+  // ── Gallery folder + image deletion ───────────────────────────────────────
   const deleteFolderWithImages = useCallback((folderId) => {
     updateActiveProject({
       folders:       (activeProject.folders       ?? []).filter(f => f.id !== folderId),
@@ -199,6 +218,8 @@ export default function App() {
             projects={projects}
             setProjects={setProjects}
             onOpenProject={openProject}
+            groups={groups}          // ← new
+            setGroups={setGroups}    // ← new
           />
           {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} />}
         </SafeAreaView>

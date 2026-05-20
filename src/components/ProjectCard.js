@@ -2,7 +2,22 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { COLORS } from '../theme';
 
-export default function ProjectCard({ project, onOpen, onArchive, onUnarchive, onDelete }) {
+/**
+ * ProjectCard
+ *
+ * New optional props for group support:
+ *   onMoveToGroup   — if provided, shows "↗ Group" button for ungrouped active projects
+ *   onRemoveFromGroup — if provided, shows "↙ Ungroup" button for projects inside a group
+ */
+export default function ProjectCard({
+  project,
+  onOpen,
+  onArchive,
+  onUnarchive,
+  onDelete,
+  onMoveToGroup,
+  onRemoveFromGroup,
+}) {
   const total    = project.drops.length;
   const complete = project.drops.filter(d => d.roughPull && d.terminated && d.tested).length;
   const rp       = project.drops.filter(d => d.roughPull).length;
@@ -32,12 +47,16 @@ export default function ProjectCard({ project, onOpen, onArchive, onUnarchive, o
           </View>
           <Text style={s.meta}>
             Created {project.createdAt}
-            {project.idfList.length > 0 ? `  ·  ${project.idfList.length} IDF closets` : ''}
+            {project.idfList?.length > 0 ? `  ·  ${project.idfList.length} IDF closets` : ''}
           </Text>
         </View>
         {/* Progress ring */}
-        <View style={[s.ring, { borderColor: pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : '#333' }]}>
-          <Text style={[s.ringText, { color: pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : '#444' }]}>
+        <View style={[s.ring, {
+          borderColor: pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : '#333',
+        }]}>
+          <Text style={[s.ringText, {
+            color: pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : '#444',
+          }]}>
             {pct}%
           </Text>
         </View>
@@ -47,11 +66,11 @@ export default function ProjectCard({ project, onOpen, onArchive, onUnarchive, o
       {total > 0 && (
         <View style={s.statsRow}>
           {[
-            { label: 'Drops', val: total,  color: COLORS.textSub },
-            { label: 'Pulled', val: rp,    color: COLORS.amber },
-            { label: 'Term.',  val: tm,     color: COLORS.blue  },
-            { label: 'Tested', val: ts,     color: COLORS.green },
-            { label: 'Done',   val: complete, color: COLORS.pink },
+            { label: 'Drops',  val: total,    color: COLORS.textSub },
+            { label: 'Pulled', val: rp,       color: COLORS.amber   },
+            { label: 'Term.',  val: tm,       color: COLORS.blue    },
+            { label: 'Tested', val: ts,       color: COLORS.green   },
+            { label: 'Done',   val: complete, color: COLORS.pink    },
           ].map(({ label, val, color }) => (
             <View key={label} style={s.stat}>
               <Text style={[s.statVal, { color }]}>{val}</Text>
@@ -78,6 +97,18 @@ export default function ProjectCard({ project, onOpen, onArchive, onUnarchive, o
             <TouchableOpacity style={[s.actionBtn, s.openBtn]} onPress={() => onOpen(project)}>
               <Text style={[s.actionText, { color: COLORS.blue }]}>▶ Open</Text>
             </TouchableOpacity>
+
+            {/* Group action: Ungroup (inside a group) OR Move to Group (ungrouped) */}
+            {onRemoveFromGroup ? (
+              <TouchableOpacity style={[s.actionBtn, s.ungroupBtn]} onPress={onRemoveFromGroup}>
+                <Text style={[s.actionText, { color: COLORS.textMuted }]}>↙ Ungroup</Text>
+              </TouchableOpacity>
+            ) : onMoveToGroup ? (
+              <TouchableOpacity style={[s.actionBtn, s.groupBtn]} onPress={onMoveToGroup}>
+                <Text style={[s.actionText, { color: COLORS.amber }]}>↗ Group</Text>
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity style={[s.actionBtn, s.archiveBtn]} onPress={() => onArchive(project.id)}>
               <Text style={[s.actionText, { color: COLORS.textMuted }]}>📦 Archive</Text>
             </TouchableOpacity>
@@ -164,7 +195,7 @@ const s = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
   },
-  stat: { alignItems: 'center' },
+  stat:      { alignItems: 'center' },
   statVal:   { fontSize: 16, fontWeight: '800' },
   statLabel: { fontSize: 9, color: COLORS.textMuted, marginTop: 2, fontWeight: '600' },
   barTrack: {
@@ -186,8 +217,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
   },
-  openBtn:    { backgroundColor: COLORS.blueDim,  borderColor: 'rgba(59,130,246,0.3)' },
+  openBtn:    { backgroundColor: COLORS.blueDim,           borderColor: 'rgba(59,130,246,0.3)' },
   archiveBtn: { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: COLORS.border },
-  deleteBtn:  { backgroundColor: COLORS.redDim,   borderColor: 'rgba(239,68,68,0.3)' },
+  deleteBtn:  { backgroundColor: COLORS.redDim,            borderColor: 'rgba(239,68,68,0.3)' },
+  groupBtn:   { backgroundColor: 'rgba(245,158,11,0.1)',   borderColor: 'rgba(245,158,11,0.3)' },
+  ungroupBtn: { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: COLORS.border },
   actionText: { fontSize: 12, fontWeight: '700' },
 });
