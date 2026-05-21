@@ -361,7 +361,9 @@ export async function exportXLSX(drops, projectName = '') {
       printTitlesRow: '1:2',
     },
   });
-  ws2.columns = [{ width: 22 }, { width: 14 }, { width: 14 }];
+  [22, 14, 14].forEach((w, i) => {
+    ws2.getColumn(i + 1).width = w;
+  });
 
   ws2.mergeCells('A1:C1');
   const s2title     = ws2.getCell('A1');
@@ -582,12 +584,10 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
         printTitlesRow: '1:1',
       },
     });
-    ws3.columns = [
-      { width: 10 }, { width: 10 }, { width: 13 },
-      { width: 13 }, { width: 10 }, { width: 11 },
-      { width: 10 }, { width: 10 },
-    ];
-
+    
+    [10, 10, 13, 13, 10, 11, 10, 10].forEach((w, i) => {
+      ws3.getColumn(i + 1).width = w;
+    });
     ws3.mergeCells('A1:H1');
     const ws3title     = ws3.getCell('A1');
     ws3title.value     = `By IDF Closet  (Live View)${projectName ? `  —  ${projectName}` : ''}`;
