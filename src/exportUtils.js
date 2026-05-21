@@ -191,8 +191,8 @@ export async function exportXLSX(drops, projectName = '') {
     { key: 'complete',   width: 11 },
     { key: 'patched',    width: 18 },
     { key: 'attention',  width: 11 },
-    { key: 'notes',      width: 10 }, // auto-fit below
-    { key: 'date',       width: 10 }, // auto-fit below
+    { key: 'notes',      width: 10 }, 
+    { key: 'date',       width: 10 }, 
   ];
 
   // ── Title row (A1:K1) ───────────────────────────────────────────────────────
@@ -225,7 +225,6 @@ export async function exportXLSX(drops, projectName = '') {
     cell.font = headerFont; cell.fill = headerFill;
     cell.alignment = centerAlign; cell.border = thinBorder;
   });
-  // FIX: col 3 = Cable ID(s) → left; col 10 = Notes → left (was incorrectly col 9)
   hdr.getCell(3).alignment  = leftAlign;
   hdr.getCell(10).alignment = leftAlign;
 
@@ -239,7 +238,7 @@ export async function exportXLSX(drops, projectName = '') {
   // ── Data rows ───────────────────────────────────────────────────────────────
   sorted.forEach((d, i) => {
     const rowNum    = 4 + i;
-    d._mainRowNum   = rowNum; // Used by the By IDF sheet to create live formula links
+    d._mainRowNum   = rowNum; 
 
     const cable     = getCableLabel(d);
     const typeLabel = getTypeLabel(d);
@@ -256,7 +255,7 @@ export async function exportXLSX(drops, projectName = '') {
       d.roughPull  ? 'Yes' : 'No',
       d.terminated ? 'Yes' : 'No',
       d.tested     ? 'Yes' : 'No',
-      '',              // Complete — formula below
+      '',              
       pLabel,
       attnYes ? '⚠ Yes' : 'No',
       d.notes || '',
@@ -282,24 +281,24 @@ export async function exportXLSX(drops, projectName = '') {
         case 6:
         case 7:
           cell.fill = baseFill; cell.alignment = centerAlign; break;
-        case 8: // Patched
+        case 8: 
           cell.fill      = baseFill;
           cell.alignment = centerAlign;
           cell.font      = { ...bodyFont, color: { argb: isPatched ? 'FF065F46' : 'FF94A3B8' } };
           break;
-        case 9: // Attention
+        case 9: 
           cell.fill      = attnYes ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7ED' } } : baseFill;
           cell.font      = attnYes
             ? { bold: true, color: { argb: 'FFD97706' }, size: 10, name: 'Calibri' }
             : { ...dimFont, color: { argb: 'FF94A3B8' } };
           cell.alignment = centerAlign;
           break;
-        case 10: // Notes
+        case 10: 
           cell.font      = dimFont;
           cell.fill      = baseFill;
           cell.alignment = { ...leftAlign, wrapText: true };
           break;
-        case 11: // Date Added
+        case 11: 
           cell.font      = dimFont;
           cell.fill      = baseFill;
           cell.alignment = centerAlign;
@@ -314,7 +313,6 @@ export async function exportXLSX(drops, projectName = '') {
 
   ws.autoFilter = { from: 'A3', to: 'K3' };
 
-  // ── Conditional formatting ──────────────────────────────────────────────────
   if (total > 0) {
     ws.addConditionalFormatting({
       ref: `D4:F${lastDataRow}`,
@@ -344,10 +342,9 @@ export async function exportXLSX(drops, projectName = '') {
     });
   }
 
-  // FIX: only array corrected to [10, 11] (Notes = col 10, Date = col 11)
   autoFitColumns(ws, {
-    10: { min: 20, max: 45 }, // Notes — wrap is on, so cap width
-    11: { min: 14, max: 26 }, // Date  — locale strings can be ~22 chars
+    10: { min: 20, max: 45 }, 
+    11: { min: 14, max: 26 }, 
   }, [10, 11]);
 
   // ── Summary sheet ────────────────────────────────────────────────────────────
@@ -361,9 +358,13 @@ export async function exportXLSX(drops, projectName = '') {
       printTitlesRow: '1:2',
     },
   });
-  [22, 14, 14].forEach((w, i) => {
-    ws2.getColumn(i + 1).width = w;
-  });
+
+  // OPTION B: Map keys explicitly so internal row assignments can't crash
+  ws2.columns = [
+    { key: 'metric', width: 22 },
+    { key: 'count',  width: 14 },
+    { key: 'pct',    width: 14 }
+  ];
 
   ws2.mergeCells('A1:C1');
   const s2title     = ws2.getCell('A1');
@@ -477,11 +478,9 @@ export async function exportXLSX(drops, projectName = '') {
   });
   ws2.mergeCells(`B${ws2.rowCount}:C${ws2.rowCount}`);
 
-  // Color-scale on % of Total column — red → yellow → green
-  const pctFirstRow = 3; // header row; data starts row 4 (index offset is handled by addRow)
   if (total > 0) {
     ws2.addConditionalFormatting({
-      ref: `C${pctFirstRow}:C${ws2.rowCount}`,
+      ref: `C3:C${ws2.rowCount}`,
       rules: [{
         type: 'colorScale',
         colorScale: {
@@ -492,7 +491,6 @@ export async function exportXLSX(drops, projectName = '') {
     });
   }
 
-  // ── "Flagged Items" section (Attention drops — quick PM reference) ──────────
   const attnDrops = sorted.filter(d => isAttention(d));
   if (attnDrops.length > 0) {
     addSeparator();
@@ -523,51 +521,7 @@ export async function exportXLSX(drops, projectName = '') {
     });
   }
 
-/**
- * Sizes columns to fit their longest cell value.
- * Safely iterates through columns using actual worksheet limits to prevent crashes.
- */
-function autoFitColumns(worksheet, overrides = {}, only = null) {
-  const DEFAULT_MIN = 8;
-  const DEFAULT_MAX = 50;
-
-  // Use the maximum tracked column count on the sheet, or default to checking up to 20 columns
-  const maxCol = worksheet.columnCount || 20;
-
-  for (let colNum = 1; colNum <= maxCol; colNum++) {
-    // If an array of specific columns was passed, skip columns not included in that list
-    if (only && !only.includes(colNum)) continue;
-
-    const column = worksheet.getColumn(colNum);
-    if (!column || !column.eachCell) continue;
-
-    const { min = DEFAULT_MIN, max = DEFAULT_MAX } = overrides[colNum] || {};
-    let maxLen = min;
-
-    column.eachCell({ includeEmpty: false }, (cell) => {
-      const v = cell.value;
-      let len = 0;
-
-      if (v === null || v === undefined) return;
-      if (typeof v === 'string')         len = v.length;
-      else if (typeof v === 'number')    len = String(v).length;
-      else if (v instanceof Date)        len = v.toLocaleString().length;
-      else if (typeof v === 'object') {
-        if (v.richText) {
-          len = v.richText.reduce((acc, r) => acc + (r.text?.length ?? 0), 0);
-        } else if (v.formula) {
-          len = v.result != null ? String(v.result).length : 6;
-        } else if (v.text != null) {
-          len = String(v.text).length;
-        }
-      }
-      if (len > maxLen) maxLen = len;
-    });
-
-    // Add +2 breathing room and clamp between our minimum and maximum constraint values
-    column.width = Math.min(maxLen + 2, max);
-  }
-}
+  autoFitColumns(ws2, {}, [1]);
 
   // ── Per-IDF Breakdown sheet ─────────────────────────────────────────────────
   const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
@@ -583,9 +537,18 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
       },
     });
     
-    [10, 10, 13, 13, 10, 11, 10, 10].forEach((w, i) => {
-      ws3.getColumn(i + 1).width = w;
-    });
+    // OPTION B: Map keys explicitly so internal collection maps can evaluate
+    ws3.columns = [
+      { key: 'type',    width: 10 },
+      { key: 'cable',   width: 10 },
+      { key: 'rp',      width: 13 },
+      { key: 'term',    width: 13 },
+      { key: 'test',    width: 10 },
+      { key: 'comp',    width: 11 },
+      { key: 'notes',   width: 10 },
+      { key: 'spacer',  width: 10 }
+    ];
+
     ws3.mergeCells('A1:H1');
     const ws3title     = ws3.getCell('A1');
     ws3title.value     = `By IDF Closet  (Live View)${projectName ? `  —  ${projectName}` : ''}`;
@@ -701,24 +664,22 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
   });
 }
 
-// ─── Auto-fit column widths ───────────────────────────────────────────────────
+// ─── Auto-fit column widths (Independent Global Scope) ────────────────────────
 /**
  * Sizes columns to fit their longest cell value.
- * ExcelJS has no built-in auto-fit, so we scan every cell manually.
- *
- * @param {ExcelJS.Worksheet} worksheet
- * @param {Object}   [overrides]  1-based col index → { min, max } clamps
- * @param {number[]} [only]       if provided, only these 1-based col indices are resized
+ * Safely iterates through numerical limits to avoid uninitialized property crashes.
  */
 function autoFitColumns(worksheet, overrides = {}, only = null) {
   const DEFAULT_MIN = 8;
   const DEFAULT_MAX = 50;
 
-  worksheet.columns.forEach((column, colIdx) => {
-    if (!column || !column.eachCell) return;
+  const maxCol = worksheet.columnCount || 20;
 
-    const colNum = colIdx + 1;
-    if (only && !only.includes(colNum)) return;
+  for (let colNum = 1; colNum <= maxCol; colNum++) {
+    if (only && !only.includes(colNum)) continue;
+
+    const column = worksheet.getColumn(colNum);
+    if (!column || !column.eachCell) continue;
 
     const { min = DEFAULT_MIN, max = DEFAULT_MAX } = overrides[colNum] || {};
     let maxLen = min;
@@ -743,7 +704,6 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
       if (len > maxLen) maxLen = len;
     });
 
-    // FIX: +2 breathing room (was missing — comment existed but code did not add it)
     column.width = Math.min(maxLen + 2, max);
-  });
+  }
 }
