@@ -521,11 +521,53 @@ export async function exportXLSX(drops, projectName = '') {
     });
   }
 
-  autoFitColumns(ws2, {
-    1: { min: 18, max: 40 },
-    2: { min: 10, max: 24 },
-    3: { min: 12, max: 18 },
-  }, [1]);
+// ─── Auto-fit column widths ───────────────────────────────────────────────────
+/**
+ * Sizes columns to fit their longest cell value.
+ * ExcelJS has no built-in auto-fit, so we scan every cell manually.
+ */
+function autoFitColumns(worksheet, overrides = {}, only = null) {
+  const DEFAULT_MIN = 8;
+  const DEFAULT_MAX = 50;
+
+  // ExcelJS quirk: `worksheet.columns` can be undefined if columns were created
+  // without 'key' or 'header' properties. Using a 1-based loop is safer.
+  const maxCol = worksheet.columnCount || 20; // Fallback to 20 if empty
+
+  for (let colNum = 1; colNum <= maxCol; colNum++) {
+    // If 'only' array is provided, skip columns not in the array
+    if (only && !only.includes(colNum)) continue;
+
+    const column = worksheet.getColumn(colNum);
+    if (!column || !column.eachCell) continue;
+
+    const { min = DEFAULT_MIN, max = DEFAULT_MAX } = overrides[colNum] || {};
+    let maxLen = min;
+
+    column.eachCell({ includeEmpty: false }, (cell) => {
+      const v = cell.value;
+      let len = 0;
+
+      if (v === null || v === undefined) return;
+      if (typeof v === 'string')         len = v.length;
+      else if (typeof v === 'number')    len = String(v).length;
+      else if (v instanceof Date)        len = v.toLocaleString().length;
+      else if (typeof v === 'object') {
+        if (v.richText) {
+          len = v.richText.reduce((acc, r) => acc + (r.text?.length ?? 0), 0);
+        } else if (v.formula) {
+          len = v.result != null ? String(v.result).length : 6;
+        } else if (v.text != null) {
+          len = String(v.text).length;
+        }
+      }
+      if (len > maxLen) maxLen = len;
+    });
+
+    // Add +2 for breathing room
+    column.width = Math.min(maxLen + 2, max);
+  }
+}
 
   // ── Per-IDF Breakdown sheet ─────────────────────────────────────────────────
   const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
