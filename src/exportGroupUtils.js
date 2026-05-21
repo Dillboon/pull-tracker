@@ -120,6 +120,15 @@ function isAttention(drop) {
   return drop.attention === true; 
 }
 
+function getPatchedLabel(drop) {
+  const patchedIds = [];
+  if (drop.patchedA && drop.cableA) patchedIds.push(drop.cableA);
+  if (drop.patchedB && drop.cableB) patchedIds.push(drop.cableB);
+  if (drop.patchedC && drop.cableC) patchedIds.push(drop.cableC);
+  if (drop.patchedD && drop.cableD) patchedIds.push(drop.cableD);
+  return patchedIds.length > 0 ? `Yes (${patchedIds.join('/')})` : 'No';
+}
+
 // ── Group Summary sheet ──────────────────────────────────────────────────────
 
 function buildSummarySheet(wb, group, projects) {
@@ -209,9 +218,9 @@ function buildSummarySheet(wb, group, projects) {
 
 function buildProjectSheet(wb, project, sheetName) {
   const ws  = wb.addWorksheet(sheetName);
-  const NUM = 10; 
+  const NUM = 11; 
 
-  const widths = [12, 14, 22, 13, 13, 13, 11, 14, 50, 15];
+  const widths = [12, 14, 22, 13, 13, 13, 11, 15, 14, 50, 15];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
   // Freeze panes so PMs don't lose headers while scrolling through drops
@@ -231,7 +240,7 @@ function buildProjectSheet(wb, project, sheetName) {
   bannerRow(ws, 2, subtitle, C.navyMid, C.muted, 9, 18);
   ws.mergeCells(2, 1, 2, NUM);
 
-  const headers = ['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Attention', 'Notes', 'Date Added'];
+  const headers = ['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Date Added'];
   headerRow(ws, 3, headers, 22);
 
   // Auto-filter applied to the data columns
@@ -289,9 +298,18 @@ function buildProjectSheet(wb, project, sheetName) {
       applyFont(cell, { size: 10, argb: val ? undefined : C.muted });
       applyAlign(cell, 'center');
     });
+	
+	// NEW COLUMN H - Patched
+    const patchedCell = row.getCell(8);
+    const patchedText = getPatchedLabel(drop);
+    patchedCell.value = patchedText;
+    applyFill(patchedCell, fill);
+    applyBorders(patchedCell);
+    applyFont(patchedCell, { size: 10, color: patchedText === 'No' ? { argb: C.muted } : { argb: 'FF065F46' } });
+    applyAlign(patchedCell, 'center');
 
     // H – Attention
-    const attnCell = row.getCell(8);
+    const attnCell = row.getCell(9);
     if (attnYes) {
       attnCell.value = '⚠ Yes';
       applyFill(attnCell, C.attnFill);
@@ -305,7 +323,7 @@ function buildProjectSheet(wb, project, sheetName) {
     applyAlign(attnCell, 'center');
 
     // I – Notes (Word Wrap Enabled)
-    const notesCell = row.getCell(9);
+    const notesCell = row.getCell(10);
     notesCell.value = drop.notes || '';
     applyFill(notesCell, fill);
     applyBorders(notesCell);
@@ -313,7 +331,7 @@ function buildProjectSheet(wb, project, sheetName) {
     applyAlign(notesCell, 'left', 'middle', true); // True = wrap text
 
     // J – Date Added
-    const dateCell = row.getCell(10);
+    const dateCell = row.getCell(11);
     dateCell.value = drop.createdAt || '';
     applyFill(dateCell, fill);
     applyBorders(dateCell);

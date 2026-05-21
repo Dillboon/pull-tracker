@@ -117,6 +117,31 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
     );
   };
 
+  const renderCableInput = (label, cableKey, patchedKey) => (
+    <View style={{ flex: 1, minWidth: '45%' }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <Text style={s.fieldLabel}>{label}</Text>
+        <TouchableOpacity
+          onPress={() => onUpdate({ ...drop, [patchedKey]: !drop[patchedKey] })}
+          activeOpacity={0.6}
+          style={[s.miniPatchBtn, drop[patchedKey] && s.miniPatchBtnActive]}
+        >
+          <Text style={[s.miniPatchText, drop[patchedKey] && s.miniPatchTextActive]}>
+            {drop[patchedKey] ? '✓ PATCHED' : 'PATCHED'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      <TextInput
+        value={drop[cableKey] || ''}
+        onChangeText={t => onUpdate({ ...drop, [cableKey]: t })}
+        placeholder="e.g. C-001"
+        placeholderTextColor={COLORS.textDim}
+        style={s.input}
+        autoCapitalize="characters"
+      />
+    </View>
+  );
+
   return (
     <Swipeable
       ref={swipeableRef}
@@ -149,16 +174,29 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
                 }]}>{groupType.toUpperCase()}</Text>
               </View>
             )}
-            {headerIds.map((id, idx) => (
-              <React.Fragment key={idx}>
-                {idx > 0 && (
-                  <Text style={{ color: COLORS.purple, fontSize: 16, fontWeight: '900' }}>⟷</Text>
-                )}
-                <Text style={s.cableId} numberOfLines={1}>
-                  {id || <Text style={{ color: COLORS.textDim }}>No ID</Text>}
-                </Text>
-              </React.Fragment>
-            ))}
+            
+            {headerIds.map((id, idx) => {
+              const suffix = ['A', 'B', 'C', 'D'][idx];
+              const isPatched = drop[`patched${suffix}`];
+              
+              return (
+                <React.Fragment key={idx}>
+                  {idx > 0 && (
+                    <Text style={{ color: COLORS.purple, fontSize: 16, fontWeight: '900' }}>⟷</Text>
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={s.cableId} numberOfLines={1}>
+                      {id || <Text style={{ color: COLORS.textDim }}>No ID</Text>}
+                    </Text>
+                    {isPatched && (
+                      <View style={s.patchedBadge}>
+                        <Text style={s.patchedBadgeText}>PATCHED</Text>
+                      </View>
+                    )}
+                  </View>
+                </React.Fragment>
+              );
+            })}
           </View>
 
           {/* Badge row */}
@@ -251,55 +289,16 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
 
           {/* Cable IDs */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            <View style={{ flex: 1, minWidth: '45%' }}>
-              <Text style={s.fieldLabel}>CABLE ID {groupType !== 'single' ? 'A' : ''}</Text>
-              <TextInput
-                value={drop.cableA}
-                onChangeText={t => onUpdate({ ...drop, cableA: t })}
-                placeholder="e.g. C-001"
-                placeholderTextColor={COLORS.textDim}
-                style={s.input}
-                autoCapitalize="characters"
-              />
-            </View>
+            {renderCableInput(`CABLE ID ${groupType !== 'single' ? 'A' : ''}`, 'cableA', 'patchedA')}
+            
             {groupType !== 'single' && (
-              <View style={{ flex: 1, minWidth: '45%' }}>
-                <Text style={s.fieldLabel}>CABLE ID B</Text>
-                <TextInput
-                  value={drop.cableB}
-                  onChangeText={t => onUpdate({ ...drop, cableB: t })}
-                  placeholder="e.g. C-002"
-                  placeholderTextColor={COLORS.textDim}
-                  style={s.input}
-                  autoCapitalize="characters"
-                />
-              </View>
+              renderCableInput('CABLE ID B', 'cableB', 'patchedB')
             )}
             {(groupType === 'triple' || groupType === 'quad') && (
-              <View style={{ flex: 1, minWidth: '45%' }}>
-                <Text style={s.fieldLabel}>CABLE ID C</Text>
-                <TextInput
-                  value={drop.cableC || ''}
-                  onChangeText={t => onUpdate({ ...drop, cableC: t })}
-                  placeholder="e.g. C-003"
-                  placeholderTextColor={COLORS.textDim}
-                  style={s.input}
-                  autoCapitalize="characters"
-                />
-              </View>
+              renderCableInput('CABLE ID C', 'cableC', 'patchedC')
             )}
             {groupType === 'quad' && (
-              <View style={{ flex: 1, minWidth: '45%' }}>
-                <Text style={s.fieldLabel}>CABLE ID D</Text>
-                <TextInput
-                  value={drop.cableD || ''}
-                  onChangeText={t => onUpdate({ ...drop, cableD: t })}
-                  placeholder="e.g. C-004"
-                  placeholderTextColor={COLORS.textDim}
-                  style={s.input}
-                  autoCapitalize="characters"
-                />
-              </View>
+              renderCableInput('CABLE ID D', 'cableD', 'patchedD')
             )}
           </View>
 
@@ -396,6 +395,41 @@ const s = StyleSheet.create({
     color: COLORS.text,
     letterSpacing: 0.5,
   },
+  patchedBadge: {
+    backgroundColor: 'rgba(16,185,129,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.3)',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginLeft: 2,
+  },
+  patchedBadgeText: {
+    color: '#10b981',
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  miniPatchBtn: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  miniPatchBtnActive: {
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    borderColor: 'rgba(16,185,129,0.4)',
+  },
+  miniPatchText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: COLORS.textMuted,
+  },
+  miniPatchTextActive: {
+    color: '#10b981',
+  },
   groupPill: {
     backgroundColor: 'rgba(124,58,237,0.18)',
     borderWidth: 1,
@@ -478,7 +512,7 @@ const s = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 10, fontWeight: '800', letterSpacing: 1,
-    color: COLORS.textMuted, marginBottom: 6,
+    color: COLORS.textMuted, marginBottom: 0, // adjusted to support inline button
   },
   input: {
     backgroundColor: 'rgba(255,255,255,0.05)',

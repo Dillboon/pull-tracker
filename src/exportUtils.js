@@ -22,6 +22,15 @@ const getTypeLabel = (d) => {
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
 
+const getPatchedLabel = (d) => {
+  const p = [];
+  if (d.patchedA && d.cableA) p.push(d.cableA);
+  if (d.patchedB && d.cableB) p.push(d.cableB);
+  if (d.patchedC && d.cableC) p.push(d.cableC);
+  if (d.patchedD && d.cableD) p.push(d.cableD);
+  return p.length > 0 ? `Yes (${p.join('/')})` : 'No';
+};
+
 // ─── PDF Export ──────────────────────────────────────────────────────────────
 export async function exportPDF(drops, projectName = '') {
   const sorted = sortedDrops(drops);
@@ -44,6 +53,7 @@ export async function exportPDF(drops, projectName = '') {
         <td style="text-align:center">${tick(d.roughPull)}</td>
         <td style="text-align:center">${tick(d.terminated)}</td>
         <td style="text-align:center">${tick(d.tested)}</td>
+		<td style="text-align:center">${getPatchedLabel(d)}</td>
         <td style="color:#555;font-size:11px">${d.notes || ''}</td>
         <td style="text-align:center">${d.attention ? '⚠️' : ''}</td>
         <td style="color:#888;font-size:11px">${d.createdAt}</td>
@@ -83,7 +93,7 @@ export async function exportPDF(drops, projectName = '') {
         <thead>
           <tr>
             <th>IDF</th><th>Type</th><th>Cable ID(s)</th>
-            <th>Rough Pull</th><th>Terminated</th><th>Tested</th>
+            <th>Rough Pull</th><th>Terminated</th><th>Tested</th><th>Patched</th>
             <th>Notes</th><th>Attn</th><th>Date</th>
           </tr>
         </thead>
@@ -157,13 +167,14 @@ export async function exportXLSX(drops, projectName = '') {
     { key: 'terminated', width: 13 },
     { key: 'tested',     width: 10 },
     { key: 'complete',   width: 11 },
+	{ key: 'patched',    width: 16 }, // <---- NEW
     { key: 'attention',  width: 11 },
     { key: 'notes',      width: 10 }, // auto-fit
     { key: 'date',       width: 10 }, // auto-fit
   ];
 
   // Title row (A1:J1)
-  ws.mergeCells('A1:J1');
+  ws.mergeCells('A1:K1');
   const titleCell     = ws.getCell('A1');
   titleCell.value     = `CablePull Field Tracker${projectName ? `  —  ${projectName}` : ''}`;
   titleCell.font      = { bold: true, size: 13, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
@@ -172,7 +183,7 @@ export async function exportXLSX(drops, projectName = '') {
   ws.getRow(1).height = 26;
 
   // Subtitle row (A2:J2)
-  ws.mergeCells('A2:J2');
+  ws.mergeCells('A2:K2');
   const subCell   = ws.getCell('A2');
   const rpCount   = sorted.filter(d => d.roughPull).length;
   const tmCount   = sorted.filter(d => d.terminated).length;
@@ -185,7 +196,7 @@ export async function exportXLSX(drops, projectName = '') {
   ws.getRow(2).height = 18;
 
   // Header row (row 3)
-  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Attention', 'Notes', 'Date Added']);
+  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Date Added']);
   headerRow.height = 20;
   headerRow.eachCell(cell => {
     cell.font = headerFont; cell.fill = headerFill;
@@ -219,6 +230,7 @@ export async function exportXLSX(drops, projectName = '') {
       d.terminated ? 'Yes' : 'No',
       d.tested     ? 'Yes' : 'No',
       '',  // Complete — formula below
+	  getPatchedLabel(d), // <---- NEW
       d.attention  ? '⚠ Yes' : 'No',
       d.notes || '',
       d.createdAt,
@@ -240,13 +252,17 @@ export async function exportXLSX(drops, projectName = '') {
         case 6:
         case 7:
           cell.fill = baseFill; cell.alignment = centerAlign; break;
-        case 8: // Attention
+        case 8: // Patched 
+          cell.fill = baseFill; cell.alignment = centerAlign; 
+          cell.font = { ...bodyFont, color: { argb: (d.patchedA || d.patchedB || d.patchedC || d.patchedD) ? 'FF065F46' : 'FF64748B' }}; 
+          break;
+		case 9: // Attention
           cell.fill = d.attention ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7ED' } } : baseFill;
           cell.font = d.attention ? { bold: true, color: { argb: 'FFD97706' }, size: 10, name: 'Calibri' } : { ...dimFont, color: { argb: 'FF94A3B8' } };
           cell.alignment = centerAlign; break;
-        case 9:
-          cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true }; break;
         case 10:
+          cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true }; break;
+        case 11:
           cell.font = dimFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
       }
     });
@@ -256,7 +272,7 @@ export async function exportXLSX(drops, projectName = '') {
     row.getCell(6).dataValidation = dvYesNo;
   });
 
-  ws.autoFilter = { from: 'A3', to: 'J3' };
+  ws.autoFilter = { from: 'A3', to: 'K3' };
 
   // Conditional formatting - using cellIs avoids exceljs corruption bugs
   if (total > 0) {
@@ -303,8 +319,8 @@ export async function exportXLSX(drops, projectName = '') {
   // Auto-fit column widths based on actual cell content.
   // Notes (col 9) and Date (col 10) get custom clamps so they don't blow out.
   autoFitColumns(ws, {
-    9:  { min: 20, max: 45 }, // Notes — wrap is on, so cap width
-    10: { min: 14, max: 26 }, // Date  — locale strings can be ~22 chars
+    10:  { min: 20, max: 45 }, // Notes — wrap is on, so cap width
+    11: { min: 14, max: 26 }, // Date  — locale strings can be ~22 chars
   }, [9, 10]); // only resize: Notes, Date
 
   // ── Summary sheet ─────────────────────────────────────────────────────────
@@ -416,6 +432,7 @@ export async function exportXLSX(drops, projectName = '') {
 
   addSubHeader('Flags');
   addSRow('Attention Items', attnCount, null);
+  addSRow('Patched Items', sorted.filter(d => d.patchedA || d.patchedB || d.patchedC || d.patchedD).length, null);
   addSeparator();
 
   const dateRow = ws2.addRow(['Report Generated', new Date().toLocaleString(), '']);

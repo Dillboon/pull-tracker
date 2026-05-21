@@ -13,6 +13,7 @@ const STATUS_FILTERS = [
   { key: 'INCOMPLETE', label: 'Incomplete'     },
   { key: 'TERMINATED', label: 'Terminated'     },
   { key: 'ROUGH_ONLY', label: 'Pulled Only'    },
+  { key: 'PATCHED',    label: 'Patched'        },
   { key: 'NOTES',      label: 'Notes'          },
   { key: 'ATTENTION',  label: 'Attention Notes'},
 ];
@@ -130,6 +131,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     if (filterStatus === 'INCOMPLETE' &&  (d.roughPull && d.terminated && d.tested)) return false;
 	if (filterStatus === 'TERMINATED' && !(d.roughPull && d.terminated && !d.tested)) return false;
     if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.terminated || d.tested)) return false;
+	if (filterStatus === 'PATCHED'    && !(d.patchedA || d.patchedB || d.patchedC || d.patchedD)) return false;
     if (filterStatus === 'NOTES' && (!d.notes?.trim() || d.attention))               return false;
     if (filterStatus === 'ATTENTION'  && !d.attention)                               return false;
     if (search.trim()) {
