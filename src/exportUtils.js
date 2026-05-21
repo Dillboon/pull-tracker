@@ -6,7 +6,7 @@ import ExcelJS         from 'exceljs';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const sortedDrops = (drops) =>
-  [...drops].sort((a, b) => {
+  [...(drops || [])].sort((a, b) => {
     const idfA = (a.idf || '').toLowerCase();
     const idfB = (b.idf || '').toLowerCase();
     if (idfA < idfB) return -1;
@@ -40,6 +40,7 @@ function _arrayBufferToBase64(buffer) {
 
 // ─── PDF Export ───────────────────────────────────────────────────────────────
 export async function exportPDF(drops, projectName = '') {
+  if (!drops || drops.length === 0) throw new Error('No drops to export.');
   const sorted = sortedDrops(drops);
   const rp     = sorted.filter(d => d.roughPull).length;
   const tm     = sorted.filter(d => d.terminated).length;
@@ -132,6 +133,7 @@ export async function exportPDF(drops, projectName = '') {
 
 // ─── Excel Export ─────────────────────────────────────────────────────────────
 export async function exportXLSX(drops, projectName = '') {
+  if (!drops || drops.length === 0) throw new Error('No drops to export.');
   const sorted      = sortedDrops(drops);
   const total       = sorted.length;
   const lastDataRow = 3 + total; // rows 1–3 = title/subtitle/header; data = 4..lastDataRow

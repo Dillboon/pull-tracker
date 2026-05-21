@@ -152,13 +152,13 @@ function buildSummarySheet(wb, group, projects) {
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
 
   // ── Portfolio totals for the subtitle ──
-  const allDrops   = projects.reduce((s, p) => s + p.drops.length, 0);
-  const allPulled  = projects.reduce((s, p) => s + p.drops.filter(d => d.roughPull).length, 0);
-  const allTerm    = projects.reduce((s, p) => s + p.drops.filter(d => d.terminated).length, 0);
-  const allTested  = projects.reduce((s, p) => s + p.drops.filter(d => d.tested).length, 0);
-  const allDone    = projects.reduce((s, p) => s + p.drops.filter(d => d.roughPull && d.terminated && d.tested).length, 0);
-  const allAttn    = projects.reduce((s, p) => s + p.drops.filter(d => isAttention(d)).length, 0);
-  const allPatched = projects.reduce((s, p) => s + p.drops.filter(d => isPatched(d)).length, 0);
+  const allDrops   = projects.reduce((s, p) => s + (p.drops || []).length, 0);
+  const allPulled  = projects.reduce((s, p) => s + (p.drops || []).filter(d => d.roughPull).length, 0);
+  const allTerm    = projects.reduce((s, p) => s + (p.drops || []).filter(d => d.terminated).length, 0);
+  const allTested  = projects.reduce((s, p) => s + (p.drops || []).filter(d => d.tested).length, 0);
+  const allDone    = projects.reduce((s, p) => s + (p.drops || []).filter(d => d.roughPull && d.terminated && d.tested).length, 0);
+  const allAttn    = projects.reduce((s, p) => s + (p.drops || []).filter(d => isAttention(d)).length, 0);
+  const allPatched = projects.reduce((s, p) => s + (p.drops || []).filter(d => isPatched(d)).length, 0);
 
   const titleText = `Group Export  —  ${group.name}  |  Generated: ${new Date().toLocaleString()}`;
   bannerRow(ws, 1, titleText, C.navyDeep, C.white, 13, 26);
@@ -173,13 +173,14 @@ function buildSummarySheet(wb, group, projects) {
   ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: NUM } };
 
   projects.forEach((p, i) => {
-    const total   = p.drops.length;
-    const pulled  = p.drops.filter(d => d.roughPull).length;
-    const term    = p.drops.filter(d => d.terminated).length;
-    const tested  = p.drops.filter(d => d.tested).length;
-    const done    = p.drops.filter(d => d.roughPull && d.terminated && d.tested).length;
-    const attn    = p.drops.filter(d => isAttention(d)).length;
-    const patched = p.drops.filter(d => isPatched(d)).length;
+    const drops   = p.drops || [];
+    const total   = drops.length;
+    const pulled  = drops.filter(d => d.roughPull).length;
+    const term    = drops.filter(d => d.terminated).length;
+    const tested  = drops.filter(d => d.tested).length;
+    const done    = drops.filter(d => d.roughPull && d.terminated && d.tested).length;
+    const attn    = drops.filter(d => isAttention(d)).length;
+    const patched = drops.filter(d => isPatched(d)).length;
     const pct     = total > 0 ? (done / total) : 0;
     const fill    = rowFill(i);
 
@@ -243,7 +244,7 @@ function buildSummarySheet(wb, group, projects) {
 
   // ── Flagged Items section — PM quick-reference ──────────────────────────────
   const flaggedDrops = projects.flatMap(p =>
-    p.drops
+    (p.drops || [])
       .filter(d => isAttention(d))
       .map(d => ({ project: p.name, drop: d }))
   );
@@ -321,13 +322,14 @@ function buildProjectSheet(wb, project, sheetName, tabColorArgb) {
 
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
 
-  const total   = project.drops.length;
-  const pulled  = project.drops.filter(d => d.roughPull).length;
-  const term    = project.drops.filter(d => d.terminated).length;
-  const tested  = project.drops.filter(d => d.tested).length;
-  const done    = project.drops.filter(d => d.roughPull && d.terminated && d.tested).length;
-  const patched = project.drops.filter(d => isPatched(d)).length;
-  const attn    = project.drops.filter(d => isAttention(d)).length;
+  const drops   = project.drops || [];
+  const total   = drops.length;
+  const pulled  = drops.filter(d => d.roughPull).length;
+  const term    = drops.filter(d => d.terminated).length;
+  const tested  = drops.filter(d => d.tested).length;
+  const done    = drops.filter(d => d.roughPull && d.terminated && d.tested).length;
+  const patched = drops.filter(d => isPatched(d)).length;
+  const attn    = drops.filter(d => isAttention(d)).length;
 
   const titleText = `CablePull Field Tracker  —  ${project.name}`;
   bannerRow(ws, 1, titleText, C.navyDeep, C.white, 13, 26);
@@ -343,7 +345,7 @@ function buildProjectSheet(wb, project, sheetName, tabColorArgb) {
 
   const lastDataRow = 3 + total;
 
-  project.drops.forEach((drop, i) => {
+  drops.forEach((drop, i) => {
     const row     = ws.getRow(i + 4);
     row.height    = 22;
     const fill    = rowFill(i);
@@ -450,7 +452,7 @@ function buildProjectSheet(wb, project, sheetName, tabColorArgb) {
   // ── Project-level totals footer ─────────────────────────────────────────────
   const footerRow = ws.getRow(lastDataRow + 1);
   footerRow.height = 20;
-  const footVals = ['TOTALS', total, '', pulled, term, tested, project.drops.filter(d => d.roughPull && d.terminated && d.tested).length, patched, attn, '', ''];
+  const footVals = ['TOTALS', total, '', pulled, term, tested, drops.filter(d => d.roughPull && d.terminated && d.tested).length, patched, attn, '', ''];
   footVals.forEach((v, ci) => {
     const cell = footerRow.getCell(ci + 1);
     cell.value = v;
