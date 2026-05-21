@@ -532,12 +532,9 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
   const DEFAULT_MIN = 8;
   const DEFAULT_MAX = 50;
 
-  // ExcelJS quirk: `worksheet.columns` can be undefined if columns were created
-  // without 'key' or 'header' properties. Using a 1-based loop is safer.
-  const maxCol = worksheet.columnCount || 20; // Fallback to 20 if empty
+  const maxCol = worksheet.columnCount || 20;
 
   for (let colNum = 1; colNum <= maxCol; colNum++) {
-    // If 'only' array is provided, skip columns not in the array
     if (only && !only.includes(colNum)) continue;
 
     const column = worksheet.getColumn(colNum);
@@ -551,9 +548,9 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
       let len = 0;
 
       if (v === null || v === undefined) return;
-      if (typeof v === 'string')         len = v.length;
-      else if (typeof v === 'number')    len = String(v).length;
-      else if (v instanceof Date)        len = v.toLocaleString().length;
+      if (typeof v === 'string') len = v.length;
+      else if (typeof v === 'number') len = String(v).length;
+      else if (v instanceof Date) len = v.toLocaleString().length;
       else if (typeof v === 'object') {
         if (v.richText) {
           len = v.richText.reduce((acc, r) => acc + (r.text?.length ?? 0), 0);
@@ -563,10 +560,10 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
           len = String(v.text).length;
         }
       }
+
       if (len > maxLen) maxLen = len;
     });
 
-    // Add +2 for breathing room
     column.width = Math.min(maxLen + 2, max);
   }
 }
