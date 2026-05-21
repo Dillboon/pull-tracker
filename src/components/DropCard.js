@@ -189,9 +189,7 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
                       {id || <Text style={{ color: COLORS.textDim }}>No ID</Text>}
                     </Text>
                     {isPatched && (
-                      <View style={s.patchedBadge}>
-                        <Text style={s.patchedBadgeText}>PATCHED</Text>
-                      </View>
+                      <View style={s.patchedDot} />
                     )}
                   </View>
                 </React.Fragment>
@@ -395,20 +393,12 @@ const s = StyleSheet.create({
     color: COLORS.text,
     letterSpacing: 0.5,
   },
-  patchedBadge: {
-    backgroundColor: 'rgba(16,185,129,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(16,185,129,0.3)',
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    marginLeft: 2,
-  },
-  patchedBadgeText: {
-    color: '#10b981',
-    fontSize: 7,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+  patchedDot: {
+  width: 6,
+  height: 6,
+  borderRadius: 3,
+  backgroundColor: '#10b981',
+  marginLeft: 4,
   },
   miniPatchBtn: {
     backgroundColor: 'rgba(255,255,255,0.04)',
