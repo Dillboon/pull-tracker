@@ -523,18 +523,19 @@ export async function exportXLSX(drops, projectName = '') {
     });
   }
 
-// ─── Auto-fit column widths ───────────────────────────────────────────────────
 /**
  * Sizes columns to fit their longest cell value.
- * ExcelJS has no built-in auto-fit, so we scan every cell manually.
+ * Safely iterates through columns using actual worksheet limits to prevent crashes.
  */
 function autoFitColumns(worksheet, overrides = {}, only = null) {
   const DEFAULT_MIN = 8;
   const DEFAULT_MAX = 50;
 
+  // Use the maximum tracked column count on the sheet, or default to checking up to 20 columns
   const maxCol = worksheet.columnCount || 20;
 
   for (let colNum = 1; colNum <= maxCol; colNum++) {
+    // If an array of specific columns was passed, skip columns not included in that list
     if (only && !only.includes(colNum)) continue;
 
     const column = worksheet.getColumn(colNum);
@@ -548,9 +549,9 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
       let len = 0;
 
       if (v === null || v === undefined) return;
-      if (typeof v === 'string') len = v.length;
-      else if (typeof v === 'number') len = String(v).length;
-      else if (v instanceof Date) len = v.toLocaleString().length;
+      if (typeof v === 'string')         len = v.length;
+      else if (typeof v === 'number')    len = String(v).length;
+      else if (v instanceof Date)        len = v.toLocaleString().length;
       else if (typeof v === 'object') {
         if (v.richText) {
           len = v.richText.reduce((acc, r) => acc + (r.text?.length ?? 0), 0);
@@ -560,10 +561,10 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
           len = String(v.text).length;
         }
       }
-
       if (len > maxLen) maxLen = len;
     });
 
+    // Add +2 breathing room and clamp between our minimum and maximum constraint values
     column.width = Math.min(maxLen + 2, max);
   }
 }
