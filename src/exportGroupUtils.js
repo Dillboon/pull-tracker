@@ -8,7 +8,7 @@
  *  - Two-Way Interactive Hyperlinks (Summary ↔ Project Sheets)
  *  - Live Sheet-to-Sheet Formula Tracking (Summary updates dynamically when drops change)
  *  - Executive KPI Summary Cards
- *  - Portfolio-Wide Consolidated Attention Blocker Log
+ *  - Portfolio-Wide Consolidated Attention Summary Log
  *  - Data Validations, Conditional Formatting, & Print-Ready Layouts
  */
 
@@ -66,13 +66,13 @@ function applyBorders(cell, type = 'thin') {
 }
 
 // Master Layout Setup for Print/PDF Engine
-function applyStandardPageSetup(ws) {
+function applyStandardPageSetup(ws, printTitlesRow = '1:2') {
   ws.pageSetup = {
     orientation: 'landscape',
     fitToPage: true,
     fitToWidth: 1,
     fitToHeight: 0, 
-    printTitlesRow: '1:3', // Keeps headers locked on multi-page printouts
+    printTitlesRow, // Keeps headers locked on multi-page printouts
   };
 }
 
@@ -112,11 +112,11 @@ const dvYesNo = {
   formulae: ['"Yes,No"'],
 };
 
-// ── 1. Group Summary Sheet (With Live Formulas & KPIs) ───────────────────────
+// ── 1. Portfolio Summary Sheet (With Live Formulas & KPIs) ───────────────────────
 
 function buildSummarySheet(wb, group, projects, projectSheetMap) {
   const ws = wb.addWorksheet('Portfolio Summary', { tabColor: { argb: 'FF0A1628' } });
-  applyStandardPageSetup(ws);
+  applyStandardPageSetup(ws, '1:8');
   
   const COL_COUNT = 7;
   [32, 14, 14, 14, 14, 14, 16].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
@@ -148,8 +148,8 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
 
   const kpis = [
     { startCol: 1, endCol: 2, label: 'TOTAL PROJECTS', formula: `="${projects.length} Active"`, fill: C.purple1, textCol: C.navyDeep },
-    { startCol: 3, endCol: 4, label: 'PORTFOLIO RUNS', formula: `=SUM(B9:B${8 + projects.length})`, fill: C.purple2, textCol: C.idfBlue },
-    { startCol: 5, endCol: 5, label: 'BLOCKERS', formula: `=SUM(F9:F${8 + projects.length})`, fill: C.noFill, textCol: C.noText },
+    { startCol: 3, endCol: 4, label: 'TOTAL DROPS', formula: `=SUM(B9:B${8 + projects.length})`, fill: C.purple2, textCol: C.idfBlue },
+    { startCol: 5, endCol: 5, label: 'ATTENTION FLAGS', formula: `=SUM(F9:F${8 + projects.length})`, fill: C.noFill, textCol: C.noText },
     { startCol: 6, endCol: 7, label: 'COMPLETION RATE', formula: `=AVERAGE(G9:G${8 + projects.length})`, fill: C.yesFill, textCol: C.yesText, format: '0.0%' }
   ];
 
@@ -181,7 +181,7 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   ws.getRow(7).height = 10; // Padding Spacer
 
   // ── Main Data Grid Headers ──
-  const headers = ['Project Scope Tracker (Live)', 'Total Drops', 'Rough Pulled', 'Terminated', 'Tested', 'Attention Flags', 'Progress %'];
+  const headers = ['Projects', 'Total Drops', 'Rough Pulled', 'Terminated', 'Tested', 'Attention Flags', 'Progress %'];
   const hRow = ws.getRow(8);
   hRow.height = 24;
   headers.forEach((lbl, i) => {
@@ -202,9 +202,9 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     const escapedSheet = `'${targetSheet.replace(/'/g, "''")}'`;
     const fill = rowFill(idx);
     
-    // Find last row index belonging to data on target sheets
+    // Find last row index belonging to data on target sheets (Headers on Row 2, Data starts at Row 3)
     const totalDrops = p.drops.length;
-    const endDataRow = 3 + totalDrops;
+    const endDataRow = 2 + totalDrops;
 
     const row = ws.getRow(rowNum);
     row.height = 22;
@@ -219,13 +219,13 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     applyFont(nameCell, { argb: C.idfBlue, bold: true, underline: true, size: 10.5 });
     applyAlign(nameCell, 'left');
 
-    // Live Formulas evaluating metrics from target sheets
-    row.getCell(2).value = totalDrops > 0 ? { formula: `COUNTA(${escapedSheet}!A4:A${endDataRow})` } : 0;
-    row.getCell(3).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!D4:D${endDataRow}, "Yes")` } : 0;
-    row.getCell(4).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!E4:E${endDataRow}, "Yes")` } : 0;
-    row.getCell(5).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!F4:F${endDataRow}, "Yes")` } : 0;
-    row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!I4:I${endDataRow}, "⚠️ Yes")` } : 0;
-    row.getCell(7).value = totalDrops > 0 ? { formula: `IFERROR(COUNTIF(${escapedSheet}!G4:G${endDataRow}, "✓") / B${rowNum}, 0)` } : 0;
+    // Live Formulas evaluating metrics from target sheets (Data scope matches Row 3 down)
+    row.getCell(2).value = totalDrops > 0 ? { formula: `COUNTA(${escapedSheet}!A3:A${endDataRow})` } : 0;
+    row.getCell(3).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!D3:D${endDataRow}, "Yes")` } : 0;
+    row.getCell(4).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!E3:E${endDataRow}, "Yes")` } : 0;
+    row.getCell(5).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!F3:F${endDataRow}, "Yes")` } : 0;
+    row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!I3:I${endDataRow}, "⚠️ Yes")` } : 0;
+    row.getCell(7).value = totalDrops > 0 ? { formula: `IFERROR(COUNTIF(${escapedSheet}!G3:G${endDataRow}, "✓") / B${rowNum}, 0)` } : 0;
 
     for (let c = 1; c <= COL_COUNT; c++) {
       const cell = row.getCell(c);
@@ -249,7 +249,7 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   const totRow = ws.getRow(totalRowNum);
   totRow.height = 24;
 
-  totRow.getCell(1).value = 'TOTAL PORTFOLIO FLEET';
+  totRow.getCell(1).value = 'TOTAL COMPLETION PROGRESS';
   totRow.getCell(2).value = { formula: `SUM(B9:B${totalRowNum - 1})` };
   totRow.getCell(3).value = { formula: `SUM(C9:C${totalRowNum - 1})` };
   totRow.getCell(4).value = { formula: `SUM(D9:D${totalRowNum - 1})` };
@@ -295,25 +295,23 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   autoFitColumns(ws, { 1: { min: 32, max: 45 } }, [1]);
 }
 
-// ── 2. Portfolio Blocker Sheet (Attention Log Summary Log) ───────────────────
+// ── 2. Attention Flags Sheet (Attention Log Summary Log) ─────────────────────
 
 function buildAttentionLogSheet(wb, projects, projectSheetMap) {
-  const ws = wb.addWorksheet('Active Attention Log', { tabColor: { argb: C.noText } });
-  applyStandardPageSetup(ws);
+  const ws = wb.addWorksheet('Attention Flags', { tabColor: { argb: C.noText } });
+  applyStandardPageSetup(ws, '1:2');
 
   const COL_COUNT = 7;
   const widths = [24, 12, 12, 18, 16, 45, 14];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
-  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }]; // Frozen view adjusted to account for removed row 2
 
-  bannerRow(ws, 1, 'Consolidated Blocker & Attention Log', C.noText, C.white, 13, 26);
+  bannerRow(ws, 1, 'Attention Log', C.noText, C.white, 13, 26);
   ws.mergeCells(1, 1, 1, COL_COUNT);
 
-  bannerRow(ws, 2, 'Automated rollout review of priority issues flag-tagged across all project field operations', C.navyMid, C.muted, 9.5, 18);
-  ws.mergeCells(2, 1, 2, COL_COUNT);
-
-  const headerLabels = ['Project Context', 'IDF Closet', 'Drop Type', 'Cable Run IDs', 'Patched Link', 'Field Notes Blockers', 'Date Flagged'];
-  const hRow = ws.getRow(3);
+  // Row 2 is now the main layout data headers line directly
+  const headerLabels = ['Project', 'IDF Closet', 'Drop Type', 'Cable IDs', 'Patched', 'Notes', 'date'];
+  const hRow = ws.getRow(2);
   hRow.height = 22;
   headerLabels.forEach((lbl, i) => {
     const cell = hRow.getCell(i + 1);
@@ -324,7 +322,7 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
     applyBorders(cell, 'thin');
   });
 
-  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };
+  ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: COL_COUNT } };
 
   let logCount = 0;
 
@@ -335,12 +333,12 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
       if (!isAttention(drop)) return; // Only process items with active blocker flags
 
       logCount++;
-      const rowNum = 3 + logCount;
+      const rowNum = 2 + logCount;
       const row = ws.getRow(rowNum);
       row.height = 24;
       
-      // Hyperlink straight to the drop record row context on its specific project sheet
-      const mainSheetRowIndex = drop._mainRowNum || 4; 
+      // Hyperlink straight to the drop record row context on its specific project sheet (Data starts at Row 3)
+      const mainSheetRowIndex = drop._mainRowNum || 3; 
       const projCell = row.getCell(1);
       projCell.value = {
         text: p.name,
@@ -369,9 +367,9 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
   });
 
   if (logCount === 0) {
-    const emptyRow = ws.getRow(4);
+    const emptyRow = ws.getRow(3);
     emptyRow.height = 30;
-    ws.mergeCells(4, 1, 4, COL_COUNT);
+    ws.mergeCells(3, 1, 3, COL_COUNT);
     const cell = emptyRow.getCell(1);
     cell.value = '✓ No active attention flags or deployment blockers reported across current projects.';
     applyFill(cell, C.yesFill);
@@ -387,17 +385,16 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
 
 function buildProjectSheet(wb, project, sheetName) {
   const ws = wb.addWorksheet(sheetName, { tabColor: { argb: 'FF3B82F6' } });
-  applyStandardPageSetup(ws);
+  applyStandardPageSetup(ws, '1:2'); // Lock print ranges dynamically
   
   const COL_COUNT = 11;
   const widths = [12, 14, 22, 13, 13, 13, 11, 15, 14, 50, 15];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   
-  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }]; // Locks main navigation banner tracking context
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }]; // Freeze top 2 rows down (Title + Clean Header Grid Line)
 
   // Row 1 Title Banner + Hyperlink shortcut home
-  const titleText = `Field Tracker Scope  —  ${project.name}`;
-  bannerRow(ws, 1, titleText, C.navyDeep, C.white, 13, 26);
+  bannerRow(ws, 1, project.name, C.navyDeep, C.white, 13, 26);
   
   // Replace final cells block to hold hyperlinked return panel
   ws.mergeCells(1, 1, 1, COL_COUNT - 2);
@@ -412,19 +409,14 @@ function buildProjectSheet(wb, project, sheetName) {
   applyFont(backCell, { argb: C.amber, bold: true, underline: true, size: 10 });
   applyAlign(backCell, 'center');
 
-  // Row 2 Aggregate Subtitle Metadata Info String
-  const subtitle = `Total Asset Array: ${project.drops.length} Rows  |  Tracked Deployment Blueprint Runs  |  Live Editing Enabled Grid`;
-  bannerRow(ws, 2, subtitle, C.navyMid, C.muted, 9, 18);
-  ws.mergeCells(2, 1, 2, COL_COUNT);
+  // Row 2 is now the layout data headers line directly (Removed obsolete string subtitle metadata block)
+  const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Date Added'];
+  headerRow(ws, 2, headers, 22);
 
-  // Headers Design Layout Configuration
-  const headers = ['IDF Closet', 'Drop Type', 'Cable Run ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched Link', 'Attention Flag', 'Field Engineering Notes', 'Date Added'];
-  headerRow(ws, 3, headers, 22);
-
-  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };
+  ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: COL_COUNT } };
 
   project.drops.forEach((drop, i) => {
-    const rowNum = 4 + i;
+    const rowNum = 3 + i; // Data records start strictly on Row 3 down
     drop._mainRowNum = rowNum; // Caches index matching back linking logs cleanly
     
     const fill = rowFill(i);
@@ -497,12 +489,12 @@ function buildProjectSheet(wb, project, sheetName) {
     }
   });
 
-  // Conditional Formatting Matrix Layers
+  // Conditional Formatting Matrix Layers (Adjusted for Row 3 start index scope bounds)
   const totalRows = project.drops.length;
   if (totalRows > 0) {
-    const endRow = 3 + totalRows;
+    const endRow = 2 + totalRows;
     ws.addConditionalFormatting({
-      ref: `D4:F${endRow}`,
+      ref: `D3:F${endRow}`,
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"Yes"'],
@@ -515,7 +507,7 @@ function buildProjectSheet(wb, project, sheetName) {
       ]
     });
     ws.addConditionalFormatting({
-      ref: `G4:G${endRow}`,
+      ref: `G3:G${endRow}`,
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"✓"'],
@@ -625,7 +617,7 @@ export async function exportGroupToExcel(group, projects) {
 
   // Create isolated sanitized identifier map targeting dynamic sheet links safely
   const projectSheetMap = new Map();
-  const targetedTabNames = new Set(['Portfolio Summary', 'Active Attention Log']);
+  const targetedTabNames = new Set(['Portfolio Summary', 'Attention Flags']);
 
   projects.forEach(p => {
     let sanitizedName = p.name.replace(/[\\/*?[\]:]/g, '').trim().slice(0, 26);
@@ -642,7 +634,7 @@ export async function exportGroupToExcel(group, projects) {
   // 1. Build Executive Portfolio Summary Tab Dashboard
   buildSummarySheet(wb, group, projects, projectSheetMap);
 
-  // 2. Build Unified Attention Blocker Critical Alert Log Tab Sheet
+  // 2. Build Unified Attention Flags Critical Alert Log Tab Sheet
   buildAttentionLogSheet(wb, projects, projectSheetMap);
 
   // 3. Build Sub-level Detailed Drop Tracking sheets
