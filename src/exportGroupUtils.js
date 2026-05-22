@@ -203,7 +203,7 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     
     // Detailed tracking sheets have title, subtitle, and headers (Data starts at Row 4)
     const totalDrops = p.drops.length;
-    const endDataRow = 3 + totalDrops;[cite: 1, 2]
+    const endDataRow = 3 + totalDrops;
 
     const row = ws.getRow(rowNum);
     row.height = 22;
@@ -219,11 +219,11 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     applyAlign(nameCell, 'left');
 
     // Live Formulas evaluating metrics from target sheets (Data scope matches Row 4 down)
-    row.getCell(2).value = totalDrops > 0 ? { formula: `COUNTA(${escapedSheet}!A4:A${endDataRow})` } : 0;[cite: 1, 2]
-    row.getCell(3).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!D4:D${endDataRow}, "Yes")` } : 0;[cite: 1, 2]
-    row.getCell(4).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!E4:E${endDataRow}, "Yes")` } : 0;[cite: 1, 2]
-    row.getCell(5).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!F4:F${endDataRow}, "Yes")` } : 0;[cite: 1, 2]
-    row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!I4:I${endDataRow}, "⚠️ Yes")` } : 0;[cite: 1, 2]
+    row.getCell(2).value = totalDrops > 0 ? { formula: `COUNTA(${escapedSheet}!A4:A${endDataRow})` } : 0;
+    row.getCell(3).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!D4:D${endDataRow}, "Yes")` } : 0;
+    row.getCell(4).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!E4:E${endDataRow}, "Yes")` } : 0;
+    row.getCell(5).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!F4:F${endDataRow}, "Yes")` } : 0;
+    row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!I4:I${endDataRow}, "⚠️ Yes")` } : 0;
     row.getCell(7).value = totalDrops > 0 ? { formula: `IFERROR(COUNTIF(${escapedSheet}!G4:G${endDataRow}, "✓") / B${rowNum}, 0)` } : 0;
 
     for (let c = 1; c <= COL_COUNT; c++) {
@@ -383,13 +383,13 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
 
 function buildProjectSheet(wb, project, sheetName) {
   const ws = wb.addWorksheet(sheetName, { tabColor: { argb: 'FF3B82F6' } });
-  applyStandardPageSetup(ws, '1:3'); // Lock print header titles (Rows 1 to 3)[cite: 1, 2]
+  applyStandardPageSetup(ws, '1:3'); // Lock print header titles (Rows 1 to 3)
   
   const COL_COUNT = 11;
   const widths = [12, 14, 22, 13, 13, 13, 11, 15, 14, 50, 15];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   
-  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }]; // Freeze top 3 rows down (Title, Subtitle, Headers)[cite: 1, 2]
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }]; // Freeze top 3 rows down (Title, Subtitle, Headers)
 
   // Row 1: Title Banner (Full width layout, no back button hyperlink)
   ws.mergeCells(1, 1, 1, COL_COUNT);
@@ -418,12 +418,12 @@ function buildProjectSheet(wb, project, sheetName) {
 
   // Row 3: Main Data Columns Headers
   const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Date Added'];
-  headerRow(ws, 3, headers, 22);[cite: 1, 2]
+  headerRow(ws, 3, headers, 22);
 
-  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };[cite: 1, 2]
+  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };
 
   project.drops.forEach((drop, i) => {
-    const rowNum = 4 + i; // Data records start strictly on Row 4 down[cite: 1, 2]
+    const rowNum = 4 + i; // Data records start strictly on Row 4 down
     drop._mainRowNum = rowNum; 
     
     const fill = rowFill(i);
@@ -499,9 +499,9 @@ function buildProjectSheet(wb, project, sheetName) {
   // Conditional Formatting Matrix Layers (Adjusted for Row 4 start index scope bounds)
   const totalRows = project.drops.length;
   if (totalRows > 0) {
-    const endRow = 3 + totalRows;[cite: 1, 2]
+    const endRow = 3 + totalRows;
     ws.addConditionalFormatting({
-      ref: `D4:F${endRow}`,[cite: 1, 2]
+      ref: `D4:F${endRow}`,
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"Yes"'],
@@ -514,7 +514,7 @@ function buildProjectSheet(wb, project, sheetName) {
       ]
     });
     ws.addConditionalFormatting({
-      ref: `G4:G${endRow}`,[cite: 1, 2]
+      ref: `G4:G${endRow}`,
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"✓"'],
