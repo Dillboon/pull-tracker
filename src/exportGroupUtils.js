@@ -5,7 +5,6 @@
  * and optimized for Executive Project Manager workflows.
  * 
  * Features:
- *  - Two-Way Interactive Hyperlinks (Summary ↔ Project Sheets)
  *  - Live Sheet-to-Sheet Formula Tracking (Summary updates dynamically when drops change)
  *  - Executive KPI Summary Cards
  *  - Portfolio-Wide Consolidated Attention Summary Log
@@ -202,9 +201,9 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     const escapedSheet = `'${targetSheet.replace(/'/g, "''")}'`;
     const fill = rowFill(idx);
     
-    // Find last row index belonging to data on target sheets (Headers on Row 2, Data starts at Row 3)
+    // Detailed tracking sheets have title, subtitle, and headers (Data starts at Row 4)
     const totalDrops = p.drops.length;
-    const endDataRow = 2 + totalDrops;
+    const endDataRow = 3 + totalDrops;[cite: 1, 2]
 
     const row = ws.getRow(rowNum);
     row.height = 22;
@@ -219,13 +218,13 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     applyFont(nameCell, { argb: C.idfBlue, bold: true, underline: true, size: 10.5 });
     applyAlign(nameCell, 'left');
 
-    // Live Formulas evaluating metrics from target sheets (Data scope matches Row 3 down)
-    row.getCell(2).value = totalDrops > 0 ? { formula: `COUNTA(${escapedSheet}!A3:A${endDataRow})` } : 0;
-    row.getCell(3).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!D3:D${endDataRow}, "Yes")` } : 0;
-    row.getCell(4).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!E3:E${endDataRow}, "Yes")` } : 0;
-    row.getCell(5).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!F3:F${endDataRow}, "Yes")` } : 0;
-    row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!I3:I${endDataRow}, "⚠️ Yes")` } : 0;
-    row.getCell(7).value = totalDrops > 0 ? { formula: `IFERROR(COUNTIF(${escapedSheet}!G3:G${endDataRow}, "✓") / B${rowNum}, 0)` } : 0;
+    // Live Formulas evaluating metrics from target sheets (Data scope matches Row 4 down)
+    row.getCell(2).value = totalDrops > 0 ? { formula: `COUNTA(${escapedSheet}!A4:A${endDataRow})` } : 0;[cite: 1, 2]
+    row.getCell(3).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!D4:D${endDataRow}, "Yes")` } : 0;[cite: 1, 2]
+    row.getCell(4).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!E4:E${endDataRow}, "Yes")` } : 0;[cite: 1, 2]
+    row.getCell(5).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!F4:F${endDataRow}, "Yes")` } : 0;[cite: 1, 2]
+    row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!I4:I${endDataRow}, "⚠️ Yes")` } : 0;[cite: 1, 2]
+    row.getCell(7).value = totalDrops > 0 ? { formula: `IFERROR(COUNTIF(${escapedSheet}!G4:G${endDataRow}, "✓") / B${rowNum}, 0)` } : 0;
 
     for (let c = 1; c <= COL_COUNT; c++) {
       const cell = row.getCell(c);
@@ -304,12 +303,11 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
   const COL_COUNT = 7;
   const widths = [24, 12, 12, 18, 16, 45, 14];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
-  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }]; // Frozen view adjusted to account for removed row 2
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }];
 
   bannerRow(ws, 1, 'Attention Log', C.noText, C.white, 13, 26);
   ws.mergeCells(1, 1, 1, COL_COUNT);
 
-  // Row 2 is now the main layout data headers line directly
   const headerLabels = ['Project', 'IDF Closet', 'Drop Type', 'Cable IDs', 'Patched', 'Notes', 'date'];
   const hRow = ws.getRow(2);
   hRow.height = 22;
@@ -330,15 +328,15 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
     const targetSheet = projectSheetMap.get(p.id || p.name);
     
     p.drops.forEach((drop) => {
-      if (!isAttention(drop)) return; // Only process items with active blocker flags
+      if (!isAttention(drop)) return; 
 
       logCount++;
       const rowNum = 2 + logCount;
       const row = ws.getRow(rowNum);
       row.height = 24;
       
-      // Hyperlink straight to the drop record row context on its specific project sheet (Data starts at Row 3)
-      const mainSheetRowIndex = drop._mainRowNum || 3; 
+      // Hyperlink straight to the drop record row context on its specific project sheet (Data starts at Row 4)
+      const mainSheetRowIndex = drop._mainRowNum || 4; 
       const projCell = row.getCell(1);
       projCell.value = {
         text: p.name,
@@ -385,39 +383,48 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
 
 function buildProjectSheet(wb, project, sheetName) {
   const ws = wb.addWorksheet(sheetName, { tabColor: { argb: 'FF3B82F6' } });
-  applyStandardPageSetup(ws, '1:2'); // Lock print ranges dynamically
+  applyStandardPageSetup(ws, '1:3'); // Lock print header titles (Rows 1 to 3)[cite: 1, 2]
   
   const COL_COUNT = 11;
   const widths = [12, 14, 22, 13, 13, 13, 11, 15, 14, 50, 15];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   
-  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }]; // Freeze top 2 rows down (Title + Clean Header Grid Line)
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }]; // Freeze top 3 rows down (Title, Subtitle, Headers)[cite: 1, 2]
 
-  // Row 1 Title Banner + Hyperlink shortcut home
-  bannerRow(ws, 1, project.name, C.navyDeep, C.white, 13, 26);
+  // Row 1: Title Banner (Full width layout, no back button hyperlink)
+  ws.mergeCells(1, 1, 1, COL_COUNT);
+  const titleCell = ws.getCell('A1');
+  titleCell.value = project.name;
+  applyFill(titleCell, C.navyDeep);
+  applyFont(titleCell, { argb: C.white, bold: true, size: 13 });
+  applyAlign(titleCell, 'left');
+  ws.getRow(1).height = 26;
+
+  // Row 2: Formatted Metadata Subtitle Row
+  ws.mergeCells(2, 1, 2, COL_COUNT);
+  const subCell = ws.getCell('A2');
   
-  // Replace final cells block to hold hyperlinked return panel
-  ws.mergeCells(1, 1, 1, COL_COUNT - 2);
-  const backCell = ws.getRow(1).getCell(COL_COUNT - 1);
-  ws.mergeCells(1, COL_COUNT - 1, 1, COL_COUNT);
-  backCell.value = {
-    text: '← Back to Portfolio Dashboard',
-    hyperlink: `#'Portfolio Summary'!A1`,
-    tooltip: 'Return to Executive Summary Overview Dashboard'
-  };
-  applyFill(backCell, C.navyHeader);
-  applyFont(backCell, { argb: C.amber, bold: true, underline: true, size: 10 });
-  applyAlign(backCell, 'center');
+  const totalDrops = project.drops.length;
+  const roughCount = project.drops.filter(d => d.roughPull).length;
+  const termCount  = project.drops.filter(d => d.terminated).length;
+  const testCount  = project.drops.filter(d => d.tested).length;
+  const attnCount  = project.drops.filter(isAttention).length;
 
-  // Row 2 is now the layout data headers line directly (Removed obsolete string subtitle metadata block)
+  subCell.value = `Generated: ${new Date().toLocaleString()}  |  Total: (${totalDrops})  |  Rough pulled: (${roughCount})  |  Terminated: (${termCount})  |  Tested: (${testCount})  |  Attention: (${attnCount})`;
+  applyFill(subCell, C.navyMid);
+  applyFont(subCell, { argb: C.muted, size: 9.5, italic: true });
+  applyAlign(subCell, 'left');
+  ws.getRow(2).height = 20;
+
+  // Row 3: Main Data Columns Headers
   const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Date Added'];
-  headerRow(ws, 2, headers, 22);
+  headerRow(ws, 3, headers, 22);[cite: 1, 2]
 
-  ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: COL_COUNT } };
+  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };[cite: 1, 2]
 
   project.drops.forEach((drop, i) => {
-    const rowNum = 3 + i; // Data records start strictly on Row 3 down
-    drop._mainRowNum = rowNum; // Caches index matching back linking logs cleanly
+    const rowNum = 4 + i; // Data records start strictly on Row 4 down[cite: 1, 2]
+    drop._mainRowNum = rowNum; 
     
     const fill = rowFill(i);
     const hasBlocker = isAttention(drop);
@@ -465,7 +472,7 @@ function buildProjectSheet(wb, project, sheetName) {
         case 5:
         case 6:
           applyFill(cell, fill); applyFont(cell, { size: 10 }); applyAlign(cell, 'center');
-          cell.dataValidation = dvYesNo; // Dropdown list data validation attached inline
+          cell.dataValidation = dvYesNo; 
           break;
         case 7:
           applyFill(cell, fill); applyAlign(cell, 'center');
@@ -489,12 +496,12 @@ function buildProjectSheet(wb, project, sheetName) {
     }
   });
 
-  // Conditional Formatting Matrix Layers (Adjusted for Row 3 start index scope bounds)
+  // Conditional Formatting Matrix Layers (Adjusted for Row 4 start index scope bounds)
   const totalRows = project.drops.length;
   if (totalRows > 0) {
-    const endRow = 2 + totalRows;
+    const endRow = 3 + totalRows;[cite: 1, 2]
     ws.addConditionalFormatting({
-      ref: `D3:F${endRow}`,
+      ref: `D4:F${endRow}`,[cite: 1, 2]
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"Yes"'],
@@ -507,7 +514,7 @@ function buildProjectSheet(wb, project, sheetName) {
       ]
     });
     ws.addConditionalFormatting({
-      ref: `G3:G${endRow}`,
+      ref: `G4:G${endRow}`,[cite: 1, 2]
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"✓"'],
