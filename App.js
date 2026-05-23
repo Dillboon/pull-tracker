@@ -7,7 +7,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import ProjectsScreen  from './src/screens/ProjectsScreen';
 import DropsScreen     from './src/screens/DropsScreen';
-import DevicesScreen   from './src/screens/DevicesScreen'; // ← New Screen
 import DashboardScreen from './src/screens/DashboardScreen';
 import SettingsScreen  from './src/screens/SettingsScreen';
 import GalleryScreen   from './src/screens/GalleryScreen';
@@ -18,7 +17,7 @@ import { emptyDrop }   from './src/utils';
 
 export default function App() {
   const [projects,       setProjectsState] = useState([]);
-  const [groups,         setGroupsState]   = useState([]);   
+  const [groups,         setGroupsState]   = useState([]);   // ← new
   const [activeProject,  setActiveProject] = useState(null);
   const [activeTab,      setActiveTab]     = useState('drops');
   const [loaded,         setLoaded]        = useState(false);
@@ -26,7 +25,7 @@ export default function App() {
   const toastTimer      = useRef(null);
   const pendingDelete   = useRef(null);
   const persistTimer    = useRef(null);
-  const persistGrpTimer = useRef(null);    
+  const persistGrpTimer = useRef(null);    // ← new
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -34,10 +33,10 @@ export default function App() {
       try {
         const [projectData, groupData] = await Promise.all([
           AsyncStorage.getItem('cable-projects'),
-          AsyncStorage.getItem('cable-groups'),      
+          AsyncStorage.getItem('cable-groups'),      // ← new
         ]);
         if (projectData) setProjectsState(JSON.parse(projectData));
-        if (groupData)   setGroupsState(JSON.parse(groupData));  
+        if (groupData)   setGroupsState(JSON.parse(groupData));  // ← new
       } catch (e) {
         console.error('Load error:', e);
       } finally {
@@ -145,63 +144,6 @@ export default function App() {
     });
   }, [activeProject, updateActiveProject, showToast, projects, persistProjects]);
 
-  // ── Device CRUD (New Integration) ─────────────────────────────────────────
-  const addDevice = useCallback((deviceType) => {
-    const { uid, today } = require('./src/utils');
-    const newDevice = {
-      id: uid(),
-      deviceType: deviceType,
-      label: '',
-      cableId: '',
-      idf: '',
-      roughPull: false,
-      rfi: false,
-      installed: false,
-      programmed: false,
-      tested: false,
-      notes: '',
-      attention: false,
-      createdAt: today(),
-    };
-    const next = [...(activeProject.devices ?? []), newDevice];
-    updateActiveProject({ devices: next });
-    showToast(`+ Added ${deviceType}`);
-  }, [activeProject, updateActiveProject, showToast]);
-
-  const updateDevice = useCallback((updated) => {
-    const next = (activeProject.devices ?? []).map(d => d.id === updated.id ? updated : d);
-    updateActiveProject({ devices: next });
-  }, [activeProject, updateActiveProject]);
-
-  const deleteDevice = useCallback((id) => {
-    const currentDevices = activeProject.devices ?? [];
-    const index = currentDevices.findIndex(d => d.id === id);
-    const device = currentDevices[index];
-    const next = currentDevices.filter(d => d.id !== id);
-    updateActiveProject({ devices: next });
-    
-    // Separate local execution block to prevent overlap with standard drop deletions
-    let localPending = { device, index };
-    showToast('Device deleted', 'info', () => {
-      if (!localPending) return;
-      const { device: d, index: i } = localPending;
-      localPending = null;
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-      setToast(null);
-      setActiveProject(prev => {
-        if (!prev) return prev;
-        const restored = [...(prev.devices ?? [])];
-        restored.splice(i, 0, d);
-        const updated = { ...prev, devices: restored };
-        const nextProjects = projects.map(p => p.id === updated.id ? updated : p);
-        persistProjects(nextProjects);
-        setProjectsState(nextProjects);
-        return updated;
-      });
-      showToast('↩ Delete undone');
-    });
-  }, [activeProject, updateActiveProject, showToast, projects, persistProjects]);
-
   // ── IDF management ────────────────────────────────────────────────────────
   const updateIdfs = useCallback((next) => {
     updateActiveProject({ idfList: next });
@@ -276,8 +218,8 @@ export default function App() {
             projects={projects}
             setProjects={setProjects}
             onOpenProject={openProject}
-            groups={groups}          
-            setGroups={setGroups}    
+            groups={groups}          // ← new
+            setGroups={setGroups}    // ← new
           />
           {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} />}
         </SafeAreaView>
@@ -288,11 +230,9 @@ export default function App() {
   // ── Inside a project ──────────────────────────────────────────────────────
   const screenProps = {
     drops:            activeProject.drops,
-    devices:          activeProject.devices ?? [], // Safely handle legacy projects
     idfList:          activeProject.idfList,
     project:          activeProject,
     addDrop, bulkAddDrops, updateDrop, deleteDrop,
-    addDevice, updateDevice, deleteDevice, // Inject core CRUD operations
     updateIdfs, clearAllDrops, showToast,
     setProjects, projects,
     updateProjectNotes,
@@ -319,7 +259,7 @@ export default function App() {
           <View style={{ flex: 1 }}>
             <Text style={st.projectName} numberOfLines={1}>{activeProject.name}</Text>
             <Text style={st.projectMeta}>
-              {activeProject.drops.length} drop{activeProject.drops.length !== 1 ? 's' : ''}  ·  {(activeProject.devices ?? []).length} device{(activeProject.devices ?? []).length !== 1 ? 's' : ''}
+              {activeProject.drops.length} drop{activeProject.drops.length !== 1 ? 's' : ''}
               {activeProject.status === 'archived' ? '  ·  ARCHIVED' : ''}
             </Text>
           </View>
@@ -332,7 +272,6 @@ export default function App() {
 
         <View style={{ flex: 1 }}>
           {activeTab === 'drops'     && <DropsScreen     {...screenProps} />}
-          {activeTab === 'devices'   && <DevicesScreen   {...screenProps} />} 
           {activeTab === 'dashboard' && <DashboardScreen {...screenProps} />}
           {activeTab === 'settings'  && <SettingsScreen  {...screenProps} />}
           {activeTab === 'gallery'   && <GalleryScreen   {...screenProps} />}
