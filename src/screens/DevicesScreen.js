@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import DeviceCard from '../components/DeviceCard';
 import { COLORS } from '../theme';
+import BulkImportModal from './BulkImportModal'; // Verbatim reference to your bulk component
 
 const DEVICE_STATUS_FILTERS = [
   { key: 'ALL',        label: 'All Devices' },
@@ -30,6 +31,9 @@ export default function DevicesScreen({ devices, idfList, addDevice, updateDevic
   const [searchOpen,     setSearchOpen]     = useState(false);
   const [customModal,    setCustomModal]    = useState(false);
   const [customType,     setCustomType]     = useState('');
+  
+  // New state to manage the Bulk Import Modal visibility
+  const [bulkModalVisible, setBulkModalVisible] = useState(false);
   
   const searchInputRef = useRef(null);
   const flatListRef    = useRef(null);
@@ -73,6 +77,14 @@ export default function DevicesScreen({ devices, idfList, addDevice, updateDevic
       return true;
     });
   }, [devices, filterIdf, filterStatus, search]);
+
+  // Processes the generated bulk array items from the Modal
+  const handleBulkImport = (importedDrops) => {
+    importedDrops.forEach(drop => {
+      // Passes each generated drop object straight to your data handler
+      addDevice(drop);
+    });
+  };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -167,6 +179,11 @@ export default function DevicesScreen({ devices, idfList, addDevice, updateDevic
       <View style={s.fabContainer} pointerEvents="box-none">
         {fabOpen && (
           <View style={s.fabActions}>
+            {/* NEW BULK IMPORT OPTION */}
+            <TouchableOpacity style={[s.fabAction, s.fabActionBulk]} onPress={() => { setFabOpen(false); setBulkModalVisible(true); }}>
+              <Text style={s.fabActionText}>📦 BULK IMPORT...</Text>
+            </TouchableOpacity>
+
             {PRESET_DEVICES.map(type => (
               <TouchableOpacity key={type} style={[s.fabAction, s.fabActionBlue]} onPress={() => { setFabOpen(false); addDevice(type); }}>
                 <Text style={s.fabActionText}>{type.toUpperCase()}</Text>
@@ -181,6 +198,14 @@ export default function DevicesScreen({ devices, idfList, addDevice, updateDevic
           <Text style={s.fabMainText}>{fabOpen ? '✕' : '+'}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Bulk Import Modal Integration */}
+      <BulkImportModal
+        visible={bulkModalVisible}
+        onClose={() => setBulkModalVisible(false)}
+        onImport={handleBulkImport}
+        idfList={idfList}
+      />
 
       {/* Cross-platform Android Safe Modal for Exotic/Custom Device Input */}
       <Modal visible={customModal} transparent animationType="fade" onRequestClose={() => setCustomModal(false)}>
@@ -235,6 +260,7 @@ const s = StyleSheet.create({
   fabAction: { paddingHorizontal: 16, paddingVertical: 11, borderRadius: 50, elevation: 6 },
   fabActionBlue: { backgroundColor: '#1d4ed8' },
   fabActionExotic: { backgroundColor: '#7c3aed' },
+  fabActionBulk: { backgroundColor: '#0284c7' }, // Custom color for distinct bulk accent
   fabActionText: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
   fabMain: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#16a34a', alignItems: 'center', justifyContent: 'center', elevation: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
   fabMainOpen: { backgroundColor: '#374151' },
