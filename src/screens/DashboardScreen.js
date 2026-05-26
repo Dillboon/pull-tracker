@@ -73,7 +73,8 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
     rp:       drops.filter(d => d.roughPull).length,
     tm:       drops.filter(d => d.terminated).length,
     ts:       drops.filter(d => d.tested).length,
-    complete: drops.filter(d => d.roughPull && d.terminated && d.tested).length,
+    // Updated to include d.completed
+    complete: drops.filter(d => d.completed || (d.roughPull && d.terminated && d.tested)).length,
     singles:  drops.filter(d => getGroupType(d) === 'single').length,
     doubles:  drops.filter(d => getGroupType(d) === 'double').length,
     triples:  drops.filter(d => getGroupType(d) === 'triple').length,
@@ -172,7 +173,8 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
 
           {activeIdfs.map((idf, idx) => {
             const idrops   = drops.filter(d => d.idf === idf);
-            const complete = idrops.filter(d => d.roughPull && d.terminated && d.tested).length;
+            // Updated to include d.completed
+            const complete = idrops.filter(d => d.completed || (d.roughPull && d.terminated && d.tested)).length;
             const isOpen   = expandedIdf === idf;
             const isLast   = idx === activeIdfs.length - 1;
 

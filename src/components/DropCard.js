@@ -44,7 +44,8 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
   const swipeableRef = useRef(null);
   const count      = completionCount(drop);
   const pColor     = progressColor(drop);
-  const isComplete = count === 3;
+  // Updated to include drop.completed
+  const isComplete = drop.completed || count === 3;
   const groupType  = getGroupType(drop);
 
   // Check if any cable ID on this card is a duplicate
@@ -75,9 +76,16 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
     );
   };
 
+  // Updated shortcut logic to toggle completed property along with stages
   const quickCompleteAll = () => {
-    const allDone = drop.roughPull && drop.terminated && drop.tested;
-    onUpdate({ ...drop, roughPull: !allDone, terminated: !allDone, tested: !allDone });
+    const allDone = drop.completed || (drop.roughPull && drop.terminated && drop.tested);
+    onUpdate({ 
+      ...drop, 
+      completed: !allDone,
+      roughPull: !allDone, 
+      terminated: !allDone, 
+      tested: !allDone 
+    });
   };
 
   const quickToggle = (key) => onUpdate({ ...drop, [key]: !drop[key] });
@@ -239,7 +247,8 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
             activeOpacity={0.7}
           >
             <View style={[s.ring, { borderColor: pColor }]}>
-              <Text style={[s.ringText, { color: pColor }]}>{count}/3</Text>
+              {/* Display completed shorthand if explicit, otherwise raw count */}
+              <Text style={[s.ringText, { color: pColor }]}>{drop.completed ? '3/3' : `${count}/3`}</Text>
             </View>
           </TouchableOpacity>
           <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>{expanded ? '▴' : '▾'}</Text>

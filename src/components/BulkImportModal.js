@@ -1,360 +1,456 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, Modal,
-  ScrollView, StyleSheet, Switch,
+  Modal, View, Text, TextInput, TouchableOpacity,
+  StyleSheet, ScrollView, Alert
 } from 'react-native';
 import { COLORS } from '../theme';
 import { uid, today } from '../utils';
 
-const GROUP_OPTIONS = [
-  { key: 'single', label: 'Single', step: 1 },
-  { key: 'double', label: 'Double', step: 2 },
-  { key: 'triple', label: 'Triple', step: 3 },
-  { key: 'quad',   label: 'Quad',   step: 4 },
-];
+const GROUP_TYPES = ['single', 'double', 'triple', 'quad'];
 
 export default function BulkImportModal({ visible, onClose, onImport, idfList }) {
-  const [prefix,    setPrefix]    = useState('');
-  const [start,     setStart]     = useState('1');
-  const [end,       setEnd]       = useState('10');
-  const [padZeros,  setPadZeros]  = useState(true);
-  const [groupType, setGroupType] = useState('double');
-  const [idf,       setIdf]       = useState('');
-
-  const padNum = (n, max) => {
-    if (!padZeros) return String(n);
-    const len = String(max).length;
-    return String(n).padStart(len, '0');
-  };
-
-  const step = GROUP_OPTIONS.find(o => o.key === groupType)?.step ?? 1;
-
-  const preview = useMemo(() => {
-    const s = parseInt(start);
-    const e = parseInt(end);
-    if (isNaN(s) || isNaN(e) || s < 1 || e < s || e - s > 499) return null;
-
-    const items = [];
-    for (let i = s; i <= e; i += step) {
-      const ids = [];
-      for (let j = 0; j < step && i + j <= e; j++) {
-        ids.push(`${prefix}${padNum(i + j, e)}`);
-      }
-      // Actual group type based on how many IDs fit
-      const actualType = ids.length === 1 ? 'single'
-        : ids.length === 2 ? 'double'
-        : ids.length === 3 ? 'triple'
-        : 'quad';
-      items.push({ ids, groupType: actualType });
-    }
-    return items;
-  }, [prefix, start, end, padZeros, groupType]);
+  const [importMode, setImportMode] = useState('text'); // 'text' or 'range'
+  const [groupType, setGroupType] = useState('single');
+  const [selectedIdf, setSelectedIdf] = useState('');
+  
+  // Text input mode states
+  const [textInput, setTextInput] = useState('');
+  
+  // Range generator mode states
+  const [prefix, setPrefix] = useState('');
+  const [startNum, setStartNum] = useState('');
+  const [endNum, setEndNum] = useState('');
+  const [padWidth, setPadWidth] = useState('3'); // e.g., 001, 002
 
   const handleImport = () => {
-    if (!preview) return;
-    const drops = preview.map(item => ({
-      id:         uid(),
-      groupType:  item.groupType,
-      isDouble:   item.groupType === 'double',
-      cableA:     item.ids[0] || '',
-      cableB:     item.ids[1] || '',
-      cableC:     item.ids[2] || '',
-      cableD:     item.ids[3] || '',
-      idf,
-      roughPull:  false,
-      terminated: false,
-      tested:     false,
-      notes:      '',
-      createdAt:  today(),
-    }));
-    onImport(drops);
+    let cableIds = [];
+
+    if (importMode === 'text') {
+      // Parse text input split by commas, newlines, tabs, or spaces
+      cableIds = textInput
+        .split(/[\n,\t ]+/)
+        .map(id => id.trim().toUpperCase())
+        .filter(Boolean);
+
+      if (cableIds.length === 0) {
+        Alert.alert('Error', 'Please enter or paste some cable IDs.');
+        return;
+      }
+    } else {
+      // Sequential range generation
+      const start = parseInt(startNum, 10);
+      const end = parseInt(endNum, 10);
+      const pad = parseInt(padWidth, 10) || 0;
+
+      if (isNaN(start) || isNaN(end) || start > end) {
+        Alert.alert('Error', 'Please enter a valid starting and ending numeric range.');
+        return;
+      }
+
+      for (let i = start; i <= end; i++) {
+        const numString = pad > 0 ? String(i).padStart(pad, '0') : String(i);
+        cableIds.push(`${prefix.toUpperCase()}${numString}`);
+      }
+    }
+
+    // Determine target chunk size based on group type configuration
+    let chunkSize = 1;
+    if (groupType === 'double') chunkSize = 2;
+    if (groupType === 'triple') chunkSize = 3;
+    if (groupType === 'quad')   chunkSize = 4;
+
+    const newDrops = [];
+    
+    // Chunk parsed cable IDs into single, double, triple, or quad drops
+    for (let i = 0; i < cableIds.length; i += chunkSize) {
+      const chunk = cableIds.slice(i, i + chunkSize);
+      
+      newDrops.push({
+        id: uid(),
+        groupType: groupType,
+        isDouble: groupType === 'double', // maintain retro-compatibility for context rules
+        cableA: chunk[0] || '',
+        cableB: chunk[1] || '',
+        cableC: chunk[2] || '',
+        cableD: chunk[3] || '',
+        idf: selectedIdf,
+        roughPull: false,
+        terminated: false,
+        tested: false,
+        patchedA: false,
+        patchedB: false,
+        patchedC: false,
+        patchedD: false,
+        notes: '',
+        attention: false,
+        createdAt: today(),
+      });
+    }
+
+    onImport(newDrops);
+    resetForm();
     onClose();
   };
 
-  const count = preview ? preview.length : 0;
-  const s = parseInt(start);
-  const e = parseInt(end);
-  const rangeValid = !isNaN(s) && !isNaN(e) && s >= 1 && e >= s && e - s <= 499;
+  const resetForm = () => {
+    setTextInput('');
+    setPrefix('');
+    setStartNum('');
+    setEndNum('');
+    setSelectedIdf('');
+    setGroupType('single');
+  };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={st.root}>
-        {/* Header */}
-        <View style={st.header}>
-          <View>
-            <Text style={st.title}>Bulk Import</Text>
-            <Text style={st.subtitle}>GENERATE MULTIPLE DROPS AT ONCE</Text>
-          </View>
-          <TouchableOpacity onPress={onClose} style={st.closeBtn}>
-            <Text style={st.closeBtnText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-
-          {/* Range inputs */}
-          <View style={st.section}>
-            <Text style={st.sectionTitle}>CABLE ID RANGE</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={st.label}>PREFIX (optional)</Text>
-                <TextInput
-                  value={prefix}
-                  onChangeText={setPrefix}
-                  placeholder="e.g. C- or blank"
-                  placeholderTextColor={COLORS.textDim}
-                  style={st.input}
-                  autoCapitalize="characters"
-                />
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={st.label}>START NUMBER</Text>
-                <TextInput
-                  value={start}
-                  onChangeText={setStart}
-                  keyboardType="number-pad"
-                  style={st.input}
-                  placeholder="1"
-                  placeholderTextColor={COLORS.textDim}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.label}>END NUMBER</Text>
-                <TextInput
-                  value={end}
-                  onChangeText={setEnd}
-                  keyboardType="number-pad"
-                  style={st.input}
-                  placeholder="120"
-                  placeholderTextColor={COLORS.textDim}
-                />
-              </View>
-            </View>
-            {!rangeValid && (start !== '' || end !== '') && (
-              <Text style={st.errorText}>
-                {e - s > 499 ? 'Max 500 drops at once' : 'Enter a valid range (start ≤ end)'}
-              </Text>
-            )}
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={s.backdrop}>
+        <View style={s.modalContainer}>
+          
+          {/* Header */}
+          <View style={s.header}>
+            <Text style={s.headerTitle}>BULK IMPORT DROPS</Text>
+            <TouchableOpacity onPress={onClose} style={s.closeBtn}>
+              <Text style={s.closeBtnText}>✕</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Options */}
-          <View style={st.section}>
-            <Text style={st.sectionTitle}>OPTIONS</Text>
-
-            <View style={st.row}>
-              <View>
-                <Text style={st.optLabel}>Zero Padding</Text>
-                <Text style={st.optHint}>01, 02... instead of 1, 2...</Text>
-              </View>
-              <Switch
-                value={padZeros}
-                onValueChange={setPadZeros}
-                trackColor={{ false: COLORS.surface2, true: COLORS.blue }}
-                thumbColor="#fff"
-              />
+          <ScrollView contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
+            
+            {/* Mode Switcher */}
+            <View style={s.tabRow}>
+              <TouchableOpacity 
+                style={[s.tab, importMode === 'text' && s.tabActive]} 
+                onPress={() => setImportMode('text')}
+              >
+                <Text style={[s.tabText, importMode === 'text' && s.tabTextActive]}>📋 PASTE LIST</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[s.tab, importMode === 'range' && s.tabActive]} 
+                onPress={() => setImportMode('range')}
+              >
+                <Text style={[s.tabText, importMode === 'range' && s.tabTextActive]}>🔢 GENERATE RANGE</Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Group type selector */}
-            <View style={{ marginTop: 14 }}>
-              <Text style={st.optLabel}>Drop Grouping</Text>
-              <Text style={st.optHint}>How to group consecutive cable IDs</Text>
-              <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
-                {GROUP_OPTIONS.map(opt => (
+            {/* Drop Configuration Type */}
+            <View style={s.section}>
+              <Text style={s.fieldLabel}>BUNDLE TYPE</Text>
+              <View style={s.typeRow}>
+                {GROUP_TYPES.map(type => (
                   <TouchableOpacity
-                    key={opt.key}
-                    onPress={() => setGroupType(opt.key)}
-                    style={[st.groupBtn, groupType === opt.key && {
+                    key={type}
+                    style={[s.typeBtn, groupType === type && {
                       backgroundColor:
-                        opt.key === 'double' ? 'rgba(124,58,237,0.18)' :
-                        opt.key === 'triple' ? 'rgba(13,148,136,0.18)' :
-                        opt.key === 'quad'   ? 'rgba(249,115,22,0.18)' :
-                        'rgba(255,255,255,0.08)',
+                        type === 'double' ? 'rgba(124,58,237,0.18)' :
+                        type === 'triple' ? 'rgba(13,148,136,0.18)' :
+                        type === 'quad'   ? 'rgba(249,115,22,0.18)' :
+                        'rgba(59,130,246,0.15)',
                       borderColor:
-                        opt.key === 'double' ? 'rgba(124,58,237,0.4)' :
-                        opt.key === 'triple' ? 'rgba(13,148,136,0.4)' :
-                        opt.key === 'quad'   ? 'rgba(249,115,22,0.4)' :
-                        'rgba(255,255,255,0.2)',
+                        type === 'double' ? 'rgba(124,58,237,0.4)' :
+                        type === 'triple' ? 'rgba(13,148,136,0.4)' :
+                        type === 'quad'   ? 'rgba(249,115,22,0.4)' :
+                        'rgba(59,130,246,0.4)',
                     }]}
+                    onPress={() => setGroupType(type)}
                   >
-                    <Text style={[st.groupBtnText, groupType === opt.key && {
+                    <Text style={[s.typeBtnText, groupType === type && {
                       color:
-                        opt.key === 'double' ? '#a78bfa' :
-                        opt.key === 'triple' ? '#2dd4bf' :
-                        opt.key === 'quad'   ? '#fb923c' :
-                        COLORS.text,
+                        type === 'double' ? '#a78bfa' :
+                        type === 'triple' ? '#2dd4bf' :
+                        type === 'quad'   ? '#fb923c' :
+                        '#60a5fa',
                     }]}>
-                      {opt.label}
+                      {type.toUpperCase()}
                     </Text>
-                    {opt.step > 1 && (
-                      <Text style={[st.groupBtnHint, groupType === opt.key && {
-                        color:
-                          opt.key === 'double' ? '#a78bfa' :
-                          opt.key === 'triple' ? '#2dd4bf' :
-                          '#fb923c',
-                        opacity: 0.7,
-                      }]}>
-                        {opt.step} IDs
-                      </Text>
-                    )}
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
-          </View>
 
-          {/* IDF selector */}
-          <View style={st.section}>
-            <Text style={st.sectionTitle}>ASSIGN IDF (optional)</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-              {idfList.map(i => (
-                <TouchableOpacity
-                  key={i}
-                  onPress={() => setIdf(idf === i ? '' : i)}
-                  style={[st.idfBtn, idf === i && st.idfBtnActive]}
-                >
-                  <Text style={[st.idfBtnText, idf === i && { color: COLORS.amber }]}>{i}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Live preview */}
-          {preview && rangeValid && (
-            <View style={st.section}>
-              <Text style={st.sectionTitle}>
-                PREVIEW — {count} {count === 1 ? 'DROP' : 'DROPS'} WILL BE CREATED
-              </Text>
-              <View style={{ gap: 5, maxHeight: 200, overflow: 'hidden' }}>
-                {preview.slice(0, 8).map((item, i) => (
-                  <View key={i} style={st.previewRow}>
-                    {item.groupType !== 'single' && (
-                      <View style={[st.groupPill, {
-                        backgroundColor:
-                          item.groupType === 'double' ? 'rgba(124,58,237,0.2)' :
-                          item.groupType === 'triple' ? 'rgba(13,148,136,0.2)' :
-                          'rgba(249,115,22,0.2)',
-                        borderColor:
-                          item.groupType === 'double' ? 'rgba(124,58,237,0.4)' :
-                          item.groupType === 'triple' ? 'rgba(13,148,136,0.4)' :
-                          'rgba(249,115,22,0.4)',
-                      }]}>
-                        <Text style={[st.groupPillText, {
-                          color:
-                            item.groupType === 'double' ? '#a78bfa' :
-                            item.groupType === 'triple' ? '#2dd4bf' :
-                            '#fb923c',
-                        }]}>{item.groupType.slice(0, 3).toUpperCase()}</Text>
-                      </View>
-                    )}
-                    <Text style={st.previewText}>
-                      {item.ids.join(' ↔ ')}
-                    </Text>
-                    {idf ? <Text style={st.previewIdf}>{idf}</Text> : null}
-                  </View>
-                ))}
-                {preview.length > 8 && (
-                  <Text style={st.previewMore}>...and {preview.length - 8} more</Text>
-                )}
+            {/* IDF Closet Selection */}
+            {idfList && idfList.length > 0 && (
+              <View style={s.section}>
+                <Text style={s.fieldLabel}>ASSIGN TO IDF CLOSET</Text>
+                <View style={s.idfRow}>
+                  {idfList.map(idf => (
+                    <TouchableOpacity
+                      key={idf}
+                      onPress={() => setSelectedIdf(selectedIdf === idf ? '' : idf)}
+                      style={[s.idfBtn, selectedIdf === idf && s.idfBtnActive]}
+                    >
+                      <Text style={[s.idfBtnText, selectedIdf === idf && { color: COLORS.amber }]}>
+                        {idf}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            </View>
-          )}
+            )}
 
-          {/* Import button */}
-          <TouchableOpacity
-            style={[st.importBtn, (!preview || !rangeValid) && st.importBtnDisabled]}
-            onPress={handleImport}
-            disabled={!preview || !rangeValid}
-            activeOpacity={0.8}
-          >
-            <Text style={st.importBtnText}>
-              ⬇ IMPORT {count > 0 ? count : ''} DROPS
-            </Text>
-          </TouchableOpacity>
+            {/* Conditional Input UI Panel */}
+            {importMode === 'text' ? (
+              <View style={s.section}>
+                <Text style={s.fieldLabel}>PASTE CABLE IDS</Text>
+                <Text style={s.hintText}>
+                  Separated by spaces, commas, or newlines. {groupType !== 'single' && `Every ${chunkSize} IDs will automatically be grouped into a single ${groupType} card.`}
+                </Text>
+                <TextInput
+                  value={textInput}
+                  onChangeText={setTextInput}
+                  placeholder={
+                    groupType === 'triple' ? "C-001 C-002 C-003\nC-004 C-005 C-006" :
+                    groupType === 'quad' ? "C-001, C-002, C-003, C-004" :
+                    "C-001\nC-002\nC-003"
+                  }
+                  placeholderTextColor={COLORS.textDim}
+                  multiline
+                  style={[s.input, s.textArea]}
+                  autoCapitalize="characters"
+                />
+              </View>
+            ) : (
+              <View style={s.section}>
+                <Text style={s.fieldLabel}>RANGE SETTINGS</Text>
+                
+                <View style={s.row}>
+                  <View style={{ flex: 2 }}>
+                    <Text style={s.subLabel}>Prefix</Text>
+                    <TextInput
+                      value={prefix}
+                      onChangeText={setPrefix}
+                      placeholder="e.g. C-"
+                      placeholderTextColor={COLORS.textDim}
+                      style={s.input}
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.subLabel}>Zero Pad</Text>
+                    <TextInput
+                      value={padWidth}
+                      onChangeText={setPadWidth}
+                      placeholder="3"
+                      keyboardType="numeric"
+                      placeholderTextColor={COLORS.textDim}
+                      style={[s.input, { textAlign: 'center' }]}
+                    />
+                  </View>
+                </View>
 
-        </ScrollView>
+                <View style={[s.row, { marginTop: 10 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.subLabel}>Start Number</Text>
+                    <TextInput
+                      value={startNum}
+                      onChangeText={setStartNum}
+                      placeholder="1"
+                      keyboardType="numeric"
+                      placeholderTextColor={COLORS.textDim}
+                      style={s.input}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.subLabel}>End Number</Text>
+                    <TextInput
+                      value={endNum}
+                      onChangeText={setEndNum}
+                      placeholder="48"
+                      keyboardType="numeric"
+                      placeholderTextColor={COLORS.textDim}
+                      style={s.input}
+                    />
+                  </View>
+                </View>
+                <Text style={[s.hintText, { marginTop: 10 }]}>
+                  Generates sequential IDs. {groupType !== 'single' && `Groups consecutive sequences into blocks of ${chunkSize} per card.`}
+                </Text>
+              </View>
+            )}
+
+          </ScrollView>
+
+          {/* Action Footer Button */}
+          <View style={s.footer}>
+            <TouchableOpacity style={s.importBtn} onPress={handleImport}>
+              <Text style={s.importBtnText}>⬇ IMPORT CONFIGURATION</Text>
+            </TouchableOpacity>
+          </View>
+
+        </View>
       </View>
     </Modal>
   );
 }
 
-const st = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: COLORS.bg },
+const s = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#161b22',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderHi,
+    maxHeight: '90%',
+  },
   header: {
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-    padding: 16, flexDirection: 'row',
-    justifyContent: 'space-between', alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  title:    { fontSize: 18, fontWeight: '800', color: COLORS.text },
-  subtitle: { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1.5, marginTop: 2 },
+  headerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.text,
+    letterSpacing: 1,
+  },
   closeBtn: {
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20,
-    width: 34, height: 34, alignItems: 'center', justifyContent: 'center',
+    padding: 4,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 6,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  closeBtnText: { color: COLORS.textSub, fontSize: 14, fontWeight: '700' },
+  closeBtnText: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  scrollContent: {
+    padding: 16,
+    gap: 20,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 8,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  tabActive: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  tabText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  tabTextActive: {
+    color: COLORS.text,
+  },
   section: {
-    backgroundColor: COLORS.surface, borderWidth: 1,
-    borderColor: COLORS.border, borderRadius: 10, padding: 14,
+    gap: 8,
   },
-  sectionTitle: {
-    fontSize: 10, fontWeight: '800', letterSpacing: 1,
-    color: COLORS.textMuted, marginBottom: 12,
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    color: COLORS.textMuted,
   },
-  label: {
-    fontSize: 10, fontWeight: '800', letterSpacing: 0.8,
-    color: COLORS.textMuted, marginBottom: 5,
+  subLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.textDim,
+    marginBottom: 4,
+  },
+  hintText: {
+    fontSize: 11,
+    color: COLORS.textDim,
+    lineHeight: 15,
+  },
+  typeRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  typeBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'transparent',
+    alignItems: 'center',
+  },
+  typeBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.textMuted,
+    letterSpacing: 0.5,
+  },
+  idfRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  idfBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  idfBtnActive: {
+    backgroundColor: COLORS.amberDim,
+    borderColor: 'rgba(245,158,11,0.5)',
+  },
+  idfBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textMuted,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 10,
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1,
-    borderColor: COLORS.border, borderRadius: 7, padding: 10,
-    color: COLORS.text, fontSize: 13, fontFamily: 'monospace',
-  },
-  errorText: { color: COLORS.red, fontSize: 11, marginTop: 6, fontWeight: '600' },
-  row:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  optLabel: { fontSize: 13, fontWeight: '700', color: COLORS.textSub },
-  optHint:  { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
-
-  // Group type buttons
-  groupBtn: {
-    flex: 1, alignItems: 'center', paddingVertical: 8,
-    borderRadius: 7, backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1, borderColor: 'transparent', gap: 2,
-  },
-  groupBtnActive: {
-    backgroundColor: 'rgba(124,58,237,0.18)',
-    borderColor: 'rgba(124,58,237,0.4)',
-  },
-  groupBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted },
-  groupBtnHint: { fontSize: 9, color: COLORS.textMuted },
-
-  idfBtn: {
-    paddingHorizontal: 11, paddingVertical: 5, borderRadius: 6,
     backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1, borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 7,
+    padding: 10,
+    color: COLORS.text,
+    fontSize: 13,
+    fontFamily: 'monospace',
   },
-  idfBtnActive: { backgroundColor: COLORS.amberDim, borderColor: 'rgba(245,158,11,0.5)' },
-  idfBtnText:   { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
-
-  previewRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 5, padding: 7,
+  textArea: {
+    minHeight: 120,
+    textAlignVertical: 'top',
   },
-  previewText: { fontFamily: 'monospace', fontSize: 13, color: COLORS.text, flex: 1 },
-  previewIdf:  { fontSize: 10, color: COLORS.amber, fontWeight: '700' },
-  previewMore: { fontSize: 11, color: COLORS.textMuted, textAlign: 'center', paddingVertical: 4 },
-  groupPill: {
-    backgroundColor: 'rgba(124,58,237,0.2)', borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.4)', borderRadius: 3,
-    paddingHorizontal: 4, paddingVertical: 1,
+  footer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
-  groupPillText: { fontSize: 7, fontWeight: '800', color: '#a78bfa', letterSpacing: 0.5 },
-
   importBtn: {
-    backgroundColor: COLORS.blue, borderRadius: 10, padding: 16, alignItems: 'center',
-    shadowColor: COLORS.blue, shadowOpacity: 0.5, shadowRadius: 8, elevation: 6,
+    backgroundColor: '#16a34a',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
-  importBtnDisabled: { backgroundColor: COLORS.surface2, shadowOpacity: 0, elevation: 0 },
-  importBtnText:     { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
+  importBtnText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 12,
+    letterSpacing: 0.6,
+  },
 });
