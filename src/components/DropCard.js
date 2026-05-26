@@ -39,12 +39,14 @@ function StatusToggle({ label, value, onChange, color }) {
 }
 
 // ─── DropCard ─────────────────────────────────────────────────────────────────
-export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKey, onExpandChange, conflictIds }) {
+export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKey, onExpandChange, conflictIds, customTypeList = [] }) {
   const [expanded, setExpanded] = useState(false);
   const swipeableRef = useRef(null);
-  const count      = completionCount(drop);
-  const pColor     = progressColor(drop);
-  const isComplete = count === 3;
+  
+  // Visual progress overrides for complete flag
+  const count      = drop.overrideComplete ? 3 : completionCount(drop);
+  const pColor     = drop.overrideComplete ? COLORS.green : progressColor(drop);
+  const isComplete = drop.overrideComplete || count === 3;
   const groupType  = getGroupType(drop);
 
   // Check if any cable ID on this card is a duplicate
@@ -77,7 +79,13 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
 
   const quickCompleteAll = () => {
     const allDone = drop.roughPull && drop.terminated && drop.tested;
-    onUpdate({ ...drop, roughPull: !allDone, terminated: !allDone, tested: !allDone });
+    onUpdate({ 
+      ...drop, 
+      roughPull: !allDone, 
+      terminated: !allDone, 
+      tested: !allDone,
+      overrideComplete: false // Reset manual override flag if status is manually adjusted
+    });
   };
 
   const quickToggle = (key) => onUpdate({ ...drop, [key]: !drop[key] });
@@ -155,23 +163,30 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
       <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.75} style={s.header}>
         <View style={{ flex: 1, gap: 6 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-            {groupType !== 'single' && (
+            {(groupType !== 'single' || drop.customType) && (
               <View style={[s.groupPill, {
                 backgroundColor:
                   groupType === 'double' ? 'rgba(124,58,237,0.18)' :
                   groupType === 'triple' ? 'rgba(13,148,136,0.18)' :
-                  'rgba(249,115,22,0.18)',
+                  groupType === 'quad'   ? 'rgba(249,115,22,0.18)' :
+                  'rgba(148,163,184,0.18)',
                 borderColor:
                   groupType === 'double' ? 'rgba(124,58,237,0.4)' :
                   groupType === 'triple' ? 'rgba(13,148,136,0.4)' :
-                  'rgba(249,115,22,0.4)',
+                  groupType === 'quad'   ? 'rgba(249,115,22,0.4)' :
+                  'rgba(148,163,184,0.4)',
               }]}>
                 <Text style={[s.groupPillText, {
                   color:
                     groupType === 'double' ? '#a78bfa' :
                     groupType === 'triple' ? '#2dd4bf' :
-                    '#fb923c',
-                }]}>{groupType.toUpperCase()}</Text>
+                    groupType === 'quad'   ? '#fb923c' :
+                    '#94a3b8',
+                }]}>
+                  {drop.customType 
+                    ? `${drop.customType.toUpperCase()} (${groupType.toUpperCase()})` 
+                    : groupType.toUpperCase()}
+                </Text>
               </View>
             )}
             
@@ -285,6 +300,32 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
             </View>
           </View>
 
+          {/* Custom Drop Type Selector/Input */}
+          <View>
+            <Text style={s.fieldLabel}>CUSTOM DROP TYPE</Text>
+            <TextInput
+              value={drop.customType || ''}
+              onChangeText={t => onUpdate({ ...drop, customType: t })}
+              placeholder="e.g. Card Reader, Camera, WAP"
+              placeholderTextColor={COLORS.textDim}
+              style={s.input}
+              autoCapitalize="words"
+            />
+            {customTypeList.length > 0 && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                {customTypeList.map(type => (
+                  <TouchableOpacity
+                    key={type}
+                    onPress={() => onUpdate({ ...drop, customType: drop.customType === type ? '' : type })}
+                    style={[s.idfBtn, drop.customType === type && s.idfBtnActive]}
+                  >
+                    <Text style={[s.idfBtnText, drop.customType === type && { color: COLORS.amber }]}>{type}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
           {/* Cable IDs */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {renderCableInput(`CABLE ID ${groupType !== 'single' ? 'A' : ''}`, 'cableA', 'patchedA')}
@@ -318,7 +359,21 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
 
           {/* Status toggles */}
           <View>
-            <Text style={s.fieldLabel}>STATUS</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={s.fieldLabel}>STATUS</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: drop.overrideComplete ? COLORS.green : COLORS.textMuted }}>
+                  ✓  MARK COMPLETE
+                </Text>
+                <Switch
+                  value={!!drop.overrideComplete}
+                  onValueChange={v => onUpdate({ ...drop, overrideComplete: v })}
+                  trackColor={{ false: COLORS.surface2, true: 'rgba(34,197,94,0.4)' }}
+                  thumbColor={drop.overrideComplete ? COLORS.green : '#6b7280'}
+                  style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                />
+              </View>
+            </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {STATUS_FIELDS.map(f => (
                 <StatusToggle
@@ -394,11 +449,11 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   patchedDot: {
-  width: 6,
-  height: 6,
-  borderRadius: 3,
-  backgroundColor: '#10b981',
-  marginLeft: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10b981',
+    marginLeft: 4,
   },
   miniPatchBtn: {
     backgroundColor: 'rgba(255,255,255,0.04)',
@@ -502,7 +557,7 @@ const s = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 10, fontWeight: '800', letterSpacing: 1,
-    color: COLORS.textMuted, marginBottom: 0, // adjusted to support inline button
+    color: COLORS.textMuted, marginBottom: 6,
   },
   input: {
     backgroundColor: 'rgba(255,255,255,0.05)',
