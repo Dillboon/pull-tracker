@@ -93,7 +93,7 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true}>
 
           {/* Range inputs */}
           <View style={st.section}>
