@@ -152,21 +152,21 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 
   // Build a set of cable IDs that appear more than once within the same IDF
   const conflictIds = useMemo(() => {
-    const seenByIdf = new Map(); // idf → Map<id, count>
+    // Key is "idf::customType::cableId" — only flag duplicates when
+    // the same cable ID appears more than once on the same drop type within the same IDF.
+    const seen = new Map();
     for (const d of drops) {
-      const idf = d.idf || '';
-      if (!seenByIdf.has(idf)) seenByIdf.set(idf, new Map());
-      const seen = seenByIdf.get(idf);
+      const idf  = d.idf        || '';
+      const type = d.customType || '';
       for (const id of [d.cableA, d.cableB, d.cableC, d.cableD]) {
         if (!id?.trim()) continue;
-        seen.set(id, (seen.get(id) ?? 0) + 1);
+        const key = `${idf}::${type}::${id}`;
+        seen.set(key, (seen.get(key) ?? 0) + 1);
       }
     }
     const dupes = new Set();
-    for (const seen of seenByIdf.values()) {
-      for (const [id, count] of seen) {
-        if (count > 1) dupes.add(id);
-      }
+    for (const [key, count] of seen) {
+      if (count > 1) dupes.add(key);
     }
     return dupes;
   }, [drops]);
@@ -342,7 +342,6 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
         onClose={() => setShowBulk(false)}
         onImport={bulkAddDrops}
         idfList={idfList}
-		customTypeList={customTypeList}
       />
 
       {/* ── Speed-dial FAB ── */}

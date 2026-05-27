@@ -49,10 +49,10 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
   const isComplete = drop.overrideComplete || count === 3;
   const groupType  = getGroupType(drop);
 
-  // Check if any cable ID on this card is a duplicate
+  // Only flag a conflict when the same cable ID AND customType appear more than once in the same IDF.
   const hasConflict = conflictIds && [drop.cableA, drop.cableB, drop.cableC, drop.cableD]
     .filter(Boolean)
-    .some(id => conflictIds.has(id));
+    .some(id => conflictIds.has(`${drop.idf || ''}::${drop.customType || ''}::${id}`));
 
   // Collapse when parent fires collapse-all
   useEffect(() => {
