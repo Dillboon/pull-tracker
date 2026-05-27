@@ -342,6 +342,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
         onClose={() => setShowBulk(false)}
         onImport={bulkAddDrops}
         idfList={idfList}
+		customTypeList={customTypeList}
       />
 
       {/* ── Speed-dial FAB ── */}
