@@ -312,7 +312,7 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
   bannerRow(ws, 1, 'Attention Log', C.noText, C.white, 13, 26);
   ws.mergeCells(1, 1, 1, COL_COUNT);
 
-  const headerLabels = ['Project', 'IDF Closet', 'Drop Type', 'Cable IDs', 'Patched', 'Notes', 'date'];
+  const headerLabels = ['Project', 'IDF Closet', 'Drop Type', 'Cable IDs', 'Patched', 'Notes', 'Last Updated'];
   const hRow = ws.getRow(2);
   hRow.height = 22;
   headerLabels.forEach((lbl, i) => {
@@ -356,7 +356,7 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
       row.getCell(4).value = cableIds(drop);
       row.getCell(5).value = getPatchedLabel(drop);
       row.getCell(6).value = drop.notes || 'No blocker details specified by technician.';
-      row.getCell(7).value = drop.createdAt || '';
+      row.getCell(7).value = drop.updatedAt || drop.createdAt || '';
 
       for (let c = 2; c <= COL_COUNT; c++) {
         const cell = row.getCell(c);
@@ -424,7 +424,7 @@ function buildProjectSheet(wb, project, sheetName) {
   ws.getRow(2).height = 20;
 
   // Row 3: Main Data Columns Headers
-  const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Date Added'];
+  const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated'];
   headerRow(ws, 3, headers, 22);
 
   ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };
@@ -455,7 +455,7 @@ function buildProjectSheet(wb, project, sheetName) {
     row.getCell(8).value = getPatchedLabel(drop);
     row.getCell(9).value = hasBlocker ? '⚠️ Yes' : 'No';
     row.getCell(10).value = drop.notes || '';
-    row.getCell(11).value = drop.createdAt || '';
+    row.getCell(11).value = drop.updatedAt || drop.createdAt || '';
 
     // Cell Decorators Array Iteration loop mapping
     for (let c = 1; c <= COL_COUNT; c++) {

@@ -118,7 +118,8 @@ export default function App() {
   }, [activeProject, updateActiveProject, showToast]);
 
   const updateDrop = useCallback((updated) => {
-    const next = activeProject.drops.map(d => d.id === updated.id ? updated : d);
+    const stamped = { ...updated, updatedAt: today() };
+    const next = activeProject.drops.map(d => d.id === stamped.id ? stamped : d);
     updateActiveProject({ drops: next });
   }, [activeProject, updateActiveProject]);
 

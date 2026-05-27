@@ -63,7 +63,7 @@ export async function exportPDF(drops, projectName = '') {
 		<td style="text-align:center">${getPatchedLabel(d)}</td>
         <td style="color:#555;font-size:11px">${d.notes || ''}</td>
         <td style="text-align:center">${d.attention ? '⚠️' : ''}</td>
-        <td style="color:#888;font-size:11px">${d.createdAt}</td>
+        <td style="color:#888;font-size:11px">${d.updatedAt || d.createdAt}</td>
       </tr>`;
   }).join('');
 
@@ -101,7 +101,7 @@ export async function exportPDF(drops, projectName = '') {
           <tr>
             <th>IDF</th><th>Type</th><th>Cable ID(s)</th>
             <th>Rough Pull</th><th>Terminated</th><th>Tested</th><th>Patched</th>
-            <th>Notes</th><th>Attn</th><th>Date</th>
+            <th>Notes</th><th>Attn</th><th>Last Updated</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -202,7 +202,7 @@ export async function exportXLSX(drops, projectName = '') {
   ws.getRow(2).height = 18;
 
   // Header row (row 3)
-  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Date Added']);
+  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated']);
   headerRow.height = 20;
   headerRow.eachCell(cell => {
     cell.font = headerFont; cell.fill = headerFill;
@@ -239,7 +239,7 @@ export async function exportXLSX(drops, projectName = '') {
 	  getPatchedLabel(d),
       d.attention  ? '⚠ Yes' : 'No',
       d.notes || '',
-      d.createdAt,
+      d.updatedAt || d.createdAt,
     ]);
     row.height = 18;
 
