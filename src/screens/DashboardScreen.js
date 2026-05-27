@@ -16,6 +16,8 @@ function StatRow({ label, value, color }) {
   );
 }
 
+// Updated to make sure progress bar visual filters include logic if needed, 
+// though ProgressBar handles the specific STATUS_FIELDS keys.
 function ProgressBar({ drops, total, field }) {
   const count = drops.filter(d => d[field.key]).length;
   const pct   = total > 0 ? count / total : 0;
@@ -73,7 +75,8 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
     rp:       drops.filter(d => d.roughPull).length,
     tm:       drops.filter(d => d.terminated).length,
     ts:       drops.filter(d => d.tested).length,
-    complete: drops.filter(d => d.roughPull && d.terminated && d.tested).length,
+    // Updated to include overrideComplete
+    complete: drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length,
     singles:  drops.filter(d => getGroupType(d) === 'single').length,
     doubles:  drops.filter(d => getGroupType(d) === 'double').length,
     triples:  drops.filter(d => getGroupType(d) === 'triple').length,
@@ -172,7 +175,8 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
 
           {activeIdfs.map((idf, idx) => {
             const idrops   = drops.filter(d => d.idf === idf);
-            const complete = idrops.filter(d => d.roughPull && d.terminated && d.tested).length;
+            // Updated to include overrideComplete
+            const complete = idrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
             const isOpen   = expandedIdf === idf;
             const isLast   = idx === activeIdfs.length - 1;
 
