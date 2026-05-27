@@ -52,11 +52,8 @@ function GroupSection({
   exporting,
 }) {
   const totalDrops = projects.reduce((s, p) => s + p.drops.length, 0);
-  
-  // FIXED: Matches ProjectCard's exact manual override validation logic
   const doneDrops  = projects.reduce((s, p) =>
-    s + p.drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length, 0);
-    
+    s + p.drops.filter(d => d.roughPull && d.terminated && d.tested).length, 0);
   const pct = totalDrops > 0 ? Math.round((doneDrops / totalDrops) * 100) : 0;
 
   return (
@@ -119,7 +116,7 @@ function GroupSection({
                 onOpen={onOpenProject}
                 onArchive={onArchive}
                 onUnarchive={onUnarchive}
-                onDelete={deleteProject}
+                onDelete={onDelete}
                 onRemoveFromGroup={() => onRemoveFromGroup(project.id)}
               />
             ))
@@ -592,7 +589,6 @@ export default function ProjectsScreen({
                       memberProjects.map(p => (
                         <View key={p.id} style={m.memberRow}>
                           <View style={{ flex: 1 }}>
-                            {/* FIXED: Text style restored from layout typo */}
                             <Text style={m.memberName}>{p.name}</Text>
                             <Text style={m.memberMeta}>{p.drops.length} drops</Text>
                           </View>
@@ -600,6 +596,7 @@ export default function ProjectsScreen({
                             style={m.removeBtn}
                             onPress={() => {
                               removeFromGroup(p.id);
+                              // If last project, close modal to avoid stale state
                               if (memberProjects.length === 1) setShowManage(null);
                             }}
                           >
