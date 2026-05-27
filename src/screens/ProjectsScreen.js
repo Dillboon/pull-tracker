@@ -52,11 +52,8 @@ function GroupSection({
   exporting,
 }) {
   const totalDrops = projects.reduce((s, p) => s + p.drops.length, 0);
-  
-  // FIXED: Account for standard completion pipeline OR the manual "Mark as complete" override toggle
   const doneDrops  = projects.reduce((s, p) =>
-    s + p.drops.filter(d => (d.isComplete || d.markedComplete) || (d.roughPull && d.terminated && d.tested)).length, 0);
-    
+    s + p.drops.filter(d => d.roughPull && d.terminated && d.tested).length, 0);
   const pct = totalDrops > 0 ? Math.round((doneDrops / totalDrops) * 100) : 0;
 
   return (
@@ -119,7 +116,7 @@ function GroupSection({
                 onOpen={onOpenProject}
                 onArchive={onArchive}
                 onUnarchive={onUnarchive}
-                onDelete={deleteProject}
+                onDelete={onDelete}
                 onRemoveFromGroup={() => onRemoveFromGroup(project.id)}
               />
             ))
@@ -592,7 +589,7 @@ export default function ProjectsScreen({
                       memberProjects.map(p => (
                         <View key={p.id} style={m.memberRow}>
                           <View style={{ flex: 1 }}>
-                            <Text style={p.name}>{p.name}</Text>
+                            <Text style={m.memberName}>{p.name}</Text>
                             <Text style={m.memberMeta}>{p.drops.length} drops</Text>
                           </View>
                           <TouchableOpacity
