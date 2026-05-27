@@ -18,7 +18,7 @@ const STATUS_FILTERS = [
   { key: 'ATTENTION',  label: 'Attention Notes'},
 ];
 
-export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, addDropFromTemplate, templates }) {
+export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, addDropFromTemplate, templates, customTypeList = [], onEditCustomTypes }) {
   const [filterIdf,      setFilterIdf]      = useState('ALL');
   const [filterStatus,   setFilterStatus]   = useState('ALL');
   const [search,         setSearch]         = useState('');
@@ -129,9 +129,9 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
     if (filterStatus === 'COMPLETE'   && !(d.roughPull && d.terminated && d.tested)) return false;
     if (filterStatus === 'INCOMPLETE' &&  (d.roughPull && d.terminated && d.tested)) return false;
-	if (filterStatus === 'TERMINATED' && !(d.roughPull && d.terminated && !d.tested)) return false;
+    if (filterStatus === 'TERMINATED' && !(d.roughPull && d.terminated && !d.tested)) return false;
     if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.terminated || d.tested)) return false;
-	if (filterStatus === 'PATCHED'    && !(d.patchedA || d.patchedB || d.patchedC || d.patchedD)) return false;
+    if (filterStatus === 'PATCHED'    && !(d.patchedA || d.patchedB || d.patchedC || d.patchedD)) return false;
     if (filterStatus === 'NOTES' && (!d.notes?.trim() || d.attention))               return false;
     if (filterStatus === 'ATTENTION'  && !d.attention)                               return false;
     if (search.trim()) {
@@ -313,6 +313,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
             idfList={idfList}
             collapseKey={collapseKey}
             conflictIds={conflictIds}
+            customTypeList={customTypeList}
+            onEditCustomTypes={onEditCustomTypes}
             onExpandChange={(isExpanded) =>
               setExpandedCount(n => isExpanded ? n + 1 : Math.max(0, n - 1))
             }

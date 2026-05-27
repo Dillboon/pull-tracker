@@ -9,9 +9,6 @@ import { completionCount, progressColor, getGroupType } from '../utils';
 
 const GROUP_TYPES = ['single', 'double', 'triple', 'quad'];
 
-// Edit these strings whenever you want to change your quick-assign custom types!
-const QUICK_CUSTOM_TYPES = ['WAP', 'Camera', 'Card Reader', 'VOIP'];
-
 // ─── Tappable Badge ───────────────────────────────────────────────────────────
 function Badge({ done, short, onToggle }) {
   return (
@@ -42,7 +39,7 @@ function StatusToggle({ label, value, onChange, color }) {
 }
 
 // ─── DropCard ─────────────────────────────────────────────────────────────────
-export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKey, onExpandChange, conflictIds, customTypeList = [] }) {
+export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKey, onExpandChange, conflictIds, customTypeList = [], onEditCustomTypes }) {
   const [expanded, setExpanded] = useState(false);
   const swipeableRef = useRef(null);
   
@@ -305,41 +302,18 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
 
           {/* Custom Drop Type Selector/Input */}
           <View>
-            <Text style={s.fieldLabel}>CUSTOM DROP TYPE</Text>
-            
-            {/* Quick Customizable Selection Row */}
-            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-              {QUICK_CUSTOM_TYPES.map((type, idx) => {
-                const isSelected = drop.customType === type;
-                // Coordinated modern styling block for active selection states
-                const colors = [
-                  { bg: 'rgba(245,158,11,0.18)', border: 'rgba(245,158,11,0.4)', text: '#f59e0b' },   // Amber
-                  { bg: 'rgba(13,148,136,0.18)', border: 'rgba(13,148,136,0.4)', text: '#2dd4bf' },   // Teal
-                  { bg: 'rgba(124,58,237,0.18)', border: 'rgba(124,58,237,0.4)', text: '#a78bfa' },   // Purple
-                  { bg: 'rgba(249,115,22,0.18)', border: 'rgba(249,115,22,0.4)', text: '#fb923c' },   // Orange
-                ];
-                const currentTheme = colors[idx % colors.length];
-
-                return (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      s.typeBtn,
-                      isSelected && {
-                        backgroundColor: currentTheme.bg,
-                        borderColor: currentTheme.border,
-                      }
-                    ]}
-                    onPress={() => onUpdate({ ...drop, customType: isSelected ? '' : type })}
-                  >
-                    <Text style={[s.typeBtnText, isSelected && { color: currentTheme.text, fontWeight: '800' }]}>
-                      {type}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <Text style={[s.fieldLabel, { marginBottom: 0 }]}>CUSTOM DROP TYPE</Text>
+              {onEditCustomTypes && (
+                <TouchableOpacity 
+                  onPress={onEditCustomTypes} 
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  activeOpacity={0.6}
+                >
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted }}>✏️</Text>
+                </TouchableOpacity>
+              )}
             </View>
-
             <TextInput
               value={drop.customType || ''}
               onChangeText={t => onUpdate({ ...drop, customType: t })}
