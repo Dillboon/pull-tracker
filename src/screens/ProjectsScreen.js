@@ -53,7 +53,7 @@ function GroupSection({
 }) {
   const totalDrops = projects.reduce((s, p) => s + p.drops.length, 0);
   const doneDrops  = projects.reduce((s, p) =>
-    s + p.drops.filter(d => d.roughPull && d.terminated && d.tested).length, 0);
+    s + p.drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length, 0);
   const pct = totalDrops > 0 ? Math.round((doneDrops / totalDrops) * 100) : 0;
 
   return (
