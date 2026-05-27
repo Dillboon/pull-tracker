@@ -310,7 +310,7 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
                   hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   activeOpacity={0.6}
                 >
-                  <Text style={{ fontSize: 11, color: COLORS.textMuted }}>✏️</Text>
+                  <Text style={{ fontSize: 11, color: COLORS.textMuted }}>✏</Text>
                 </TouchableOpacity>
               )}
             </View>
