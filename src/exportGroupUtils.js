@@ -3,12 +3,11 @@
  *
  * Enhanced Group Portfolio "Export All" — Visually polished, fully interactive, 
  * and optimized for Executive Project Manager workflows.
- * 
- * Features:
- *  - Live Sheet-to-Sheet Formula Tracking (Summary updates dynamically when drops change)
- *  - Executive KPI Summary Cards
- *  - Portfolio-Wide Consolidated Attention Summary Log
- *  - Data Validations, Conditional Formatting, & Print-Ready Layouts
+ * * Features:
+ * - Live Sheet-to-Sheet Formula Tracking (Summary updates dynamically when drops change)
+ * - Executive KPI Summary Cards
+ * - Portfolio-Wide Consolidated Attention Summary Log
+ * - Data Validations, Conditional Formatting, & Print-Ready Layouts
  */
 
 import * as FileSystem from 'expo-file-system';
@@ -83,9 +82,11 @@ function cableIds(drop) {
   return [drop.cableA, drop.cableB, drop.cableC, drop.cableD].filter(Boolean).join(' / ') || '—';
 }
 
+// UPDATED: Now dynamically appends custom type descriptor string if present
 function typeName(drop) {
   const t = drop.groupType || (drop.isDouble ? 'double' : 'single');
-  return t.charAt(0).toUpperCase() + t.slice(1);
+  const baseLabel = t.charAt(0).toUpperCase() + t.slice(1);
+  return drop.customType ? `${drop.customType} (${baseLabel})` : baseLabel;
 }
 
 function isAttention(drop) {
@@ -213,7 +214,7 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     nameCell.value = {
       text: p.name,
       hyperlink: `#'${targetSheet}'!A1`,
-      tooltip: `Navigate to ${p.name} Details`
+      tooltip: `Maps to ${p.name} Details`
     };
     applyFont(nameCell, { argb: C.idfBlue, bold: true, underline: true, size: 10.5 });
     applyAlign(nameCell, 'left');
@@ -254,7 +255,10 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   totRow.getCell(4).value = { formula: `SUM(D9:D${totalRowNum - 1})` };
   totRow.getCell(5).value = { formula: `SUM(E9:E${totalRowNum - 1})` };
   totRow.getCell(6).value = { formula: `SUM(F9:F${totalRowNum - 1})` };
-  totRow.getCell(7).value = { formula: `IFERROR(SUM(E9:E${totalRowNum - 1}) / B${totalRowNum}, 0)` };
+  
+  // UPDATED: Evaluates overall portfolio progress as a weighted calculation using SUMPRODUCT. 
+  // This accurately catches drops containing manual forced-completions bypassing the default "Yes" column limits.
+  totRow.getCell(7).value = { formula: `IFERROR(SUMPRODUCT(B9:B${totalRowNum - 1}, G9:G${totalRowNum - 1}) / B${totalRowNum}, 0)` };
 
   for (let c = 1; c <= COL_COUNT; c++) {
     const cell = totRow.getCell(c);
@@ -301,7 +305,7 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
   applyStandardPageSetup(ws, '1:2');
 
   const COL_COUNT = 7;
-  const widths = [24, 12, 12, 18, 16, 45, 14];
+  const widths = [24, 12, 16, 18, 16, 45, 14];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2 }];
 
@@ -376,7 +380,8 @@ function buildAttentionLogSheet(wb, projects, projectSheetMap) {
     applyBorders(cell, 'thin');
   }
 
-  autoFitColumns(ws, { 6: { min: 30, max: 50 } }, [4, 6]);
+  // UPDATED: Column 3 (Drop Type) is added into the autofit engine to cleanly size custom descriptors
+  autoFitColumns(ws, { 6: { min: 30, max: 50 } }, [3, 4, 6]);
 }
 
 // ── 3. Individual Project Detailed Drops Sheet ───────────────────────────────
@@ -405,9 +410,11 @@ function buildProjectSheet(wb, project, sheetName) {
   const subCell = ws.getCell('A2');
   
   const totalDrops = project.drops.length;
-  const roughCount = project.drops.filter(d => d.roughPull).length;
-  const termCount  = project.drops.filter(d => d.terminated).length;
-  const testCount  = project.drops.filter(d => d.tested).length;
+  
+  // UPDATED: Text totals count a drop as active/complete across states if overrideComplete is active
+  const roughCount = project.drops.filter(d => d.roughPull || d.overrideComplete).length;
+  const termCount  = project.drops.filter(d => d.terminated || d.overrideComplete).length;
+  const testCount  = project.drops.filter(d => d.tested || d.overrideComplete).length;
   const attnCount  = project.drops.filter(isAttention).length;
 
   subCell.value = `Generated: ${new Date().toLocaleString()}  |  Total: (${totalDrops})  |  Rough pulled: (${roughCount})  |  Terminated: (${termCount})  |  Tested: (${testCount})  |  Attention: (${attnCount})`;
@@ -440,8 +447,10 @@ function buildProjectSheet(wb, project, sheetName) {
     row.getCell(5).value = drop.terminated ? 'Yes' : 'No';
     row.getCell(6).value = drop.tested     ? 'Yes' : 'No';
     
-    // Automatic Live Calculation Formula computing line complete status states
-    row.getCell(7).value = { formula: `IF(AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes"),"✓","✗")` };
+    // UPDATED: Embeds an OR fallback block inside the dynamic Excel logic to evaluate row as complete if override Complete toggle is true
+    row.getCell(7).value = { 
+      formula: `IF(OR(${drop.overrideComplete ? 'TRUE' : 'FALSE'},AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes")),"✓","✗")` 
+    };
     
     row.getCell(8).value = getPatchedLabel(drop);
     row.getCell(9).value = hasBlocker ? '⚠️ Yes' : 'No';
@@ -528,7 +537,8 @@ function buildProjectSheet(wb, project, sheetName) {
     });
   }
 
-  autoFitColumns(ws, { 10: { min: 22, max: 50 }, 11: { min: 14, max: 20 } }, [10, 11]);
+  // UPDATED: Added column 2 (Drop Type) to dynamic width auto-fitter list to adapt cleanly to custom labels
+  autoFitColumns(ws, { 10: { min: 22, max: 50 }, 11: { min: 14, max: 20 } }, [2, 10, 11]);
 }
 
 // ── Banners & Static Grid Builders ───────────────────────────────────────────
