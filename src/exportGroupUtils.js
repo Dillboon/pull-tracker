@@ -118,8 +118,8 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   const ws = wb.addWorksheet('Portfolio Summary', { tabColor: { argb: 'FF0A1628' } });
   applyStandardPageSetup(ws, '1:8');
   
-  const COL_COUNT = 8;
-  [32, 14, 14, 14, 14, 14, 16, 13].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  const COL_COUNT = 7;
+  [32, 14, 14, 14, 14, 14, 16].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 8 }]; // Freeze above row 9
 
   // Title Banner
@@ -181,7 +181,7 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   ws.getRow(7).height = 10; // Padding Spacer
 
   // ── Main Data Grid Headers ──
-  const headers = ['Projects', 'Total Drops', 'Rough Pulled', 'Terminated', 'Tested', 'Attention Flags', 'Progress %', 'RAG'];
+  const headers = ['Projects', 'Total Drops', 'Rough Pulled', 'Terminated', 'Tested', 'Attention Flags', 'Progress %'];
   const hRow = ws.getRow(8);
   hRow.height = 24;
   headers.forEach((lbl, i) => {
@@ -226,7 +226,6 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     row.getCell(5).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!F4:F${endDataRow}, "Yes")` } : 0;
     row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!I4:I${endDataRow}, "⚠️ Yes")` } : 0;
     row.getCell(7).value = totalDrops > 0 ? { formula: `IFERROR(COUNTIF(${escapedSheet}!G4:G${endDataRow}, "✓") / B${rowNum}, 0)` } : 0;
-    row.getCell(8).value = totalDrops > 0 ? { formula: `IF(G${rowNum}>=1,"GREEN",IF(G${rowNum}>0,"AMBER","RED"))` } : 'RED';
 
     for (let c = 1; c <= COL_COUNT; c++) {
       const cell = row.getCell(c);
@@ -241,9 +240,6 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
       if (c === 7) {
         cell.numFmt = '0%';
         applyFont(cell, { bold: true, size: 10.5 });
-      }
-      if (c === 8) {
-        applyFont(cell, { bold: true, size: 10 });
       }
     }
   });
@@ -295,15 +291,6 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
           type: 'cellIs', operator: 'greaterThan', formulae: ['0'],
           style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.noFill } }, font: { bold: true, color: { argb: C.noText } } }
         }
-      ]
-    });
-    // RAG column conditional formatting
-    ws.addConditionalFormatting({
-      ref: `H9:H${totalRowNum - 1}`,
-      rules: [
-        { type: 'cellIs', operator: 'equal', formulae: ['"GREEN"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.yesFill } }, font: { bold: true, color: { argb: C.yesText } } } },
-        { type: 'cellIs', operator: 'equal', formulae: ['"AMBER"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.attnFill } }, font: { bold: true, color: { argb: C.attnText } } } },
-        { type: 'cellIs', operator: 'equal', formulae: ['"RED"'],   style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.noFill  } }, font: { bold: true, color: { argb: C.noText  } } } },
       ]
     });
   }
@@ -414,8 +401,8 @@ function buildProjectSheet(wb, project, sheetName) {
   const ws = wb.addWorksheet(sheetName, { tabColor: { argb: 'FF3B82F6' } });
   applyStandardPageSetup(ws, '1:3'); // Lock print header titles (Rows 1 to 3)
   
-  const COL_COUNT = 12;
-  const widths = [12, 14, 22, 13, 13, 13, 11, 15, 14, 50, 15, 13];
+  const COL_COUNT = 11;
+  const widths = [12, 14, 22, 13, 13, 13, 11, 15, 14, 50, 15];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }]; // Freeze top 3 rows down (Title, Subtitle, Headers)
@@ -448,7 +435,7 @@ function buildProjectSheet(wb, project, sheetName) {
   ws.getRow(2).height = 20;
 
   // Row 3: Main Data Columns Headers
-  const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated', 'RAG'];
+  const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated'];
   headerRow(ws, 3, headers, 22);
 
   ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };
@@ -480,10 +467,6 @@ function buildProjectSheet(wb, project, sheetName) {
     row.getCell(9).value = hasBlocker ? '⚠️ Yes' : 'No';
     row.getCell(10).value = drop.notes || '';
     row.getCell(11).value = drop.updatedAt || drop.createdAt || '';
-    // RAG status formula
-    row.getCell(12).value = {
-      formula: `IF(G${rowNum}="✓","GREEN",IF(AND(D${rowNum}="No",E${rowNum}="No",F${rowNum}="No"),"RED","AMBER"))`
-    };
 
     // Cell Decorators Array Iteration loop mapping
     for (let c = 1; c <= COL_COUNT; c++) {
@@ -510,7 +493,7 @@ function buildProjectSheet(wb, project, sheetName) {
         case 6:
           applyFill(cell, fill); applyFont(cell, { size: 10 }); applyAlign(cell, 'center');
           cell.dataValidation = dvYesNo;
-          cell.protection = { locked: false }; // Editable — Yes/No status dropdowns
+          cell.protection = { locked: false };
           break;
         case 7:
           applyFill(cell, fill); applyAlign(cell, 'center');
@@ -526,13 +509,10 @@ function buildProjectSheet(wb, project, sheetName) {
           break;
         case 10:
           applyFill(cell, fill); applyFont(cell, { argb: C.slate, size: 9 }); applyAlign(cell, 'left', 'middle', true);
-          cell.protection = { locked: false }; // Editable — Notes field
+          cell.protection = { locked: false };
           break;
         case 11:
           applyFill(cell, fill); applyFont(cell, { argb: C.slate, size: 9 }); applyAlign(cell, 'center');
-          break;
-        case 12:
-          applyFill(cell, fill); applyFont(cell, { bold: true, size: 10 }); applyAlign(cell, 'center');
           break;
       }
     }
@@ -568,16 +548,8 @@ function buildProjectSheet(wb, project, sheetName) {
         }
       ]
     });
-    // RAG status column conditional formatting
-    ws.addConditionalFormatting({
-      ref: `L4:L${endRow}`,
-      rules: [
-        { type: 'cellIs', operator: 'equal', formulae: ['"GREEN"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.yesFill } }, font: { bold: true, color: { argb: C.yesText } } } },
-        { type: 'cellIs', operator: 'equal', formulae: ['"AMBER"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.attnFill } }, font: { bold: true, color: { argb: C.attnText } } } },
-        { type: 'cellIs', operator: 'equal', formulae: ['"RED"'],   style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.noFill  } }, font: { bold: true, color: { argb: C.noText  } } } },
-      ]
-    });
-  }
+  // UPDATED: Added column 2 (Drop Type) to dynamic width auto-fitter list to adapt cleanly to custom labels
+  autoFitColumns(ws, { 10: { min: 22, max: 50 }, 11: { min: 14, max: 20 } }, [2, 10, 11]);
 
   // Print headers/footers
   ws.headerFooter = {
@@ -599,9 +571,7 @@ function buildProjectSheet(wb, project, sheetName) {
     deleteColumns:       false,
     deleteRows:          false,
   });
-
-  // UPDATED: Added column 2 (Drop Type) to dynamic width auto-fitter list to adapt cleanly to custom labels
-  autoFitColumns(ws, { 10: { min: 22, max: 50 }, 11: { min: 14, max: 20 }, 12: { min: 12, max: 14 } }, [2, 10, 11]);
+}
 }
 
 // ── Banners & Static Grid Builders ───────────────────────────────────────────
