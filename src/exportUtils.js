@@ -173,12 +173,13 @@ export async function exportXLSX(drops, projectName = '') {
     { key: 'complete',   width: 11 },
 	{ key: 'patched',    width: 16 },
     { key: 'attention',  width: 11 },
-    { key: 'notes',      width: 10 }, 
-    { key: 'date',       width: 10 }, 
+    { key: 'notes',      width: 10 },
+    { key: 'date',       width: 12 },
+    { key: 'rag',        width: 13 },
   ];
 
   // Title row (A1:K1)
-  ws.mergeCells('A1:K1');
+  ws.mergeCells('A1:L1');
   const titleCell     = ws.getCell('A1');
   titleCell.value     = `CablePull Field Tracker${projectName ? `  —  ${projectName}` : ''}`;
   titleCell.font      = { bold: true, size: 13, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
@@ -187,7 +188,7 @@ export async function exportXLSX(drops, projectName = '') {
   ws.getRow(1).height = 26;
 
   // Subtitle row (A2:K2)
-  ws.mergeCells('A2:K2');
+  ws.mergeCells('A2:L2');
   const subCell   = ws.getCell('A2');
   
   // UPDATED: Counter tallies account for override complete drops
@@ -202,7 +203,7 @@ export async function exportXLSX(drops, projectName = '') {
   ws.getRow(2).height = 18;
 
   // Header row (row 3)
-  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated']);
+  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated', 'RAG']);
   headerRow.height = 20;
   headerRow.eachCell(cell => {
     cell.font = headerFont; cell.fill = headerFill;
@@ -240,12 +241,17 @@ export async function exportXLSX(drops, projectName = '') {
       d.attention  ? '⚠ Yes' : 'No',
       d.notes || '',
       d.updatedAt || d.createdAt,
+      '',  // RAG — evaluated dynamically below
     ]);
     row.height = 18;
 
     // UPDATED: Injects an OR block into the dynamic Excel formula to check if override is active
     row.getCell(7).value = {
       formula: `IF(OR(${d.overrideComplete ? 'TRUE' : 'FALSE'},AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes")),"✓","✗")`,
+    };
+    // RAG status — GREEN when complete, RED when untouched, AMBER when in progress
+    row.getCell(12).value = {
+      formula: `IF(G${rowNum}="✓","GREEN",IF(AND(D${rowNum}="No",E${rowNum}="No",F${rowNum}="No"),"RED","AMBER"))`,
     };
 
     row.eachCell((cell, colNum) => {
@@ -257,20 +263,29 @@ export async function exportXLSX(drops, projectName = '') {
         case 4:
         case 5:
         case 6:
+          cell.fill = baseFill; cell.alignment = centerAlign;
+          cell.protection = { locked: false }; // Editable — Yes/No status dropdowns
+          break;
         case 7:
           cell.fill = baseFill; cell.alignment = centerAlign; break;
-        case 8: 
-          cell.fill = baseFill; cell.alignment = centerAlign; 
-          cell.font = { ...bodyFont, color: { argb: (d.patchedA || d.patchedB || d.patchedC || d.patchedD) ? 'FF065F46' : 'FF64748B' }}; 
+        case 8:
+          cell.fill = baseFill; cell.alignment = centerAlign;
+          cell.font = { ...bodyFont, color: { argb: (d.patchedA || d.patchedB || d.patchedC || d.patchedD) ? 'FF065F46' : 'FF64748B' }};
           break;
-		case 9: 
+		case 9:
           cell.fill = d.attention ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7ED' } } : baseFill;
           cell.font = d.attention ? { bold: true, color: { argb: 'FFD97706' }, size: 10, name: 'Calibri' } : { ...dimFont, color: { argb: 'FF94A3B8' } };
           cell.alignment = centerAlign; break;
         case 10:
-          cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true }; break;
+          cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true };
+          cell.protection = { locked: false }; // Editable — Notes field
+          break;
         case 11:
           cell.font = dimFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
+        case 12:
+          cell.fill = baseFill; cell.alignment = centerAlign;
+          cell.font = { size: 10, name: 'Calibri', bold: true };
+          break;
       }
     });
 
@@ -279,7 +294,7 @@ export async function exportXLSX(drops, projectName = '') {
     row.getCell(6).dataValidation = dvYesNo;
   });
 
-  ws.autoFilter = { from: 'A3', to: 'K3' };
+  ws.autoFilter = { from: 'A3', to: 'L3' };
 
   if (total > 0) {
     ws.addConditionalFormatting({
@@ -308,7 +323,37 @@ export async function exportXLSX(drops, projectName = '') {
         },
       ],
     });
+    // RAG status column conditional formatting
+    ws.addConditionalFormatting({
+      ref: `L4:L${lastDataRow}`,
+      rules: [
+        { type: 'cellIs', operator: 'equal', formulae: ['"GREEN"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' } } } },
+        { type: 'cellIs', operator: 'equal', formulae: ['"AMBER"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7ED' } }, font: { bold: true, color: { argb: 'FFD97706' } } } },
+        { type: 'cellIs', operator: 'equal', formulae: ['"RED"'],   style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }, font: { bold: true, color: { argb: 'FF991B1B' } } } },
+      ],
+    });
   }
+
+  // Print headers/footers — project name top-left, sheet name centre, date top-right; page numbers bottom
+  ws.headerFooter = {
+    oddHeader: `&L&"Calibri,Bold"&11${(projectName || 'CablePull Tracker').replace(/&/g, '&&')}&C&"Calibri,Regular"&10Cable Drops Report&R&"Calibri,Regular"&9&D`,
+    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
+  };
+
+  // Formula cell protection — managers can edit Yes/No dropdowns and Notes; all formula cells are locked
+  ws.protect('', {
+    selectLockedCells:   true,
+    selectUnlockedCells: true,
+    sort:                true,
+    autoFilter:          true,
+    formatCells:         false,
+    formatColumns:       false,
+    formatRows:          false,
+    insertColumns:       false,
+    insertRows:          false,
+    deleteColumns:       false,
+    deleteRows:          false,
+  });
 
   autoFitColumns(ws, {
     10: { min: 20, max: 45 }, 
@@ -320,7 +365,7 @@ export async function exportXLSX(drops, projectName = '') {
     tabColor: { argb: 'FF22C55E' },
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '1:2' }
   });
-  ws2.columns = [{ width: 10 }, { width: 14 }, { width: 14 }];
+  ws2.columns = [{ width: 24 }, { width: 14 }, { width: 40 }];
 
   ws2.mergeCells('A1:C1');
   const s2title = ws2.getCell('A1');
@@ -422,6 +467,61 @@ export async function exportXLSX(drops, projectName = '') {
   addSRow('Patched Items', sorted.filter(d => d.patchedA || d.patchedB || d.patchedC || d.patchedD).length, null);
   addSeparator();
 
+  // ── Completion by IDF — Visual Bar Chart ──────────────────────────────────
+  const chartIdfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
+  if (chartIdfs.length > 0) {
+    addSubHeader('Completion by IDF Closet  ·  Visual Overview');
+
+    // Chart column headers
+    const chartHdr = ws2.addRow(['IDF Closet', 'Drops', 'Progress']);
+    chartHdr.height = 16;
+    chartHdr.eachCell((cell, col) => {
+      cell.fill = subHdrFill; cell.border = thinBorder; cell.font = subHdrFont;
+      cell.alignment = col === 1 ? leftAlign : centerAlign;
+    });
+
+    chartIdfs.forEach((idf) => {
+      const idfDrops   = sorted.filter(d => d.idf === idf);
+      const idfTotal   = idfDrops.length;
+      const idfDone    = idfDrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
+      const pct        = idfTotal > 0 ? idfDone / idfTotal : 0;
+      const pctLabel   = Math.round(pct * 100);
+      const filled     = Math.round(pct * 20);
+      const bar        = '\u2588'.repeat(filled) + '\u2591'.repeat(20 - filled);
+      const ragFill    = pct === 1 ? 'FFD1FAE5' : pct === 0 ? 'FFFEE2E2' : 'FFFFF7ED';
+      const ragText    = pct === 1 ? 'FF065F46' : pct === 0 ? 'FF991B1B' : 'FFD97706';
+
+      const chartRow = ws2.addRow([idf, `${idfDone} / ${idfTotal}`, `${pctLabel}%  ${bar}`]);
+      chartRow.height = 20;
+
+      // IDF name — RAG-coloured fill so status is clear at a glance
+      chartRow.getCell(1).fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: ragFill } };
+      chartRow.getCell(1).font      = { name: 'Calibri', size: 10, bold: true, color: { argb: ragText } };
+      chartRow.getCell(1).alignment = leftAlign;
+      chartRow.getCell(1).border    = thinBorder;
+
+      // Drop count
+      chartRow.getCell(2).fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: ragFill } };
+      chartRow.getCell(2).font      = { name: 'Calibri', size: 10, bold: true, color: { argb: ragText } };
+      chartRow.getCell(2).alignment = centerAlign;
+      chartRow.getCell(2).border    = thinBorder;
+
+      // Visual bar — dark background with RAG-coloured block characters
+      chartRow.getCell(3).fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+      chartRow.getCell(3).font      = { name: 'Courier New', size: 10, color: { argb: ragText } };
+      chartRow.getCell(3).alignment = leftAlign;
+      chartRow.getCell(3).border    = thinBorder;
+    });
+
+    addSeparator();
+  }
+
+  // Print headers/footers
+  ws2.headerFooter = {
+    oddHeader: `&L&"Calibri,Bold"&11${(projectName || 'CablePull Tracker').replace(/&/g, '&&')}&C&"Calibri,Regular"&10Project Summary&R&"Calibri,Regular"&9&D`,
+    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
+  };
+
   const dateRow = ws2.addRow(['Report Generated', new Date().toLocaleString(), '']);
   dateRow.height = 18;
   dateRow.eachCell((cell, col) => {
@@ -429,7 +529,7 @@ export async function exportXLSX(drops, projectName = '') {
     cell.alignment = col === 1 ? leftAlign : centerAlign;
   });
 
-  autoFitColumns(ws2, { 1: { min: 18, max: 36 }, 2: { min: 10, max: 24 }, 3: { min: 12, max: 18 } }, [1]);
+  autoFitColumns(ws2, { 1: { min: 20, max: 36 }, 2: { min: 10, max: 24 }, 3: { min: 38, max: 52 } }, [1, 3]);
 
   // ── Per-IDF Breakdown sheet ───────────────────────────────────────────────
   const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
@@ -438,6 +538,10 @@ export async function exportXLSX(drops, projectName = '') {
       tabColor: { argb: 'FFF59E0B' },
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '1:1' }
     });
+    ws3.headerFooter = {
+      oddHeader: `&L&"Calibri,Bold"&11${(projectName || 'CablePull Tracker').replace(/&/g, '&&')}&C&"Calibri,Regular"&10By IDF Breakdown&R&"Calibri,Regular"&9&D`,
+      oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
+    };
     ws3.columns = [
       { width: 10 }, { width: 10 }, { width: 13 }, { width: 13 }, 
       { width: 10 }, { width: 11 }, { width: 10 }, { width: 10 },
