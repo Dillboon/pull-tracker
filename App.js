@@ -13,7 +13,7 @@ import GalleryScreen   from './src/screens/GalleryScreen';
 import TabBar          from './src/components/TabBar';
 import Toast           from './src/components/Toast';
 import { COLORS }      from './src/theme';
-import { emptyDrop }   from './src/utils';
+import { emptyDrop, today } from './src/utils';
 
 export default function App() {
   const [projects,       setProjectsState] = useState([]);
