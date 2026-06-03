@@ -127,8 +127,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 
   const filtered = useMemo(() => drops.filter(d => {
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
-    if (filterStatus === 'COMPLETE'   && !(d.roughPull && d.terminated && d.tested)) return false;
-    if (filterStatus === 'INCOMPLETE' &&  (d.roughPull && d.terminated && d.tested)) return false;
+    if (filterStatus === 'COMPLETE'   && !(d.overrideComplete || (d.roughPull && d.terminated && d.tested))) return false;
+    if (filterStatus === 'INCOMPLETE' &&  (d.overrideComplete || (d.roughPull && d.terminated && d.tested))) return false;
     if (filterStatus === 'TERMINATED' && !(d.roughPull && d.terminated && !d.tested)) return false;
     if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.terminated || d.tested)) return false;
     if (filterStatus === 'PATCHED'    && !(d.patchedA || d.patchedB || d.patchedC || d.patchedD)) return false;
@@ -152,21 +152,21 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 
   // Build a set of cable IDs that appear more than once within the same IDF
   const conflictIds = useMemo(() => {
-    // Key is "idf::customType::cableId" — only flag duplicates when
-    // the same cable ID appears more than once on the same drop type within the same IDF.
-    const seen = new Map();
+    const seenByIdf = new Map(); // idf → Map<id, count>
     for (const d of drops) {
-      const idf  = d.idf        || '';
-      const type = d.customType || '';
+      const idf = d.idf || '';
+      if (!seenByIdf.has(idf)) seenByIdf.set(idf, new Map());
+      const seen = seenByIdf.get(idf);
       for (const id of [d.cableA, d.cableB, d.cableC, d.cableD]) {
         if (!id?.trim()) continue;
-        const key = `${idf}::${type}::${id}`;
-        seen.set(key, (seen.get(key) ?? 0) + 1);
+        seen.set(id, (seen.get(id) ?? 0) + 1);
       }
     }
     const dupes = new Set();
-    for (const [key, count] of seen) {
-      if (count > 1) dupes.add(key);
+    for (const seen of seenByIdf.values()) {
+      for (const [id, count] of seen) {
+        if (count > 1) dupes.add(id);
+      }
     }
     return dupes;
   }, [drops]);
