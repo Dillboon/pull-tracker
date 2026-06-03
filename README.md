@@ -1,7 +1,55 @@
 # 🔌 CablePull Tracker — React Native App
 
-A native Android app for tracking cable pulls across IDF closets.
-Tracks rough pull / terminated / tested status, supports double drops, and exports PDF + Excel reports.
+A native Android app for low-voltage field technicians to track cable pulls across IDF closets on active job sites.
+Track rough pull / terminated / tested status across single, double, triple, and quad drops — then export polished PDF and Excel reports to share with project managers.
+
+---
+
+## 📋 Features
+
+### Drop Management
+- ✅ Add **Single, Double, Triple, and Quad** cable drops
+- ✅ **Custom drop types** — label drops by device (Camera, Card Reader, WAP, etc.)
+- ✅ Track **Rough Pull / Terminated / Tested** status per drop
+- ✅ **Patched** status with per-cable tracking
+- ✅ **Mark as Complete** override — manually mark a drop done regardless of individual status flags
+- ✅ **Attention flags** — tag drops that need a second look
+- ✅ Free-text **notes** per drop
+- ✅ **Duplicate cable ID detection** — flags conflicting IDs within the same IDF and drop type
+- ✅ **Last updated** timestamp auto-stamped on every save
+
+### Projects & Organization
+- ✅ Organize drops into **Projects**
+- ✅ **Project Groups** — bundle multiple projects under a single group for multi-site jobs
+- ✅ **Archive** completed projects
+- ✅ **IDF closet management** — assign drops to named IDF closets per project
+- ✅ **Drop templates** — save common drop configurations for quick reuse
+
+### Importing
+- ✅ **Bulk Import** — generate a numbered range of cable IDs at once (e.g. C-001 through C-120)
+- ✅ Configurable grouping (Single / Double / Triple / Quad) and zero-padding on bulk import
+- ✅ Assign IDF closet and custom drop type during bulk import
+
+### Search, Filter & Sort
+- ✅ Search drops by cable ID, notes, or type
+- ✅ Filter by IDF closet
+- ✅ Filter by status: Complete, Incomplete, Terminated, Rough Only, Patched, Attention, Notes
+- ✅ Sort and lock drop order
+
+### Dashboard & Stats
+- ✅ Live **progress dashboard** per project — drop counts, completion %, per-stage stats
+- ✅ Group-level stats across all bundled projects
+
+### Export
+- ✅ **Export to PDF** — grouped by IDF, with summary stats, drop types breakdown, By IDF progress overview, and attention flags callout section
+- ✅ **Export to Excel (.xlsx)** — multi-sheet workbook with Cable Drops, Project Summary, and By IDF Breakdown sheets
+- ✅ **Group Excel export** — Portfolio Dashboard + per-project sheets in a single workbook
+- ✅ Excel exports include **print headers/footers**, **formula cell protection**, and **live formulas** (Yes/No dropdowns stay editable)
+- ✅ **Last Updated** column reflects the most recent change to each drop
+
+### General
+- ✅ Data persists **on-device** — no internet or account required
+- ✅ Works fully **offline**
 
 ---
 
@@ -9,30 +57,35 @@ Tracks rough pull / terminated / tested status, supports double drops, and expor
 
 ```
 CablePullTracker/
-├── App.js                        ← Root entry point
+├── App.js                        ← Root entry point, state management, navigation
 ├── app.json                      ← Expo app config
 ├── package.json                  ← Dependencies
 ├── babel.config.js               ← Babel config
 ├── eas.json                      ← Build config (APK/AAB)
 └── src/
-    ├── theme.js                  ← Colors & constants
-    ├── utils.js                  ← Helpers
-    ├── exportUtils.js            ← PDF & XLSX export logic
+    ├── theme.js                  ← Colors & style constants
+    ├── utils.js                  ← Shared helpers (uid, today, etc.)
+    ├── exportUtils.js            ← PDF & single-project XLSX export
+    ├── exportGroupUtils.js       ← Group-level XLSX export (portfolio workbook)
     ├── components/
-    │   ├── DropCard.js           ← Expandable drop card
-    │   ├── TabBar.js             ← Bottom navigation
-    │   └── Toast.js              ← Notification toast
+    │   ├── DropCard.js           ← Expandable drop card with status controls
+    │   ├── ProjectCard.js        ← Project summary card with stats & actions
+    │   ├── BulkImportModal.js    ← Bulk cable ID import modal
+    │   ├── TabBar.js             ← Bottom navigation bar
+    │   └── Toast.js             ← In-app notification toast
     └── screens/
-        ├── DropsScreen.js        ← Main drop list
-        ├── DashboardScreen.js    ← Stats & export
-        └── SettingsScreen.js     ← IDF management
+        ├── ProjectsScreen.js     ← Projects list, groups, archiving
+        ├── DropsScreen.js        ← Drop list, filters, search, sort
+        ├── DashboardScreen.js    ← Stats overview & export
+        └── SettingsScreen.js     ← IDF closet & custom type management
 ```
 
 ---
 
-## 🛠 Setup Instructions (Step by Step)
+## 🛠 Setup Instructions
 
 ### Step 1 — Install Node.js
+
 Download and install Node.js (LTS version) from:
 👉 https://nodejs.org
 
@@ -43,115 +96,63 @@ npm --version
 ```
 
 ### Step 2 — Install Expo CLI
-Open a terminal (Command Prompt on Windows, Terminal on Mac) and run:
+
 ```
 npm install -g expo-cli eas-cli
 ```
 
-### Step 3 — Set up this project
-Navigate to your project folder in the terminal:
+### Step 3 — Set up the project
+
+Navigate to the project folder and install dependencies:
 ```
 cd path/to/CablePullTracker
-```
-
-Install all dependencies:
-```
 npm install
 ```
 
 ---
 
-## 📱 Option A — Run Immediately on Your Phone (No Build Needed)
+## 📱 Option A — Run on Your Phone (No Build Needed)
 
-This is the fastest way to test the app on your Android device.
+The fastest way to test the app on a real device.
 
-1. Install **Expo Go** from the Google Play Store on your Android phone.
+1. Install **Expo Go** from the Google Play Store.
 2. In your terminal, run:
    ```
    npx expo start
    ```
-3. A QR code will appear in the terminal.
-4. Open the **Expo Go** app on your phone and scan the QR code.
-5. The app will load on your phone instantly! ✅
+3. Scan the QR code with the **Expo Go** app.
+4. The app loads instantly. ✅
 
 > ⚠️ Your phone and computer must be on the same Wi-Fi network.
 
 ---
 
-## 📦 Option B — Build a Real APK (Installs like a Normal App)
+## 📦 Option B — Build a Real APK
 
-This creates an `.apk` file you can install on any Android phone without Expo Go.
+Produces a standalone `.apk` that installs like a normal app — no Expo Go needed.
 
-### Step 1 — Create a free Expo account
-Sign up at: https://expo.dev
-
-### Step 2 — Log in from your terminal
-```
+```bash
+# 1. Create a free account at https://expo.dev, then log in:
 eas login
-```
 
-### Step 3 — Configure the build (first time only)
-```
+# 2. Configure the build (first time only):
 eas build:configure
-```
-When asked "Which platforms would you like to configure?", choose **Android**.
 
-### Step 4 — Build the APK
-```
+# 3. Build the APK:
 eas build --platform android --profile preview
 ```
-- This uploads your code to Expo's servers and builds it in the cloud (free tier).
-- It takes about 5–15 minutes.
-- When done, you'll get a **download link** for your `.apk` file.
 
-### Step 5 — Install on your Android phone
-1. Download the `.apk` file to your Android phone.
-2. Open it — Android will ask to allow installation from unknown sources.
-3. Tap **Install**. Done! ✅
+The build runs in Expo's cloud (free tier, ~5–15 min). When complete you'll get a download link for the `.apk`.
 
-The app icon will appear on your home screen.
-
----
-
-## 🔄 Making Updates
-
-After changing any code:
-- If using **Expo Go**: changes appear live (just save the file).
-- If using **APK**: re-run `eas build --platform android --profile preview` to get a new APK.
-
----
-
-## 🏗 Building for the Play Store (Optional)
-
-To publish to the Google Play Store:
-```
-eas build --platform android --profile production
-```
-This produces an `.aab` file for Play Store submission.
-You'll need a Google Play Developer account ($25 one-time fee).
+To install: download the `.apk` to your Android phone, open it, and allow installation from unknown sources when prompted.
 
 ---
 
 ## 🐛 Common Issues
 
 | Problem | Fix |
-|---|---|
-| `npm install` fails | Make sure Node.js is installed correctly |
-| QR code won't scan | Make sure phone and computer are on same Wi-Fi |
+|---------|-----|
+| `npm install` fails | Verify Node.js is installed correctly |
+| QR code won't scan | Confirm phone and computer are on the same Wi-Fi |
 | Build fails | Run `eas diagnostics` to check your setup |
 | App won't install | Enable "Install unknown apps" in Android Settings → Security |
-
----
-
-## 📋 Features
-
-- ✅ Add single or double cable drops
-- ✅ Track Rough Pull / Terminated / Tested per drop
-- ✅ Assign drops to IDF closets
-- ✅ Add free-text field notes
-- ✅ Search and filter drops
-- ✅ Progress stats dashboard
-- ✅ Export to PDF (share/print)
-- ✅ Export to Excel (.xlsx)
-- ✅ Data persists on device (no internet required)
-- ✅ Manage custom IDF closet list
