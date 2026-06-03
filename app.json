@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "CablePull Tracker",
+    "name": "CableTrack",
     "slug": "cable-pull-tracker",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,7 +11,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0d1117"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
       },
       "package": "com.cablepull.tracker",
       "permissions": []
