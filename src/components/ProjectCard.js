@@ -37,7 +37,7 @@ export default function ProjectCard({
       <View style={s.topRow}>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Text style={[s.name, isArchived && { color: COLORS.textMuted }]} numberOfLines={1}>
+            <Text style={[s.name, isArchived && { color: COLORS.textMuted }]}>
               {project.name}
             </Text>
             {isArchived && (

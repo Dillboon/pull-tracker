@@ -63,7 +63,7 @@ function GroupSection({
         <Text style={gs.arrow}>{isCollapsed ? '▶' : '▾'}</Text>
 
         <View style={{ flex: 1 }}>
-          <Text style={gs.name} numberOfLines={1}>{group.name}</Text>
+          <Text style={gs.name}>{group.name}</Text>
           <Text style={gs.meta}>
             {projects.length} project{projects.length !== 1 ? 's' : ''}
             {totalDrops > 0
@@ -149,7 +149,7 @@ export default function ProjectsScreen({
   const [editingName,    setEditingName]    = useState(false);
 
   // UI state
-  const [collapsed,      setCollapsed]      = useState({});
+  const [collapsed,      setCollapsed]      = useState(() => Object.fromEntries(groups.map(g => [g.id, true])));
   const [showArchived,   setShowArchived]   = useState(false);
   const [exportingGroup, setExportingGroup] = useState(null);   // groupId currently exporting
 
