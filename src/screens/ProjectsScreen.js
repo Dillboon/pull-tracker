@@ -288,9 +288,9 @@ export default function ProjectsScreen({
       {/* ── Header ── */}
       <View style={s.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Image source={require('../assets/icon-transparent.png')} style={{ width: 32, height: 32 }} />
+          <Image source={require('../../assets/icon-transparent.png')} style={{ width: 32, height: 32 }} />
           <View>
-            <Text style={s.title}>CablePull</Text>
+            <Text style={s.title}>CableTrack</Text>
             <Text style={s.subtitle}>FIELD TRACKER</Text>
           </View>
         </View>
