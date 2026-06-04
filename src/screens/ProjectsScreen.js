@@ -15,7 +15,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  ScrollView, StyleSheet, Alert, Modal, ActivityIndicator,
+  ScrollView, StyleSheet, Alert, Modal, ActivityIndicator, Image,
 } from 'react-native';
 import { COLORS, DEFAULT_IDFS } from '../theme';
 import { uid, today } from '../utils';
@@ -288,7 +288,7 @@ export default function ProjectsScreen({
       {/* ── Header ── */}
       <View style={s.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={{ fontSize: 22 }}>🔌</Text>
+          <Image source={require('../assets/icon-transparent.png')} style={{ width: 32, height: 32 }} />
           <View>
             <Text style={s.title}>CablePull</Text>
             <Text style={s.subtitle}>FIELD TRACKER</Text>
