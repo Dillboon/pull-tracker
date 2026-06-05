@@ -308,12 +308,6 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     });
   }
 
-  // Print headers/footers
-  ws.headerFooter = {
-    oddHeader: `&L&"Calibri,Bold"&11${group.name.replace(/&/g, '&&')}&C&"Calibri,Regular"&10Portfolio Dashboard&R&"Calibri,Regular"&9&D`,
-    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
-  };
-
   autoFitColumns(ws, { 1: { min: 32, max: 45 } }, [1]);
 }
 
@@ -344,11 +338,6 @@ function buildAttentionLogSheet(wb, group, projects, projectSheetMap) {
   });
 
   ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: COL_COUNT } };
-
-  ws.headerFooter = {
-    oddHeader: `&L&"Calibri,Bold"&11${group.name.replace(/&/g, '&&')}&C&"Calibri,Regular"&10Attention Flags Log&R&"Calibri,Regular"&9&D`,
-    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
-  };
 
   let logCount = 0;
 
@@ -569,12 +558,6 @@ function buildProjectSheet(wb, project, sheetName) {
     });
   // UPDATED: Added column 2 (Drop Type) to dynamic width auto-fitter list to adapt cleanly to custom labels
   autoFitColumns(ws, { 10: { min: 22, max: 50 }, 11: { min: 14, max: 20 } }, [2, 10, 11]);
-
-  // Print headers/footers
-  ws.headerFooter = {
-    oddHeader: `&L&"Calibri,Bold"&11${project.name.replace(/&/g, '&&')}&C&"Calibri,Regular"&10Cable Drops Report&R&"Calibri,Regular"&9&D`,
-    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
-  };
 
   // Formula cell protection — managers can edit Yes/No dropdowns and Notes; all formula cells are locked
   ws.protect('', {
