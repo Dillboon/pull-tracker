@@ -102,6 +102,19 @@ function getPatchedLabel(drop) {
   return patchedIds.length > 0 ? `Yes (${patchedIds.join('/')})` : 'No';
 }
 
+// UPDATED: Added Natural Sorting helper to handle numbers and letters sequentially
+function getSortedDrops(drops) {
+  return [...drops].sort((a, b) => {
+    const idfA = (a.idf || '').toLowerCase();
+    const idfB = (b.idf || '').toLowerCase();
+    if (idfA !== idfB) return idfA.localeCompare(idfB);
+    
+    const cableA = String(a.cableA || '');
+    const cableB = String(b.cableA || '');
+    return cableA.localeCompare(cableB, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
 // Data validation configurations for fields
 const dvYesNo = {
   type: 'list',
@@ -342,7 +355,10 @@ function buildAttentionLogSheet(wb, group, projects, projectSheetMap) {
   projects.forEach((p) => {
     const targetSheet = projectSheetMap.get(p.id || p.name);
     
-    p.drops.forEach((drop) => {
+    // Apply Natural Sorting to blocker list output
+    const sortedLogDrops = getSortedDrops(p.drops);
+    
+    sortedLogDrops.forEach((drop) => {
       if (!isAttention(drop)) return; 
 
       logCount++;
@@ -440,7 +456,10 @@ function buildProjectSheet(wb, project, sheetName) {
 
   ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };
 
-  project.drops.forEach((drop, i) => {
+  // Apply Natural Sorting logic to Project details sheet
+  const sortedProjectDrops = getSortedDrops(project.drops);
+
+  sortedProjectDrops.forEach((drop, i) => {
     const rowNum = 4 + i; // Data records start strictly on Row 4 down
     drop._mainRowNum = rowNum; 
     

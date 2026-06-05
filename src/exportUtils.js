@@ -7,9 +7,14 @@ import ExcelJS from 'exceljs';
 const sortedDrops = (drops) => [...drops].sort((a, b) => {
   const idfA = (a.idf || '').toLowerCase();
   const idfB = (b.idf || '').toLowerCase();
-  if (idfA < idfB) return -1;
-  if (idfA > idfB) return 1;
-  return (parseInt(a.cableA) || 0) - (parseInt(b.cableA) || 0);
+  
+  // 1. Sort alphabetically by IDF first
+  if (idfA !== idfB) return idfA.localeCompare(idfB);
+  
+  // 2. Natural alphanumeric sort for Cable IDs
+  const cableA = String(a.cableA || '');
+  const cableB = String(b.cableA || '');
+  return cableA.localeCompare(cableB, undefined, { numeric: true, sensitivity: 'base' });
 });
 
 const getGroupType = (d) => d.groupType || (d.isDouble ? 'double' : 'single');
