@@ -49,10 +49,9 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
   const isComplete = drop.overrideComplete || count === 3;
   const groupType  = getGroupType(drop);
 
-  // Only flag a conflict when the same cable ID AND customType appear more than once in the same IDF.
   const hasConflict = conflictIds && [drop.cableA, drop.cableB, drop.cableC, drop.cableD]
     .filter(Boolean)
-    .some(id => conflictIds.has(`${drop.idf || ''}::${drop.customType || ''}::${id}`));
+    .some(id => conflictIds.has(`${drop.idf || ''}::${drop.rackNumber || ''}::${drop.customType || ''}::${id}`));
 
   // Collapse when parent fires collapse-all
   useEffect(() => {
@@ -216,7 +215,9 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 }}>
             {drop.idf ? (
               <View style={s.idfPill}>
-                <Text style={s.idfPillText}>{drop.idf}</Text>
+                <Text style={s.idfPillText}>
+                  {drop.idf}{drop.rackNumber ? ` · R${drop.rackNumber}` : ''}
+                </Text>
               </View>
             ) : null}
             {STATUS_FIELDS.map(f => (
@@ -359,7 +360,7 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
               {idfList.map(idf => (
                 <TouchableOpacity
                   key={idf}
-                  onPress={() => onUpdate({ ...drop, idf: drop.idf === idf ? '' : idf })}
+                  onPress={() => onUpdate({ ...drop, idf: drop.idf === idf ? '' : idf, rackNumber: drop.idf === idf ? '' : drop.rackNumber })}
                   style={[s.idfBtn, drop.idf === idf && s.idfBtnActive]}
                 >
                   <Text style={[s.idfBtnText, drop.idf === idf && { color: COLORS.amber }]}>{idf}</Text>
@@ -367,6 +368,23 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
               ))}
             </View>
           </View>
+
+          {/* Rack number — only visible when an IDF is selected */}
+          {!!drop.idf && (
+            <View>
+              <Text style={s.fieldLabel}>
+                RACK NUMBER <Text style={{ color: COLORS.textDim, fontWeight: '400', letterSpacing: 0 }}>(OPTIONAL)</Text>
+              </Text>
+              <TextInput
+                value={drop.rackNumber || ''}
+                onChangeText={t => onUpdate({ ...drop, rackNumber: t })}
+                placeholder="e.g. 1, 2, A, B-3"
+                placeholderTextColor={COLORS.textDim}
+                style={s.input}
+                autoCapitalize="characters"
+              />
+            </View>
+          )}
 
           {/* Status toggles */}
           <View>

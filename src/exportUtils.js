@@ -54,7 +54,7 @@ export async function exportPDF(drops, projectName = '') {
       
     return `
       <tr style="background:${bg}">
-        <td>${d.idf || '—'}</td>
+        <td>${d.idf ? `${d.idf}${d.rackNumber ? ` · R${d.rackNumber}` : ''}` : '—'}</td>
         <td>${typeLabel !== 'Single' ? `<b style="color:#7c3aed;">${typeLabel}</b>` : 'Single'}</td>
         <td>${cable}</td>
         <td style="text-align:center">${tick(d.roughPull)}</td>
@@ -229,7 +229,7 @@ export async function exportXLSX(drops, projectName = '') {
     const baseFill  = isEven ? evenFill : oddFill;
 
     const row = ws.addRow([
-      d.idf || '',
+      d.idf ? `${d.idf}${d.rackNumber ? ` · R${d.rackNumber}` : ''}` : '',
       typeLabel,
       cable,
       d.roughPull  ? 'Yes' : 'No',

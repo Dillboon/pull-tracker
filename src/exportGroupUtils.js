@@ -362,7 +362,7 @@ function buildAttentionLogSheet(wb, group, projects, projectSheetMap) {
       applyFill(projCell, C.attnFill);
       applyBorders(projCell, 'thin');
 
-      row.getCell(2).value = drop.idf || '';
+      row.getCell(2).value = drop.idf ? `${drop.idf}${drop.rackNumber ? ` · R${drop.rackNumber}` : ''}` : '';
       row.getCell(3).value = typeName(drop);
       row.getCell(4).value = cableIds(drop);
       row.getCell(5).value = getPatchedLabel(drop);
@@ -451,7 +451,7 @@ function buildProjectSheet(wb, project, sheetName) {
     row.height = 22;
 
     // Field value mapping arrays
-    row.getCell(1).value = drop.idf || '';
+    row.getCell(1).value = drop.idf ? `${drop.idf}${drop.rackNumber ? ` · R${drop.rackNumber}` : ''}` : '';
     row.getCell(2).value = typeName(drop);
     row.getCell(3).value = cableIds(drop);
     row.getCell(4).value = drop.roughPull  ? 'Yes' : 'No';

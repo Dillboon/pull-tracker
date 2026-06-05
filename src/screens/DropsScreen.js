@@ -152,21 +152,21 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 
   // Build a set of cable IDs that appear more than once within the same IDF
   const conflictIds = useMemo(() => {
-    const seenByIdf = new Map(); // idf → Map<id, count>
+    // Key: "idf::rack::customType::cableId" — only flag duplicates when all four match
+    const seen = new Map();
     for (const d of drops) {
-      const idf = d.idf || '';
-      if (!seenByIdf.has(idf)) seenByIdf.set(idf, new Map());
-      const seen = seenByIdf.get(idf);
+      const idf  = d.idf        || '';
+      const rack = d.rackNumber || '';
+      const type = d.customType || '';
       for (const id of [d.cableA, d.cableB, d.cableC, d.cableD]) {
         if (!id?.trim()) continue;
-        seen.set(id, (seen.get(id) ?? 0) + 1);
+        const key = `${idf}::${rack}::${type}::${id}`;
+        seen.set(key, (seen.get(key) ?? 0) + 1);
       }
     }
     const dupes = new Set();
-    for (const seen of seenByIdf.values()) {
-      for (const [id, count] of seen) {
-        if (count > 1) dupes.add(id);
-      }
+    for (const [key, count] of seen) {
+      if (count > 1) dupes.add(key);
     }
     return dupes;
   }, [drops]);
