@@ -18,13 +18,6 @@ const STATUS_FILTERS = [
   { key: 'ATTENTION',  label: 'Attention Notes'},
 ];
 
-const SORT_OPTIONS = [
-  { key: 'IDF_CABLE',      label: 'IDF → Cable',        short: 'IDF'    },
-  { key: 'IDF_RACK_CABLE', label: 'IDF → Rack → Cable', short: 'Rack'   },
-  { key: 'CABLE',          label: 'Cable ID',            short: 'Cable'  },
-  { key: 'STATUS',         label: 'Status',              short: 'Status' },
-];
-
 export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, addDropFromTemplate, templates, customTypeList = [], onEditCustomTypes }) {
   const [filterIdf,      setFilterIdf]      = useState('ALL');
   const [filterStatus,   setFilterStatus]   = useState('ALL');
@@ -34,8 +27,6 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   const [fabOpen,        setFabOpen]        = useState(false);
   const [idfDropdown,    setIdfDropdown]    = useState(false);
   const [statusDropdown, setStatusDropdown] = useState(false);
-  const [sortDropdown,   setSortDropdown]   = useState(false);
-  const [sortMode,       setSortMode]       = useState('IDF_CABLE');
   const [searchOpen,     setSearchOpen]     = useState(false);
   const searchInputRef = useRef(null);
   const flatListRef    = useRef(null);
@@ -62,7 +53,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   const statusLabel = STATUS_FILTERS.find(f => f.key === filterStatus)?.label ?? 'All';
   const hasFilter   = filterIdf !== 'ALL' || filterStatus !== 'ALL';
 
-  const closeDropdowns = () => { setIdfDropdown(false); setStatusDropdown(false); setSortDropdown(false); };
+  const closeDropdowns = () => { setIdfDropdown(false); setStatusDropdown(false); };
 
   // Auto-focus the search input after it mounts
   useEffect(() => {
@@ -114,46 +105,25 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     setExpandedCount(0);
   };
 
-  const applySort = (mode) => {
+  const handleRefresh = () => {
     const sorted = [...drops].sort((a, b) => {
-      const idfA  = (a.idf        || '').toLowerCase();
-      const idfB  = (b.idf        || '').toLowerCase();
-      const rackA = (a.rackNumber || '').toLowerCase();
-      const rackB = (b.rackNumber || '').toLowerCase();
-      const numA  = parseInt(a.cableA);
-      const numB  = parseInt(b.cableA);
-      const hasA  = !isNaN(numA);
-      const hasB  = !isNaN(numB);
-      const cableSort = hasA && hasB ? numA - numB : hasA ? -1 : hasB ? 1 : (a.cableA || '').localeCompare(b.cableA || '');
-
-      if (mode === 'IDF_CABLE') {
-        if (idfA !== idfB) return idfA < idfB ? -1 : 1;
-        return cableSort;
-      }
-      if (mode === 'IDF_RACK_CABLE') {
-        if (idfA !== idfB) return idfA < idfB ? -1 : 1;
-        const rackNumA = parseInt(rackA), rackNumB = parseInt(rackB);
-        const rackSort = !isNaN(rackNumA) && !isNaN(rackNumB)
-          ? rackNumA - rackNumB
-          : rackA.localeCompare(rackB);
-        if (rackA !== rackB) return rackSort;
-        return cableSort;
-      }
-      if (mode === 'CABLE') return cableSort;
-      if (mode === 'STATUS') {
-        const doneA = a.overrideComplete || (a.roughPull && a.terminated && a.tested) ? 1 : 0;
-        const doneB = b.overrideComplete || (b.roughPull && b.terminated && b.tested) ? 1 : 0;
-        if (doneA !== doneB) return doneA - doneB;
-        const cntA = (a.roughPull ? 1 : 0) + (a.terminated ? 1 : 0) + (a.tested ? 1 : 0);
-        const cntB = (b.roughPull ? 1 : 0) + (b.terminated ? 1 : 0) + (b.tested ? 1 : 0);
-        return cntB - cntA;
-      }
-      return 0;
+      // Primary: IDF alphabetically
+      const idfA = (a.idf || '').toLowerCase();
+      const idfB = (b.idf || '').toLowerCase();
+      if (idfA < idfB) return -1;
+      if (idfA > idfB) return 1;
+      // Secondary: cable ID numerically
+      const numA = parseInt(a.cableA);
+      const numB = parseInt(b.cableA);
+      const hasA = !isNaN(numA);
+      const hasB = !isNaN(numB);
+      if (!hasA && !hasB) return 0;
+      if (!hasA) return 1;
+      if (!hasB) return -1;
+      return numA - numB;
     });
     setLockedOrder(sorted.map(d => d.id));
   };
-
-  const handleRefresh = () => applySort(sortMode);
 
   const filtered = useMemo(() => drops.filter(d => {
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
@@ -182,21 +152,21 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 
   // Build a set of cable IDs that appear more than once within the same IDF
   const conflictIds = useMemo(() => {
-    const seenByIdf = new Map(); // idf → Map<id, count>
+    // Key: "idf::rack::customType::cableId" — only flag duplicates when all four match
+    const seen = new Map();
     for (const d of drops) {
-      const idf = d.idf || '';
-      if (!seenByIdf.has(idf)) seenByIdf.set(idf, new Map());
-      const seen = seenByIdf.get(idf);
+      const idf  = d.idf        || '';
+      const rack = d.rackNumber || '';
+      const type = d.customType || '';
       for (const id of [d.cableA, d.cableB, d.cableC, d.cableD]) {
         if (!id?.trim()) continue;
-        seen.set(id, (seen.get(id) ?? 0) + 1);
+        const key = `${idf}::${rack}::${type}::${id}`;
+        seen.set(key, (seen.get(key) ?? 0) + 1);
       }
     }
     const dupes = new Set();
-    for (const seen of seenByIdf.values()) {
-      for (const [id, count] of seen) {
-        if (count > 1) dupes.add(id);
-      }
+    for (const [key, count] of seen) {
+      if (count > 1) dupes.add(key);
     }
     return dupes;
   }, [drops]);
@@ -322,39 +292,10 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
               </TouchableOpacity>
             )}
 
-            {/* Sort dropdown */}
-            <View>
-              <TouchableOpacity
-                style={[s.iconBtn, sortDropdown && s.iconBtnActive, sortMode !== 'IDF_CABLE' && s.iconBtnGreen]}
-                onPress={() => { setSortDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); }}
-                activeOpacity={0.8}
-              >
-                <Text style={[s.iconBtnText, sortMode !== 'IDF_CABLE' && { color: COLORS.green }]}>
-                  ⟳ {SORT_OPTIONS.find(o => o.key === sortMode)?.short}
-                </Text>
-              </TouchableOpacity>
-
-              {sortDropdown && (
-                <View style={[s.dropMenu, { right: 0, left: 'auto', zIndex: 30, minWidth: 170 }]}>
-                  {SORT_OPTIONS.map(opt => (
-                    <TouchableOpacity
-                      key={opt.key}
-                      style={[s.dropItem, sortMode === opt.key && s.dropItemActiveGreen]}
-                      onPress={() => {
-                        setSortMode(opt.key);
-                        setSortDropdown(false);
-                        applySort(opt.key);
-                      }}
-                    >
-                      <Text style={[s.dropItemText, sortMode === opt.key && { color: COLORS.green, fontWeight: '800' }]}>
-                        {opt.label}
-                      </Text>
-                      {sortMode === opt.key && <Text style={{ color: COLORS.green, fontSize: 12 }}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
+            {/* Refresh / sort button */}
+            <TouchableOpacity style={s.iconBtn} onPress={handleRefresh}>
+              <Text style={s.iconBtnText}>⟳</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -555,10 +496,6 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.blueDim,
     borderColor: 'rgba(59,130,246,0.4)',
   },
-  iconBtnGreen: {
-    backgroundColor: 'rgba(34,197,94,0.12)',
-    borderColor: 'rgba(34,197,94,0.35)',
-  },
   iconBtnText: { color: COLORS.textSub, fontSize: 16 },
   dropdownRow: {
     flexDirection: 'row',
@@ -622,9 +559,8 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.05)',
   },
-  dropItemActive:      { backgroundColor: COLORS.amberDim },
-  dropItemActiveBlue:  { backgroundColor: COLORS.blueDim  },
-  dropItemActiveGreen: { backgroundColor: 'rgba(34,197,94,0.12)' },
+  dropItemActive:     { backgroundColor: COLORS.amberDim },
+  dropItemActiveBlue: { backgroundColor: COLORS.blueDim  },
   dropItemText: { fontSize: 12, fontWeight: '600', color: COLORS.textSub },
   clearBtn: {
     backgroundColor: 'rgba(239,68,68,0.15)',
