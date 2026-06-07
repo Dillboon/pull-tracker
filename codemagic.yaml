@@ -10,7 +10,7 @@ workflows:
         script: npm install
       - name: Expo prebuild
         script: npx expo prebuild --platform android --no-install
-      - name: Build Android APK
-        script: cd android && chmod +x gradlew && ./gradlew assembleRelease
+      - name: Build Android AAB
+        script: cd android && chmod +x gradlew && ./gradlew bundleRelease
     artifacts:
-      - android/app/build/outputs/apk/release/app-release.apk
+      - android/app/build/outputs/bundle/release/app-release.aab
