@@ -4,6 +4,7 @@
     "slug": "cable-pull-tracker",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash.png",
@@ -12,16 +13,17 @@
       "imageWidth": 449
     },
     "android": {
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#202030"
       },
-      "package": "com.cablepull.tracker",
+      "package": "com.cabletrack.app",
       "permissions": []
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.cablepull.tracker"
+      "bundleIdentifier": "com.cabletrack.app"
     },
     "extra": {
       "eas": {
