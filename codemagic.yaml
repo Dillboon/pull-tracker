@@ -12,14 +12,23 @@ workflows:
     scripts:
       - name: Install dependencies
         script: npm install
+      - name: Clean Android directory
+        script: rm -rf android
       - name: Expo prebuild
         script: npx expo prebuild --platform android --no-install
       - name: Set target SDK to 35
         script: |
-          perl -i -pe 's/targetSdkVersion\s*=\s*\d+/targetSdkVersion = 35/g' android/app/build.gradle
-          perl -i -pe 's/compileSdkVersion\s*=\s*\d+/compileSdkVersion = 35/g' android/app/build.gradle
-          perl -i -pe 's/targetSdk\s*=\s*\d+/targetSdk = 35/g' android/app/build.gradle
-          perl -i -pe 's/compileSdk\s*=\s*\d+/compileSdk = 35/g' android/app/build.gradle
+          # Update all build.gradle files recursively to force API 35
+          find android -name "build.gradle" -exec perl -i -pe 's/targetSdkVersion\s*=\s*\d+/targetSdkVersion = 35/g' {} +
+          find android -name "build.gradle" -exec perl -i -pe 's/compileSdkVersion\s*=\s*\d+/compileSdkVersion = 35/g' {} +
+          find android -name "build.gradle" -exec perl -i -pe 's/targetSdk\s*=\s*\d+/targetSdk = 35/g' {} +
+          find android -name "build.gradle" -exec perl -i -pe 's/compileSdk\s*=\s*\d+/compileSdk = 35/g' {} +
+          
+          # Update gradle.properties if versions are declared there
+          if [ -f android/gradle.properties ]; then
+            perl -i -pe 's/android.targetSdkVersion\s*=\s*\d+/android.targetSdkVersion=35/g' android/gradle.properties
+            perl -i -pe 's/android.compileSdkVersion\s*=\s*\d+/android.compileSdkVersion=35/g' android/gradle.properties
+          fi
       - name: Set up keystore
         script: |
           echo "storeFile=$CM_KEYSTORE_PATH" >> android/gradle.properties
