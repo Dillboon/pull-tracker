@@ -13,7 +13,7 @@
       "imageWidth": 449
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "compileSdkVersion": 35,
       "targetSdkVersion": 35,
       "adaptiveIcon": {

@@ -14,6 +14,12 @@ workflows:
         script: npm install
       - name: Expo prebuild
         script: npx expo prebuild --platform android --no-install
+      - name: Set target SDK to 35
+        script: |
+          sed -i 's/targetSdkVersion = .*/targetSdkVersion = 35/' android/app/build.gradle
+          sed -i 's/compileSdkVersion = .*/compileSdkVersion = 35/' android/app/build.gradle
+          sed -i 's/targetSdk = .*/targetSdk = 35/' android/app/build.gradle
+          sed -i 's/compileSdk = .*/compileSdk = 35/' android/app/build.gradle
       - name: Set up keystore
         script: |
           echo "storeFile=$CM_KEYSTORE_PATH" >> android/gradle.properties
