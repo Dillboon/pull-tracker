@@ -13,9 +13,7 @@
       "imageWidth": 449
     },
     "android": {
-      "versionCode": 4,
-      "compileSdkVersion": 35,
-      "targetSdkVersion": 35,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#202030"
@@ -27,6 +25,18 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.cabletrack.app"
     },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "0ed50c1d-b8fc-44c9-a698-f51962c94a31"
