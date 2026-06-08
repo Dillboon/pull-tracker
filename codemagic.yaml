@@ -16,10 +16,10 @@ workflows:
         script: npx expo prebuild --platform android --no-install
       - name: Set target SDK to 35
         script: |
-          sed -i 's/targetSdkVersion = .*/targetSdkVersion = 35/' android/app/build.gradle
-          sed -i 's/compileSdkVersion = .*/compileSdkVersion = 35/' android/app/build.gradle
-          sed -i 's/targetSdk = .*/targetSdk = 35/' android/app/build.gradle
-          sed -i 's/compileSdk = .*/compileSdk = 35/' android/app/build.gradle
+          perl -i -pe 's/targetSdkVersion\s*=\s*\d+/targetSdkVersion = 35/g' android/app/build.gradle
+          perl -i -pe 's/compileSdkVersion\s*=\s*\d+/compileSdkVersion = 35/g' android/app/build.gradle
+          perl -i -pe 's/targetSdk\s*=\s*\d+/targetSdk = 35/g' android/app/build.gradle
+          perl -i -pe 's/compileSdk\s*=\s*\d+/compileSdk = 35/g' android/app/build.gradle
       - name: Set up keystore
         script: |
           echo "storeFile=$CM_KEYSTORE_PATH" >> android/gradle.properties
