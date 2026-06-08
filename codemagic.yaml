@@ -16,12 +16,6 @@ workflows:
         script: rm -rf android
       - name: Expo prebuild
         script: npx expo prebuild --platform android --no-install
-      - name: Set up keystore
-        script: |
-          echo "storeFile=$CM_KEYSTORE_PATH" >> android/gradle.properties
-          echo "storePassword=$CM_KEYSTORE_PASSWORD" >> android/gradle.properties
-          echo "keyAlias=$CM_KEY_ALIAS" >> android/gradle.properties
-          echo "keyPassword=$CM_KEY_PASSWORD" >> android/gradle.properties
       - name: Configure release signing in build.gradle
         script: |
           cd android/app
@@ -30,10 +24,12 @@ workflows:
           android {
               signingConfigs {
                   release {
-                      storeFile file(project.property("storeFile"))
-                      storePassword project.property("storePassword")
-                      keyAlias project.property("keyAlias")
-                      keyPassword project.property("keyPassword")
+                      if (System.getenv("CI")) {
+                          storeFile file(System.getenv("CM_KEYSTORE_PATH"))
+                          storePassword System.getenv("CM_KEYSTORE_PASSWORD")
+                          keyAlias System.getenv("CM_KEY_ALIAS")
+                          keyPassword System.getenv("CM_KEY_PASSWORD")
+                      }
                   }
               }
               buildTypes {
