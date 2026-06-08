@@ -7,11 +7,40 @@ workflows:
       java: 17
       android_signing:
         - cabletrack
+      vars:
+        PACKAGE_NAME: "com.cabletrack.app"
     scripts:
       - name: Install dependencies
         script: npm install
       - name: Expo prebuild
         script: npx expo prebuild --platform android --no-install
+      - name: Set up keystore
+        script: |
+          echo "storeFile=$CM_KEYSTORE_PATH" >> android/gradle.properties
+          echo "storePassword=$CM_KEYSTORE_PASSWORD" >> android/gradle.properties
+          echo "keyAlias=$CM_KEY_ALIAS" >> android/gradle.properties
+          echo "keyPassword=$CM_KEY_PASSWORD" >> android/gradle.properties
+      - name: Configure release signing in build.gradle
+        script: |
+          cd android/app
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file(project.property("storeFile"))
+                      storePassword project.property("storePassword")
+                      keyAlias project.property("keyAlias")
+                      keyPassword project.property("keyPassword")
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          GRADLE
       - name: Build Android AAB
         script: cd android && chmod +x gradlew && ./gradlew bundleRelease
     artifacts:
