@@ -18,13 +18,15 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
   const [start,      setStart]      = useState('1');
   const [end,        setEnd]        = useState('10');
   const [padZeros,   setPadZeros]   = useState(true);
+  const [padThree,   setPadThree]   = useState(false);
   const [groupType,  setGroupType]  = useState('double');
   const [idf,        setIdf]        = useState('');
   const [rackNumber, setRackNumber] = useState('');
   const [customType, setCustomType] = useState('');
 
   const padNum = (n, max) => {
-    if (!padZeros) return String(n);
+    if (padThree) return String(n).padStart(3, '0');
+	if (!padZeros) return String(n);
     const len = String(max).length;
     return String(n).padStart(len, '0');
   };
@@ -50,7 +52,7 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
       items.push({ ids, groupType: actualType });
     }
     return items;
-  }, [prefix, start, end, padZeros, groupType]);
+  }, [prefix, start, end, padZeros, padThree, groupType]);
 
   const handleImport = () => {
     if (!preview) return;
@@ -151,12 +153,25 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
 
             <View style={st.row}>
               <View>
-                <Text style={st.optLabel}>Zero Padding</Text>
-                <Text style={st.optHint}>01, 02... instead of 1, 2...</Text>
+                <Text style={st.optLabel}>Auto Padding</Text>
+                <Text style={st.optHint}>01, 02... based on range size</Text>
               </View>
               <Switch
                 value={padZeros}
-                onValueChange={setPadZeros}
+                onValueChange={v => { setPadZeros(v); if (v) setPadThree(false); }}
+                trackColor={{ false: COLORS.surface2, true: COLORS.blue }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            <View style={[st.row, { marginTop: 14 }]}>
+              <View>
+                <Text style={st.optLabel}>3-Digit Padding</Text>
+                <Text style={st.optHint}>001, 002... always 3 digits</Text>
+              </View>
+              <Switch
+                value={padThree}
+                onValueChange={v => { setPadThree(v); if (v) setPadZeros(false); }}
                 trackColor={{ false: COLORS.surface2, true: COLORS.blue }}
                 thumbColor="#fff"
               />
