@@ -7,9 +7,14 @@ import ExcelJS from 'exceljs';
 const sortedDrops = (drops) => [...drops].sort((a, b) => {
   const idfA = (a.idf || '').toLowerCase();
   const idfB = (b.idf || '').toLowerCase();
-  if (idfA < idfB) return -1;
-  if (idfA > idfB) return 1;
-  return (parseInt(a.cableA) || 0) - (parseInt(b.cableA) || 0);
+  
+  // 1. Sort alphabetically by IDF first
+  if (idfA !== idfB) return idfA.localeCompare(idfB);
+  
+  // 2. Natural alphanumeric sort for Cable IDs
+  const cableA = String(a.cableA || '');
+  const cableB = String(b.cableA || '');
+  return cableA.localeCompare(cableB, undefined, { numeric: true, sensitivity: 'base' });
 });
 
 const getGroupType = (d) => d.groupType || (d.isDouble ? 'double' : 'single');
@@ -54,7 +59,7 @@ export async function exportPDF(drops, projectName = '') {
       
     return `
       <tr style="background:${bg}">
-        <td>${d.idf || '—'}</td>
+        <td>${d.idf ? `${d.idf}${d.rackNumber ? ` · R${d.rackNumber}` : ''}` : '—'}</td>
         <td>${typeLabel !== 'Single' ? `<b style="color:#7c3aed;">${typeLabel}</b>` : 'Single'}</td>
         <td>${cable}</td>
         <td style="text-align:center">${tick(d.roughPull)}</td>
@@ -70,6 +75,7 @@ export async function exportPDF(drops, projectName = '') {
   const html = `
     <!DOCTYPE html><html><head><meta charset="UTF-8"/>
     <style>
+      @page { margin: 0; }
       body { font-family: -apple-system, Arial, sans-serif; margin: 0; padding: 24px; background: #fff; color: #111; }
       .topbar { background: #0f172a; color: #fbbf24; padding: 14px 18px; border-radius: 8px; margin-bottom: 6px; }
       .topbar h1 { margin: 0; font-size: 20px; }
@@ -229,7 +235,7 @@ export async function exportXLSX(drops, projectName = '') {
     const baseFill  = isEven ? evenFill : oddFill;
 
     const row = ws.addRow([
-      d.idf || '',
+      d.idf ? `${d.idf}${d.rackNumber ? ` · R${d.rackNumber}` : ''}` : '',
       typeLabel,
       cable,
       d.roughPull  ? 'Yes' : 'No',
@@ -314,12 +320,6 @@ export async function exportXLSX(drops, projectName = '') {
       ],
     });
   }
-
-  // Print headers/footers — project name top-left, sheet name centre, date top-right; page numbers bottom
-  ws.headerFooter = {
-    oddHeader: `&L&"Calibri,Bold"&11${(projectName || 'CablePull Tracker').replace(/&/g, '&&')}&C&"Calibri,Regular"&10Cable Drops Report&R&"Calibri,Regular"&9&D`,
-    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
-  };
 
   // Formula cell protection — managers can edit Yes/No dropdowns and Notes; all formula cells are locked
   ws.protect('', {
@@ -448,12 +448,6 @@ export async function exportXLSX(drops, projectName = '') {
   addSRow('Patched Items', sorted.filter(d => d.patchedA || d.patchedB || d.patchedC || d.patchedD).length, null);
   addSeparator();
 
-  // Print headers/footers
-  ws2.headerFooter = {
-    oddHeader: `&L&"Calibri,Bold"&11${(projectName || 'CablePull Tracker').replace(/&/g, '&&')}&C&"Calibri,Regular"&10Project Summary&R&"Calibri,Regular"&9&D`,
-    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
-  };
-
   const dateRow = ws2.addRow(['Report Generated', new Date().toLocaleString(), '']);
   dateRow.height = 18;
   dateRow.eachCell((cell, col) => {
@@ -470,10 +464,7 @@ export async function exportXLSX(drops, projectName = '') {
       tabColor: { argb: 'FFF59E0B' },
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '1:1' }
     });
-    ws3.headerFooter = {
-      oddHeader: `&L&"Calibri,Bold"&11${(projectName || 'CablePull Tracker').replace(/&/g, '&&')}&C&"Calibri,Regular"&10By IDF Breakdown&R&"Calibri,Regular"&9&D`,
-      oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
-    };
+
     ws3.columns = [
       { width: 10 }, { width: 10 }, { width: 13 }, { width: 13 }, 
       { width: 10 }, { width: 11 }, { width: 10 }, { width: 10 },

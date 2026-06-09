@@ -102,6 +102,19 @@ function getPatchedLabel(drop) {
   return patchedIds.length > 0 ? `Yes (${patchedIds.join('/')})` : 'No';
 }
 
+// UPDATED: Added Natural Sorting helper to handle numbers and letters sequentially
+function getSortedDrops(drops) {
+  return [...drops].sort((a, b) => {
+    const idfA = (a.idf || '').toLowerCase();
+    const idfB = (b.idf || '').toLowerCase();
+    if (idfA !== idfB) return idfA.localeCompare(idfB);
+    
+    const cableA = String(a.cableA || '');
+    const cableB = String(b.cableA || '');
+    return cableA.localeCompare(cableB, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
 // Data validation configurations for fields
 const dvYesNo = {
   type: 'list',
@@ -295,12 +308,6 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     });
   }
 
-  // Print headers/footers
-  ws.headerFooter = {
-    oddHeader: `&L&"Calibri,Bold"&11${group.name.replace(/&/g, '&&')}&C&"Calibri,Regular"&10Portfolio Dashboard&R&"Calibri,Regular"&9&D`,
-    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
-  };
-
   autoFitColumns(ws, { 1: { min: 32, max: 45 } }, [1]);
 }
 
@@ -332,17 +339,15 @@ function buildAttentionLogSheet(wb, group, projects, projectSheetMap) {
 
   ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: COL_COUNT } };
 
-  ws.headerFooter = {
-    oddHeader: `&L&"Calibri,Bold"&11${group.name.replace(/&/g, '&&')}&C&"Calibri,Regular"&10Attention Flags Log&R&"Calibri,Regular"&9&D`,
-    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
-  };
-
   let logCount = 0;
 
   projects.forEach((p) => {
     const targetSheet = projectSheetMap.get(p.id || p.name);
     
-    p.drops.forEach((drop) => {
+    // Apply Natural Sorting to blocker list output
+    const sortedLogDrops = getSortedDrops(p.drops);
+    
+    sortedLogDrops.forEach((drop) => {
       if (!isAttention(drop)) return; 
 
       logCount++;
@@ -362,7 +367,7 @@ function buildAttentionLogSheet(wb, group, projects, projectSheetMap) {
       applyFill(projCell, C.attnFill);
       applyBorders(projCell, 'thin');
 
-      row.getCell(2).value = drop.idf || '';
+      row.getCell(2).value = drop.idf ? `${drop.idf}${drop.rackNumber ? ` · R${drop.rackNumber}` : ''}` : '';
       row.getCell(3).value = typeName(drop);
       row.getCell(4).value = cableIds(drop);
       row.getCell(5).value = getPatchedLabel(drop);
@@ -440,7 +445,10 @@ function buildProjectSheet(wb, project, sheetName) {
 
   ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };
 
-  project.drops.forEach((drop, i) => {
+  // Apply Natural Sorting logic to Project details sheet
+  const sortedProjectDrops = getSortedDrops(project.drops);
+
+  sortedProjectDrops.forEach((drop, i) => {
     const rowNum = 4 + i; // Data records start strictly on Row 4 down
     drop._mainRowNum = rowNum; 
     
@@ -451,7 +459,7 @@ function buildProjectSheet(wb, project, sheetName) {
     row.height = 22;
 
     // Field value mapping arrays
-    row.getCell(1).value = drop.idf || '';
+    row.getCell(1).value = drop.idf ? `${drop.idf}${drop.rackNumber ? ` · R${drop.rackNumber}` : ''}` : '';
     row.getCell(2).value = typeName(drop);
     row.getCell(3).value = cableIds(drop);
     row.getCell(4).value = drop.roughPull  ? 'Yes' : 'No';
@@ -550,12 +558,6 @@ function buildProjectSheet(wb, project, sheetName) {
     });
   // UPDATED: Added column 2 (Drop Type) to dynamic width auto-fitter list to adapt cleanly to custom labels
   autoFitColumns(ws, { 10: { min: 22, max: 50 }, 11: { min: 14, max: 20 } }, [2, 10, 11]);
-
-  // Print headers/footers
-  ws.headerFooter = {
-    oddHeader: `&L&"Calibri,Bold"&11${project.name.replace(/&/g, '&&')}&C&"Calibri,Regular"&10Cable Drops Report&R&"Calibri,Regular"&9&D`,
-    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
-  };
 
   // Formula cell protection — managers can edit Yes/No dropdowns and Notes; all formula cells are locked
   ws.protect('', {
