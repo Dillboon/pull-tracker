@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, SafeAreaView, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { View, SafeAreaView, TouchableOpacity, Text, StyleSheet, Modal, TextInput } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -13,7 +13,7 @@ import GalleryScreen   from './src/screens/GalleryScreen';
 import TabBar          from './src/components/TabBar';
 import Toast           from './src/components/Toast';
 import { COLORS }      from './src/theme';
-import { emptyDrop }   from './src/utils';
+import { emptyDrop, today } from './src/utils';
 
 export default function App() {
   const [projects,       setProjectsState] = useState([]);
@@ -26,6 +26,10 @@ export default function App() {
   const pendingDelete   = useRef(null);
   const persistTimer    = useRef(null);
   const persistGrpTimer = useRef(null);    // ← new
+
+  // Custom drop types configuration state
+  const [showCustomTypesModal, setShowCustomTypesModal] = useState(false);
+  const [customTypesInput, setCustomTypesInput] = useState('');
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -114,7 +118,8 @@ export default function App() {
   }, [activeProject, updateActiveProject, showToast]);
 
   const updateDrop = useCallback((updated) => {
-    const next = activeProject.drops.map(d => d.id === updated.id ? updated : d);
+    const stamped = { ...updated, updatedAt: today() };
+    const next = activeProject.drops.map(d => d.id === stamped.id ? stamped : d);
     updateActiveProject({ drops: next });
   }, [activeProject, updateActiveProject]);
 
@@ -174,6 +179,23 @@ export default function App() {
     updateActiveProject({ drops: next });
     showToast(`+ Drop added from "${template.name}"`);
   }, [activeProject, updateActiveProject, showToast]);
+
+  // ── Custom Drop Types Handlers ────────────────────────────────────────────
+  const handleEditCustomTypes = useCallback(() => {
+    const currentList = activeProject.customTypeList ?? ['WAP', 'Camera', 'Card Reader'];
+    setCustomTypesInput(currentList.join(', '));
+    setShowCustomTypesModal(true);
+  }, [activeProject]);
+
+  const saveCustomTypes = useCallback(() => {
+    const parsed = customTypesInput
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean);
+    updateActiveProject({ customTypeList: parsed });
+    setShowCustomTypesModal(false);
+    showToast('✓ Custom shortcuts updated');
+  }, [customTypesInput, updateActiveProject, showToast]);
 
   // ── Gallery folder + image deletion ───────────────────────────────────────
   const deleteFolderWithImages = useCallback((folderId) => {
@@ -239,6 +261,8 @@ export default function App() {
     templates:        activeProject.templates ?? [],
     updateTemplates,
     addDropFromTemplate,
+    customTypeList:    activeProject.customTypeList ?? ['WAP', 'Camera', 'Card Reader'],
+    onEditCustomTypes: handleEditCustomTypes,
     folders:          activeProject.folders       ?? [],
     galleryImages:    activeProject.galleryImages ?? [],
     setFolders:       (next) => updateActiveProject({ folders: next }),
@@ -279,6 +303,47 @@ export default function App() {
 
         <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
         {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} />}
+
+        {/* ── Custom Types Edit Modal (Cross-platform safe) ── */}
+        {showCustomTypesModal && (
+          <Modal visible transparent animationType="fade" onRequestClose={() => setShowCustomTypesModal(false)}>
+            <TouchableOpacity
+              style={st.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setShowCustomTypesModal(false)}
+            >
+              <TouchableOpacity activeOpacity={1} style={st.modalBox}>
+                <Text style={st.modalTitle}>MANAGE CUSTOM TYPES</Text>
+                <Text style={st.modalHint}>Enter a comma-separated list of shortcuts to display as buttons on your drop cards:</Text>
+                
+                <TextInput
+                  value={customTypesInput}
+                  onChangeText={setCustomTypesInput}
+                  placeholder="e.g. WAP, Camera, Card Reader, Intercom"
+                  placeholderTextColor="#4b5563"
+                  style={st.modalInput}
+                  autoCapitalize="words"
+                  autoFocus
+                />
+
+                <View style={st.modalActions}>
+                  <TouchableOpacity
+                    style={[st.modalBtn, st.modalBtnCancel]}
+                    onPress={() => setShowCustomTypesModal(false)}
+                  >
+                    <Text style={st.modalBtnCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[st.modalBtn, st.modalBtnSave]}
+                    onPress={saveCustomTypes}
+                  >
+                    <Text style={st.modalBtnSaveText}>Save Shortcuts</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </Modal>
+        )}
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -315,5 +380,72 @@ const st = StyleSheet.create({
   },
   archivedBadgeText: {
     fontSize: 9, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.8,
+  },
+
+  // Custom Types Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalBox: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    padding: 16,
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    color: COLORS.textMuted,
+  },
+  modalHint: {
+    fontSize: 12,
+    color: '#94a3b8',
+    lineHeight: 16,
+  },
+  modalInput: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 7,
+    padding: 10,
+    color: COLORS.text,
+    fontSize: 13,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  modalBtnCancel: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderColor: COLORS.border,
+  },
+  modalBtnCancelText: {
+    color: COLORS.textMuted,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  modalBtnSave: {
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderColor: 'rgba(245,158,11,0.4)',
+  },
+  modalBtnSaveText: {
+    color: COLORS.amber,
+    fontWeight: '800',
+    fontSize: 13,
   },
 });

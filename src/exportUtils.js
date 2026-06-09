@@ -17,25 +17,41 @@ const getGroupType = (d) => d.groupType || (d.isDouble ? 'double' : 'single');
 const getCableLabel = (d) =>
   [d.cableA, d.cableB, d.cableC, d.cableD].filter(Boolean).join(' / ') || '—';
 
+// UPDATED: Now dynamically appends the custom type descriptor if present
 const getTypeLabel = (d) => {
   const t = getGroupType(d);
-  return t.charAt(0).toUpperCase() + t.slice(1);
+  const baseLabel = t.charAt(0).toUpperCase() + t.slice(1);
+  return d.customType ? `${d.customType} (${baseLabel})` : baseLabel;
+};
+
+const getPatchedLabel = (d) => {
+  const p = [];
+  if (d.patchedA && d.cableA) p.push(d.cableA);
+  if (d.patchedB && d.cableB) p.push(d.cableB);
+  if (d.patchedC && d.cableC) p.push(d.cableC);
+  if (d.patchedD && d.cableD) p.push(d.cableD);
+  return p.length > 0 ? `Yes (${p.join('/')})` : 'No';
 };
 
 // ─── PDF Export ──────────────────────────────────────────────────────────────
 export async function exportPDF(drops, projectName = '') {
   const sorted = sortedDrops(drops);
-  const rp = sorted.filter(d => d.roughPull).length;
-  const tm = sorted.filter(d => d.terminated).length;
-  const ts = sorted.filter(d => d.tested).length;
+  
+  // UPDATED: Stats include drops that are manually overridden as complete
+  const rp = sorted.filter(d => d.roughPull || d.overrideComplete).length;
+  const tm = sorted.filter(d => d.terminated || d.overrideComplete).length;
+  const ts = sorted.filter(d => d.tested || d.overrideComplete).length;
 
   const rows = sorted.map((d, i) => {
     const bg = i % 2 === 0 ? '#f8fafc' : '#ffffff';
     const cable = getCableLabel(d);
     const typeLabel = getTypeLabel(d);
-    const tick = (v) => v
+    
+    // UPDATED: Tick shows completion checkmark if the toggle override is active
+    const tick = (v) => (v || d.overrideComplete)
       ? `<span style="color:#16a34a;font-weight:700;">✓</span>`
       : `<span style="color:#dc2626;">✗</span>`;
+      
     return `
       <tr style="background:${bg}">
         <td>${d.idf || '—'}</td>
@@ -44,9 +60,10 @@ export async function exportPDF(drops, projectName = '') {
         <td style="text-align:center">${tick(d.roughPull)}</td>
         <td style="text-align:center">${tick(d.terminated)}</td>
         <td style="text-align:center">${tick(d.tested)}</td>
+		<td style="text-align:center">${getPatchedLabel(d)}</td>
         <td style="color:#555;font-size:11px">${d.notes || ''}</td>
         <td style="text-align:center">${d.attention ? '⚠️' : ''}</td>
-        <td style="color:#888;font-size:11px">${d.createdAt}</td>
+        <td style="color:#888;font-size:11px">${d.updatedAt || d.createdAt}</td>
       </tr>`;
   }).join('');
 
@@ -83,8 +100,8 @@ export async function exportPDF(drops, projectName = '') {
         <thead>
           <tr>
             <th>IDF</th><th>Type</th><th>Cable ID(s)</th>
-            <th>Rough Pull</th><th>Terminated</th><th>Tested</th>
-            <th>Notes</th><th>Attn</th><th>Date</th>
+            <th>Rough Pull</th><th>Terminated</th><th>Tested</th><th>Patched</th>
+            <th>Notes</th><th>Attn</th><th>Last Updated</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -114,16 +131,12 @@ export async function exportXLSX(drops, projectName = '') {
   const subHdrFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E2D40' } };
   const evenFill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3EEFF' } };
   const oddFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE9E0FF' } };
-  const yesFill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
-  const noFill     = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
 
   const headerFont  = { bold: true, color: { argb: 'FFFBBF24' }, size: 10, name: 'Calibri' };
   const subHdrFont  = { bold: true, color: { argb: 'FF94A3B8' }, size: 9,  name: 'Calibri' };
   const bodyFont    = { size: 10, name: 'Calibri' };
   const monoFont    = { size: 10, name: 'Courier New' };
   const dimFont     = { size: 9,  name: 'Calibri', color: { argb: 'FF64748B' } };
-  const yesFont     = { bold: true, color: { argb: 'FF065F46' }, size: 10, name: 'Calibri' };
-  const noFont      = { bold: true, color: { argb: 'FF991B1B' }, size: 10, name: 'Calibri' };
   const doubleFont  = { bold: true, color: { argb: 'FF7C3AED' }, size: 10, name: 'Calibri' };
   const idfFont     = { bold: true, color: { argb: 'FF1E40AF' }, size: 10, name: 'Calibri' };
 
@@ -144,26 +157,28 @@ export async function exportXLSX(drops, projectName = '') {
       orientation: 'landscape',
       fitToPage: true,
       fitToWidth: 1,
-      fitToHeight: 0, // 0 allows it to stretch to as many pages vertically as needed
-      printTitlesRow: '1:3', // Repeats the Title, Subtitle, and Header rows on every page
+      fitToHeight: 0, 
+      printTitlesRow: '1:3',
     }
   });
 
+  // UPDATED: Column 2 (type) width is now calculated dynamically to fit custom labels nicely
   ws.columns = [
     { key: 'idf',        width: 12 },
-    { key: 'type',       width: 10 },
+    { key: 'type',       width: Math.max(12, ...sorted.map(d => getTypeLabel(d).length)) + 2 },
     { key: 'cable',      width: Math.max(12, ...sorted.map(d => getCableLabel(d).length)) + 2 },
     { key: 'roughPull',  width: 13 },
     { key: 'terminated', width: 13 },
     { key: 'tested',     width: 10 },
     { key: 'complete',   width: 11 },
+	{ key: 'patched',    width: 16 },
     { key: 'attention',  width: 11 },
-    { key: 'notes',      width: 10 }, // auto-fit
-    { key: 'date',       width: 10 }, // auto-fit
+    { key: 'notes',      width: 10 },
+    { key: 'date',       width: 12 },
   ];
 
-  // Title row (A1:J1)
-  ws.mergeCells('A1:J1');
+  // Title row (A1:K1)
+  ws.mergeCells('A1:K1');
   const titleCell     = ws.getCell('A1');
   titleCell.value     = `CablePull Field Tracker${projectName ? `  —  ${projectName}` : ''}`;
   titleCell.font      = { bold: true, size: 13, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
@@ -171,12 +186,14 @@ export async function exportXLSX(drops, projectName = '') {
   titleCell.alignment = leftAlign;
   ws.getRow(1).height = 26;
 
-  // Subtitle row (A2:J2)
-  ws.mergeCells('A2:J2');
+  // Subtitle row (A2:K2)
+  ws.mergeCells('A2:K2');
   const subCell   = ws.getCell('A2');
-  const rpCount   = sorted.filter(d => d.roughPull).length;
-  const tmCount   = sorted.filter(d => d.terminated).length;
-  const tsCount   = sorted.filter(d => d.tested).length;
+  
+  // UPDATED: Counter tallies account for override complete drops
+  const rpCount   = sorted.filter(d => d.roughPull || d.overrideComplete).length;
+  const tmCount   = sorted.filter(d => d.terminated || d.overrideComplete).length;
+  const tsCount   = sorted.filter(d => d.tested || d.overrideComplete).length;
   const attnCount = sorted.filter(d => d.attention).length;
   subCell.value   = `Generated: ${new Date().toLocaleString()}  |  Total: ${total}  |  Rough pulled: ${rpCount}  |  Terminated: ${tmCount}  |  Tested: ${tsCount}  |  Attention: ${attnCount}`;
   subCell.font    = { size: 9, color: { argb: 'FF94A3B8' }, name: 'Calibri' };
@@ -185,7 +202,7 @@ export async function exportXLSX(drops, projectName = '') {
   ws.getRow(2).height = 18;
 
   // Header row (row 3)
-  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Attention', 'Notes', 'Date Added']);
+  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated']);
   headerRow.height = 20;
   headerRow.eachCell(cell => {
     cell.font = headerFont; cell.fill = headerFill;
@@ -204,7 +221,7 @@ export async function exportXLSX(drops, projectName = '') {
   // Data rows
   sorted.forEach((d, i) => {
     const rowNum    = 4 + i;
-    d._mainRowNum   = rowNum; // Save this row number to link the IDF sheet later
+    d._mainRowNum   = rowNum; 
     
     const cable     = getCableLabel(d);
     const typeLabel = getTypeLabel(d);
@@ -218,15 +235,17 @@ export async function exportXLSX(drops, projectName = '') {
       d.roughPull  ? 'Yes' : 'No',
       d.terminated ? 'Yes' : 'No',
       d.tested     ? 'Yes' : 'No',
-      '',  // Complete — formula below
+      '',  // Complete — evaluated dynamically below via updated formula
+	  getPatchedLabel(d),
       d.attention  ? '⚠ Yes' : 'No',
       d.notes || '',
-      d.createdAt,
+      d.updatedAt || d.createdAt,
     ]);
     row.height = 18;
 
+    // UPDATED: Injects an OR block into the dynamic Excel formula to check if override is active
     row.getCell(7).value = {
-      formula: `IF(AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes"),"✓","✗")`,
+      formula: `IF(OR(${d.overrideComplete ? 'TRUE' : 'FALSE'},AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes")),"✓","✗")`,
     };
 
     row.eachCell((cell, colNum) => {
@@ -238,15 +257,24 @@ export async function exportXLSX(drops, projectName = '') {
         case 4:
         case 5:
         case 6:
+          cell.fill = baseFill; cell.alignment = centerAlign;
+          cell.protection = { locked: false };
+          break;
         case 7:
           cell.fill = baseFill; cell.alignment = centerAlign; break;
-        case 8: // Attention
+        case 8:
+          cell.fill = baseFill; cell.alignment = centerAlign;
+          cell.font = { ...bodyFont, color: { argb: (d.patchedA || d.patchedB || d.patchedC || d.patchedD) ? 'FF065F46' : 'FF64748B' }};
+          break;
+		case 9:
           cell.fill = d.attention ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7ED' } } : baseFill;
           cell.font = d.attention ? { bold: true, color: { argb: 'FFD97706' }, size: 10, name: 'Calibri' } : { ...dimFont, color: { argb: 'FF94A3B8' } };
           cell.alignment = centerAlign; break;
-        case 9:
-          cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true }; break;
         case 10:
+          cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true };
+          cell.protection = { locked: false };
+          break;
+        case 11:
           cell.font = dimFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
       }
     });
@@ -256,26 +284,19 @@ export async function exportXLSX(drops, projectName = '') {
     row.getCell(6).dataValidation = dvYesNo;
   });
 
-  ws.autoFilter = { from: 'A3', to: 'J3' };
+  ws.autoFilter = { from: 'A3', to: 'K3' };
 
-  // Conditional formatting - using cellIs avoids exceljs corruption bugs
   if (total > 0) {
     ws.addConditionalFormatting({
       ref: `D4:F${lastDataRow}`,
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"Yes"'],
-          style: {
-            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } },
-            font: { bold: true, color: { argb: 'FF065F46' } },
-          },
+          style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' } } },
         },
         {
           type: 'cellIs', operator: 'equal', formulae: ['"No"'],
-          style: {
-            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } },
-            font: { bold: true, color: { argb: 'FF991B1B' } },
-          },
+          style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }, font: { bold: true, color: { argb: 'FF991B1B' } } },
         },
       ],
     });
@@ -284,39 +305,46 @@ export async function exportXLSX(drops, projectName = '') {
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"✓"'],
-          style: {
-            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } },
-            font: { bold: true, color: { argb: 'FF065F46' }, size: 11 },
-          },
+          style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' }, size: 11 } },
         },
         {
           type: 'cellIs', operator: 'equal', formulae: ['"✗"'],
-          style: {
-            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } },
-            font: { bold: true, color: { argb: 'FF991B1B' }, size: 11 },
-          },
+          style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }, font: { bold: true, color: { argb: 'FF991B1B' }, size: 11 } },
         },
       ],
     });
   }
 
-  // Auto-fit column widths based on actual cell content.
-  // Notes (col 9) and Date (col 10) get custom clamps so they don't blow out.
+  // Print headers/footers — project name top-left, sheet name centre, date top-right; page numbers bottom
+  ws.headerFooter = {
+    oddHeader: `&L&"Calibri,Bold"&11${(projectName || 'CablePull Tracker').replace(/&/g, '&&')}&C&"Calibri,Regular"&10Cable Drops Report&R&"Calibri,Regular"&9&D`,
+    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
+  };
+
+  // Formula cell protection — managers can edit Yes/No dropdowns and Notes; all formula cells are locked
+  ws.protect('', {
+    selectLockedCells:   true,
+    selectUnlockedCells: true,
+    sort:                true,
+    autoFilter:          true,
+    formatCells:         false,
+    formatColumns:       false,
+    formatRows:          false,
+    insertColumns:       false,
+    insertRows:          false,
+    deleteColumns:       false,
+    deleteRows:          false,
+  });
+
   autoFitColumns(ws, {
-    9:  { min: 20, max: 45 }, // Notes — wrap is on, so cap width
-    10: { min: 14, max: 26 }, // Date  — locale strings can be ~22 chars
-  }, [9, 10]); // only resize: Notes, Date
+    10: { min: 20, max: 45 }, 
+    11: { min: 14, max: 26 }, 
+  }, [9, 10]); 
 
   // ── Summary sheet ─────────────────────────────────────────────────────────
   const ws2 = wb.addWorksheet('Summary', { 
     tabColor: { argb: 'FF22C55E' },
-    pageSetup: {
-      orientation: 'landscape',
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
-      printTitlesRow: '1:2', // Repeats the Title and Header rows
-    }
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '1:2' }
   });
   ws2.columns = [{ width: 10 }, { width: 14 }, { width: 14 }];
 
@@ -364,12 +392,12 @@ export async function exportXLSX(drops, projectName = '') {
     row.getCell(3).numFmt = '0.0%';
   };
 
+  // UPDATED: Now queries the main sheet's column G ("✓") to cleanly handle multi-criteria & override completion
   const addCompleteFormulaRow = (metric) => {
-    const ref = `'Cable Drops'!D4:D${lastDataRow},"Yes",'Cable Drops'!E4:E${lastDataRow},"Yes",'Cable Drops'!F4:F${lastDataRow},"Yes"`;
     const row = ws2.addRow([
       metric,
-      { formula: `COUNTIFS(${ref})` },
-      { formula: `IFERROR(COUNTIFS(${ref})/${total},0)` },
+      { formula: `COUNTIF('Cable Drops'!G4:G${lastDataRow},"✓")` },
+      { formula: `IFERROR(COUNTIF('Cable Drops'!G4:G${lastDataRow},"✓")/${total},0)` },
     ]);
     row.height = 18;
     const fill = ws2.rowCount % 2 === 0 ? evenFill : oddFill;
@@ -393,7 +421,8 @@ export async function exportXLSX(drops, projectName = '') {
     ws2.getRow(ws2.rowCount).height = 6;
   };
 
-  addSRow('Total Drops', total, { formula: `IFERROR(COUNTIFS('Cable Drops'!D4:D${lastDataRow},"Yes",'Cable Drops'!E4:E${lastDataRow},"Yes",'Cable Drops'!F4:F${lastDataRow},"Yes")/${total},0)` });
+  // UPDATED: Points to column G to compute overall report completion cleanly
+  addSRow('Total Drops', total, { formula: `IFERROR(COUNTIF('Cable Drops'!G4:G${lastDataRow},"✓")/${total},0)` });
   addSeparator();
 
   addSubHeader('Status Progress  (live — updates when you edit Yes/No)');
@@ -416,7 +445,14 @@ export async function exportXLSX(drops, projectName = '') {
 
   addSubHeader('Flags');
   addSRow('Attention Items', attnCount, null);
+  addSRow('Patched Items', sorted.filter(d => d.patchedA || d.patchedB || d.patchedC || d.patchedD).length, null);
   addSeparator();
+
+  // Print headers/footers
+  ws2.headerFooter = {
+    oddHeader: `&L&"Calibri,Bold"&11${(projectName || 'CablePull Tracker').replace(/&/g, '&&')}&C&"Calibri,Regular"&10Project Summary&R&"Calibri,Regular"&9&D`,
+    oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
+  };
 
   const dateRow = ws2.addRow(['Report Generated', new Date().toLocaleString(), '']);
   dateRow.height = 18;
@@ -425,29 +461,22 @@ export async function exportXLSX(drops, projectName = '') {
     cell.alignment = col === 1 ? leftAlign : centerAlign;
   });
 
-  autoFitColumns(ws2, {
-    1: { min: 18, max: 36 }, // Metric label
-    2: { min: 10, max: 24 }, // Count / value
-    3: { min: 12, max: 18 }, // % Complete
-  }, [1]); // only resize: Metric label
+  autoFitColumns(ws2, { 1: { min: 18, max: 36 }, 2: { min: 10, max: 24 }, 3: { min: 12, max: 18 } }, [1]);
 
   // ── Per-IDF Breakdown sheet ───────────────────────────────────────────────
   const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
   if (idfs.length > 0) {
     const ws3 = wb.addWorksheet('By IDF', { 
       tabColor: { argb: 'FFF59E0B' },
-      pageSetup: {
-        orientation: 'landscape',
-        fitToPage: true,
-        fitToWidth: 1,
-        fitToHeight: 0,
-        printTitlesRow: '1:1', // Repeats the main title row (closet headers are dynamic/inline)
-      }
+      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '1:1' }
     });
+    ws3.headerFooter = {
+      oddHeader: `&L&"Calibri,Bold"&11${(projectName || 'CablePull Tracker').replace(/&/g, '&&')}&C&"Calibri,Regular"&10By IDF Breakdown&R&"Calibri,Regular"&9&D`,
+      oddFooter: `&L&"Calibri,Regular"&9Confidential \u2014 Field Data&C&"Calibri,Bold"&9Page &P of &N&R&"Calibri,Regular"&9CablePull Tracker`,
+    };
     ws3.columns = [
-      { width: 10 }, { width: 10 }, { width: 13 },
-      { width: 13 }, { width: 10 }, { width: 11 },
-      { width: 10 }, { width: 10 },
+      { width: 10 }, { width: 10 }, { width: 13 }, { width: 13 }, 
+      { width: 10 }, { width: 11 }, { width: 10 }, { width: 10 },
     ];
 
     ws3.mergeCells('A1:H1');
@@ -464,11 +493,12 @@ export async function exportXLSX(drops, projectName = '') {
       const idrops = sorted.filter(d => d.idf === idf);
       ws3Row++;
 
-      // Create LIVE headers using COUNTIFS pointing to the main sheet
       const rpFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$D$4:$D$${lastDataRow}, "Yes")`;
       const tmFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$E$4:$E$${lastDataRow}, "Yes")`;
       const tsFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$F$4:$F$${lastDataRow}, "Yes")`;
-      const compFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$D$4:$D$${lastDataRow}, "Yes", 'Cable Drops'!$E$4:$E$${lastDataRow}, "Yes", 'Cable Drops'!$F$4:$F$${lastDataRow}, "Yes")`;
+      
+      // UPDATED: Dynamic IDF section totals look up Column G to factor in custom toggle complete drops live
+      const compFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$G$4:$G$${lastDataRow}, "✓")`;
 
       ws3.mergeCells(`A${ws3Row}:H${ws3Row}`);
       const idfHdrCell = ws3.getCell(`A${ws3Row}`);
@@ -493,7 +523,6 @@ export async function exportXLSX(drops, projectName = '') {
       iHdrRow.getCell(2).alignment = leftAlign;
       iHdrRow.getCell(7).alignment = leftAlign;
 
-      // Data rows for this IDF are now dynamic formula links to 'Cable Drops'
       idrops.forEach((d, i) => {
         ws3Row++;
         const cable = getCableLabel(d);
@@ -503,10 +532,10 @@ export async function exportXLSX(drops, projectName = '') {
 
         const r = ws3.addRow([
           typeLabel, cable,
-          { formula: `'Cable Drops'!D${d._mainRowNum}` }, // Linked to main sheet
+          { formula: `'Cable Drops'!D${d._mainRowNum}` }, 
           { formula: `'Cable Drops'!E${d._mainRowNum}` },
           { formula: `'Cable Drops'!F${d._mainRowNum}` },
-          { formula: `'Cable Drops'!G${d._mainRowNum}` },
+          { formula: `'Cable Drops'!G${d._mainRowNum}` }, // Automatically inherits the main sheet's dynamic evaluation column
           d.notes || '',
           '',
         ]);
@@ -534,7 +563,6 @@ export async function exportXLSX(drops, projectName = '') {
       ws3.getRow(ws3.rowCount).height = 8;
     });
 
-    // Mirror conditional formatting to the By IDF sheet so colors update here as well
     if (ws3.rowCount > 1) {
       ws3.addConditionalFormatting({
         ref: `C1:E${ws3.rowCount}`,
@@ -552,9 +580,7 @@ export async function exportXLSX(drops, projectName = '') {
       });
     }
 
-    autoFitColumns(ws3, {
-      7: { min: 20, max: 45 }, // Notes — wrap is on, so cap width
-    }, [2, 7]); // only resize: Cable ID, Notes
+    autoFitColumns(ws3, { 7: { min: 20, max: 45 } }, [2, 7]);
   }
 
   // ── Write & share ─────────────────────────────────────────────────────────
@@ -562,9 +588,7 @@ export async function exportXLSX(drops, projectName = '') {
   const base64   = _arrayBufferToBase64(buffer);
   const safeName = (projectName || 'cable-pull').replace(/[^a-z0-9]/gi, '-').toLowerCase();
   const fileUri  = FileSystem.cacheDirectory + `${safeName}-tracker.xlsx`;
-  await FileSystem.writeAsStringAsync(fileUri, base64, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
   await Sharing.shareAsync(fileUri, {
     mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     dialogTitle: `Share ${projectName || 'Cable Pull'} Report (Excel)`,
@@ -572,22 +596,14 @@ export async function exportXLSX(drops, projectName = '') {
   });
 }
 
-/**
- * Auto-fits column widths based on actual cell content.
- * ExcelJS has no built-in auto-fit, so we scan every cell and measure length.
- * @param {ExcelJS.Worksheet} worksheet
- * @param {Object} [overrides]  - map of 1-based col index → { min, max } width clamps
- * @param {number[]} [only]     - if provided, only these 1-based column indices are resized
- */
 function autoFitColumns(worksheet, overrides = {}, only = null) {
   const DEFAULT_MIN = 8;
   const DEFAULT_MAX = 50;
 
   worksheet.columns.forEach((column, colIdx) => {
     if (!column || !column.eachCell) return;
-
     const colNum = colIdx + 1;
-    if (only && !only.includes(colNum)) return; // skip fixed-width columns
+    if (only && !only.includes(colNum)) return;
 
     const { min = DEFAULT_MIN, max = DEFAULT_MAX } = overrides[colNum] || {};
     let maxLen = min;
@@ -595,27 +611,18 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
     column.eachCell({ includeEmpty: false }, (cell) => {
       const v = cell.value;
       let len = 0;
-
       if (v === null || v === undefined) return;
       if (typeof v === 'string')       len = v.length;
       else if (typeof v === 'number')  len = String(v).length;
       else if (v instanceof Date)      len = v.toLocaleString().length;
       else if (typeof v === 'object') {
-        if (v.richText) {
-          // RichText array
-          len = v.richText.reduce((acc, r) => acc + (r.text?.length ?? 0), 0);
-        } else if (v.formula) {
-          // Formula cells — use the cached result if available, else a small default
-          len = v.result != null ? String(v.result).length : 6;
-        } else if (v.text != null) {
-          len = String(v.text).length;
-        }
+        if (v.richText) len = v.richText.reduce((acc, r) => acc + (r.text?.length ?? 0), 0);
+        else if (v.formula) len = v.result != null ? String(v.result).length : 6;
+        else if (v.text != null) len = String(v.text).length;
       }
-
       if (len > maxLen) maxLen = len;
     });
 
-    // +2 gives a little breathing room on either side of the text
     column.width = Math.min(maxLen, max);
   });
 }
@@ -623,8 +630,6 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
 function _arrayBufferToBase64(buffer) {
   let binary = '';
   const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
+  for (let i = 0; i < bytes.byteLength; i++) { binary += String.fromCharCode(bytes[i]); }
   return btoa(binary);
 }

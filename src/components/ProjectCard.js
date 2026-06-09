@@ -6,8 +6,8 @@ import { COLORS } from '../theme';
  * ProjectCard
  *
  * New optional props for group support:
- *   onMoveToGroup   — if provided, shows "↗ Group" button for ungrouped active projects
- *   onRemoveFromGroup — if provided, shows "↙ Ungroup" button for projects inside a group
+ * onMoveToGroup   — if provided, shows "↗ Group" button for ungrouped active projects
+ * onRemoveFromGroup — if provided, shows "↙ Ungroup" button for projects inside a group
  */
 export default function ProjectCard({
   project,
@@ -19,7 +19,8 @@ export default function ProjectCard({
   onRemoveFromGroup,
 }) {
   const total    = project.drops.length;
-  const complete = project.drops.filter(d => d.roughPull && d.terminated && d.tested).length;
+  // Updated to include overrideComplete
+  const complete = project.drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
   const rp       = project.drops.filter(d => d.roughPull).length;
   const tm       = project.drops.filter(d => d.terminated).length;
   const ts       = project.drops.filter(d => d.tested).length;
@@ -36,7 +37,7 @@ export default function ProjectCard({
       <View style={s.topRow}>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Text style={[s.name, isArchived && { color: COLORS.textMuted }]} numberOfLines={1}>
+            <Text style={[s.name, isArchived && { color: COLORS.textMuted }]}>
               {project.name}
             </Text>
             {isArchived && (
