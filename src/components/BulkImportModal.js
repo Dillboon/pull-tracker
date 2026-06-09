@@ -18,13 +18,12 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
   const [start,      setStart]      = useState('1');
   const [end,        setEnd]        = useState('10');
   const [padZeros,   setPadZeros]   = useState(true);
-  const [padThree,   setPadThree]   = useState(false);
   const [groupType,  setGroupType]  = useState('double');
   const [idf,        setIdf]        = useState('');
+  const [rackNumber, setRackNumber] = useState('');
   const [customType, setCustomType] = useState('');
 
   const padNum = (n, max) => {
-    if (padThree) return String(n).padStart(3, '0');
     if (!padZeros) return String(n);
     const len = String(max).length;
     return String(n).padStart(len, '0');
@@ -51,7 +50,7 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
       items.push({ ids, groupType: actualType });
     }
     return items;
-  }, [prefix, start, end, padZeros, padThree, groupType]);
+  }, [prefix, start, end, padZeros, groupType]);
 
   const handleImport = () => {
     if (!preview) return;
@@ -64,6 +63,7 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
       cableC:     item.ids[2] || '',
       cableD:     item.ids[3] || '',
       idf,
+      rackNumber: rackNumber.trim(),
       customType: customType.trim(),
       roughPull:  false,
       terminated: false,
@@ -72,6 +72,7 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
       createdAt:  today(),
     }));
     onImport(drops);
+    setRackNumber('');
     setCustomType('');
     onClose();
   };
@@ -150,25 +151,12 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
 
             <View style={st.row}>
               <View>
-                <Text style={st.optLabel}>Auto Padding</Text>
-                <Text style={st.optHint}>01, 02... based on range size</Text>
+                <Text style={st.optLabel}>Zero Padding</Text>
+                <Text style={st.optHint}>01, 02... instead of 1, 2...</Text>
               </View>
               <Switch
                 value={padZeros}
-                onValueChange={v => { setPadZeros(v); if (v) setPadThree(false); }}
-                trackColor={{ false: COLORS.surface2, true: COLORS.blue }}
-                thumbColor="#fff"
-              />
-            </View>
-
-            <View style={[st.row, { marginTop: 14 }]}>
-              <View>
-                <Text style={st.optLabel}>3-Digit Padding</Text>
-                <Text style={st.optHint}>001, 002... always 3 digits</Text>
-              </View>
-              <Switch
-                value={padThree}
-                onValueChange={v => { setPadThree(v); if (v) setPadZeros(false); }}
+                onValueChange={setPadZeros}
                 trackColor={{ false: COLORS.surface2, true: COLORS.blue }}
                 thumbColor="#fff"
               />
@@ -238,6 +226,21 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
             </View>
           </View>
 
+          {/* Rack number — shown when an IDF is selected */}
+          {!!idf && (
+            <View style={st.section}>
+              <Text style={st.sectionTitle}>RACK NUMBER (optional)</Text>
+              <TextInput
+                value={rackNumber}
+                onChangeText={setRackNumber}
+                placeholder="e.g. 1, 2, A, B-3"
+                placeholderTextColor={COLORS.textDim}
+                style={st.input}
+                autoCapitalize="characters"
+              />
+            </View>
+          )}
+
           {/* Custom drop type */}
           <View style={st.section}>
             <Text style={st.sectionTitle}>CUSTOM DROP TYPE (optional)</Text>
@@ -300,7 +303,7 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
                     {customType.trim() ? (
                       <Text style={st.previewCustomType}>{customType.trim()}</Text>
                     ) : null}
-                    {idf ? <Text style={st.previewIdf}>{idf}</Text> : null}
+                    {idf ? <Text style={st.previewIdf}>{idf}{rackNumber ? ` · R${rackNumber}` : ''}</Text> : null}
                   </View>
                 ))}
                 {preview.length > 8 && (
