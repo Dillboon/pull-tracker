@@ -15,7 +15,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  ScrollView, StyleSheet, Alert, Modal, ActivityIndicator, Image,
+  ScrollView, StyleSheet, Alert, Modal, ActivityIndicator,
 } from 'react-native';
 import { COLORS, DEFAULT_IDFS } from '../theme';
 import { uid, today } from '../utils';
@@ -53,7 +53,7 @@ function GroupSection({
 }) {
   const totalDrops = projects.reduce((s, p) => s + p.drops.length, 0);
   const doneDrops  = projects.reduce((s, p) =>
-    s + p.drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length, 0);
+    s + p.drops.filter(d => d.roughPull && d.terminated && d.tested).length, 0);
   const pct = totalDrops > 0 ? Math.round((doneDrops / totalDrops) * 100) : 0;
 
   return (
@@ -63,7 +63,7 @@ function GroupSection({
         <Text style={gs.arrow}>{isCollapsed ? '▶' : '▾'}</Text>
 
         <View style={{ flex: 1 }}>
-          <Text style={gs.name}>{group.name}</Text>
+          <Text style={gs.name} numberOfLines={1}>{group.name}</Text>
           <Text style={gs.meta}>
             {projects.length} project{projects.length !== 1 ? 's' : ''}
             {totalDrops > 0
@@ -149,7 +149,7 @@ export default function ProjectsScreen({
   const [editingName,    setEditingName]    = useState(false);
 
   // UI state
-  const [collapsed,      setCollapsed]      = useState(() => Object.fromEntries(groups.map(g => [g.id, true])));
+  const [collapsed,      setCollapsed]      = useState({});
   const [showArchived,   setShowArchived]   = useState(false);
   const [exportingGroup, setExportingGroup] = useState(null);   // groupId currently exporting
 
@@ -288,9 +288,9 @@ export default function ProjectsScreen({
       {/* ── Header ── */}
       <View style={s.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Image source={require('../../assets/icon-transparent.png')} style={{ width: 32, height: 32 }} />
+          <Text style={{ fontSize: 22 }}>🔌</Text>
           <View>
-            <Text style={s.title}>CableTrack</Text>
+            <Text style={s.title}>CablePull</Text>
             <Text style={s.subtitle}>FIELD TRACKER</Text>
           </View>
         </View>

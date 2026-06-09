@@ -13,22 +13,19 @@ const STATUS_FILTERS = [
   { key: 'INCOMPLETE', label: 'Incomplete'     },
   { key: 'TERMINATED', label: 'Terminated'     },
   { key: 'ROUGH_ONLY', label: 'Pulled Only'    },
-  { key: 'PATCHED',    label: 'Patched'        },
   { key: 'NOTES',      label: 'Notes'          },
   { key: 'ATTENTION',  label: 'Attention Notes'},
 ];
 
-export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, addDropFromTemplate, templates, customTypeList = [], onEditCustomTypes }) {
+export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, addDropFromTemplate, templates }) {
   const [filterIdf,      setFilterIdf]      = useState('ALL');
   const [filterStatus,   setFilterStatus]   = useState('ALL');
-  const [filterRack,     setFilterRack]     = useState('ALL');
   const [search,         setSearch]         = useState('');
   const [showBulk,       setShowBulk]       = useState(false);
   const [showTemplates,  setShowTemplates]  = useState(false);
   const [fabOpen,        setFabOpen]        = useState(false);
   const [idfDropdown,    setIdfDropdown]    = useState(false);
   const [statusDropdown, setStatusDropdown] = useState(false);
-  const [rackDropdown,   setRackDropdown]   = useState(false);
   const [searchOpen,     setSearchOpen]     = useState(false);
   const searchInputRef = useRef(null);
   const flatListRef    = useRef(null);
@@ -53,13 +50,9 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 
   const idfLabel    = filterIdf === 'ALL' ? 'All IDFs' : filterIdf;
   const statusLabel = STATUS_FILTERS.find(f => f.key === filterStatus)?.label ?? 'All';
-  const activeRacks = filterIdf !== 'ALL'
-    ? [...new Set(drops.filter(d => d.idf === filterIdf).map(d => d.rackNumber).filter(Boolean))].sort()
-    : [];
-  const showRackFilter = filterIdf !== 'ALL' && activeRacks.length >= 2;
-  const hasFilter   = filterIdf !== 'ALL' || filterStatus !== 'ALL' || filterRack !== 'ALL';
+  const hasFilter   = filterIdf !== 'ALL' || filterStatus !== 'ALL';
 
-  const closeDropdowns = () => { setIdfDropdown(false); setStatusDropdown(false); setRackDropdown(false); };
+  const closeDropdowns = () => { setIdfDropdown(false); setStatusDropdown(false); };
 
   // Auto-focus the search input after it mounts
   useEffect(() => {
@@ -133,12 +126,10 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 
   const filtered = useMemo(() => drops.filter(d => {
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
-    if (filterRack !== 'ALL' && (d.rackNumber || '') !== filterRack) return false;
-    if (filterStatus === 'COMPLETE'   && !(d.overrideComplete || (d.roughPull && d.terminated && d.tested))) return false;
-    if (filterStatus === 'INCOMPLETE' &&  (d.overrideComplete || (d.roughPull && d.terminated && d.tested))) return false;
-    if (filterStatus === 'TERMINATED' && !(d.roughPull && d.terminated && !d.tested)) return false;
+    if (filterStatus === 'COMPLETE'   && !(d.roughPull && d.terminated && d.tested)) return false;
+    if (filterStatus === 'INCOMPLETE' &&  (d.roughPull && d.terminated && d.tested)) return false;
+	if (filterStatus === 'TERMINATED' && !(d.roughPull && d.terminated && !d.tested)) return false;
     if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.terminated || d.tested)) return false;
-    if (filterStatus === 'PATCHED'    && !(d.patchedA || d.patchedB || d.patchedC || d.patchedD)) return false;
     if (filterStatus === 'NOTES' && (!d.notes?.trim() || d.attention))               return false;
     if (filterStatus === 'ATTENTION'  && !d.attention)                               return false;
     if (search.trim()) {
@@ -155,7 +146,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     const ai = lockedOrder.indexOf(a.id);
     const bi = lockedOrder.indexOf(b.id);
     return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
-  }), [drops, filterIdf, filterStatus, filterRack, search, lockedOrder]);
+  }), [drops, filterIdf, filterStatus, search, lockedOrder]);
 
   // Build a set of cable IDs that appear more than once within the same IDF
   const conflictIds = useMemo(() => {
@@ -232,7 +223,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                     <TouchableOpacity
                       key={idf}
                       style={[s.dropItem, filterIdf === idf && s.dropItemActive]}
-                      onPress={() => { setFilterIdf(idf); setFilterRack('ALL'); setIdfDropdown(false); }}
+                      onPress={() => { setFilterIdf(idf); setIdfDropdown(false); }}
                     >
                       <Text style={[s.dropItemText, filterIdf === idf && { color: COLORS.amber, fontWeight: '800' }]}>
                         {idf === 'ALL' ? 'All IDFs' : idf}
@@ -243,48 +234,6 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                 </View>
               )}
             </View>
-
-            {/* Rack dropdown — only when a specific IDF is selected with 2+ rack numbers */}
-            {showRackFilter && (
-              <View style={{ flex: 1 }}>
-                <TouchableOpacity
-                  style={[s.dropBtn, rackDropdown && s.dropBtnActive, filterRack !== 'ALL' && s.dropBtnGreen]}
-                  onPress={() => { setRackDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[s.dropBtnText, filterRack !== 'ALL' && { color: COLORS.green }]}>
-                    🗄 {filterRack === 'ALL' ? 'All Racks' : `Rack ${filterRack}`}
-                  </Text>
-                  <Text style={[s.dropCaret, rackDropdown && s.dropCaretOpen]}>▾</Text>
-                </TouchableOpacity>
-
-                {rackDropdown && (
-                  <View style={[s.dropMenu, { zIndex: 20 }]}>
-                    <TouchableOpacity
-                      style={[s.dropItem, filterRack === 'ALL' && s.dropItemActiveGreen]}
-                      onPress={() => { setFilterRack('ALL'); setRackDropdown(false); }}
-                    >
-                      <Text style={[s.dropItemText, filterRack === 'ALL' && { color: COLORS.green, fontWeight: '800' }]}>
-                        All Racks
-                      </Text>
-                      {filterRack === 'ALL' && <Text style={{ color: COLORS.green, fontSize: 12 }}>✓</Text>}
-                    </TouchableOpacity>
-                    {activeRacks.map(rack => (
-                      <TouchableOpacity
-                        key={rack}
-                        style={[s.dropItem, filterRack === rack && s.dropItemActiveGreen]}
-                        onPress={() => { setFilterRack(rack); setRackDropdown(false); }}
-                      >
-                        <Text style={[s.dropItemText, filterRack === rack && { color: COLORS.green, fontWeight: '800' }]}>
-                          Rack {rack}
-                        </Text>
-                        {filterRack === rack && <Text style={{ color: COLORS.green, fontSize: 12 }}>✓</Text>}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
 
             {/* Status dropdown */}
             <View style={{ flex: 1 }}>
@@ -320,7 +269,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
             {hasFilter && (
               <TouchableOpacity
                 style={s.clearBtn}
-                onPress={() => { setFilterIdf('ALL'); setFilterStatus('ALL'); setFilterRack('ALL'); closeDropdowns(); }}
+                onPress={() => { setFilterIdf('ALL'); setFilterStatus('ALL'); closeDropdowns(); }}
               >
                 <Text style={s.clearBtnText}>✕</Text>
               </TouchableOpacity>
@@ -362,8 +311,6 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
             idfList={idfList}
             collapseKey={collapseKey}
             conflictIds={conflictIds}
-            customTypeList={customTypeList}
-            onEditCustomTypes={onEditCustomTypes}
             onExpandChange={(isExpanded) =>
               setExpandedCount(n => isExpanded ? n + 1 : Math.max(0, n - 1))
             }
@@ -574,10 +521,6 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.blueDim,
     borderColor: 'rgba(59,130,246,0.4)',
   },
-  dropBtnGreen: {
-    backgroundColor: 'rgba(34,197,94,0.1)',
-    borderColor: 'rgba(34,197,94,0.4)',
-  },
   dropBtnText: {
     fontSize: 11, fontWeight: '700',
     color: COLORS.textMuted, letterSpacing: 0.3, flex: 1,
@@ -612,9 +555,8 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.05)',
   },
-  dropItemActive:      { backgroundColor: COLORS.amberDim },
-  dropItemActiveBlue:  { backgroundColor: COLORS.blueDim  },
-  dropItemActiveGreen: { backgroundColor: 'rgba(34,197,94,0.08)' },
+  dropItemActive:     { backgroundColor: COLORS.amberDim },
+  dropItemActiveBlue: { backgroundColor: COLORS.blueDim  },
   dropItemText: { fontSize: 12, fontWeight: '600', color: COLORS.textSub },
   clearBtn: {
     backgroundColor: 'rgba(239,68,68,0.15)',

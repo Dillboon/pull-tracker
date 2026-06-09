@@ -13,15 +13,13 @@ const GROUP_OPTIONS = [
   { key: 'quad',   label: 'Quad',   step: 4 },
 ];
 
-export default function BulkImportModal({ visible, onClose, onImport, idfList, customTypeList = [] }) {
-  const [prefix,     setPrefix]     = useState('');
-  const [start,      setStart]      = useState('1');
-  const [end,        setEnd]        = useState('10');
-  const [padZeros,   setPadZeros]   = useState(true);
-  const [groupType,  setGroupType]  = useState('double');
-  const [idf,        setIdf]        = useState('');
-  const [rackNumber, setRackNumber] = useState('');
-  const [customType, setCustomType] = useState('');
+export default function BulkImportModal({ visible, onClose, onImport, idfList }) {
+  const [prefix,    setPrefix]    = useState('');
+  const [start,     setStart]     = useState('1');
+  const [end,       setEnd]       = useState('10');
+  const [padZeros,  setPadZeros]  = useState(true);
+  const [groupType, setGroupType] = useState('double');
+  const [idf,       setIdf]       = useState('');
 
   const padNum = (n, max) => {
     if (!padZeros) return String(n);
@@ -63,8 +61,6 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
       cableC:     item.ids[2] || '',
       cableD:     item.ids[3] || '',
       idf,
-      rackNumber: rackNumber.trim(),
-      customType: customType.trim(),
       roughPull:  false,
       terminated: false,
       tested:     false,
@@ -72,8 +68,6 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
       createdAt:  today(),
     }));
     onImport(drops);
-    setRackNumber('');
-    setCustomType('');
     onClose();
   };
 
@@ -96,7 +90,7 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true}>
+        <ScrollView contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
 
           {/* Range inputs */}
           <View style={st.section}>
@@ -226,49 +220,6 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
             </View>
           </View>
 
-          {/* Rack number — shown when an IDF is selected */}
-          {!!idf && (
-            <View style={st.section}>
-              <Text style={st.sectionTitle}>RACK NUMBER (optional)</Text>
-              <TextInput
-                value={rackNumber}
-                onChangeText={setRackNumber}
-                placeholder="e.g. 1, 2, A, B-3"
-                placeholderTextColor={COLORS.textDim}
-                style={st.input}
-                autoCapitalize="characters"
-              />
-            </View>
-          )}
-
-          {/* Custom drop type */}
-          <View style={st.section}>
-            <Text style={st.sectionTitle}>CUSTOM DROP TYPE (optional)</Text>
-            <TextInput
-              value={customType}
-              onChangeText={setCustomType}
-              placeholder="e.g. Card Reader, Camera, WAP"
-              placeholderTextColor={COLORS.textDim}
-              style={st.input}
-              autoCapitalize="words"
-            />
-            {customTypeList.length > 0 && (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                {customTypeList.map(type => (
-                  <TouchableOpacity
-                    key={type}
-                    onPress={() => setCustomType(customType === type ? '' : type)}
-                    style={[st.idfBtn, customType === type && st.idfBtnActive]}
-                  >
-                    <Text style={[st.idfBtnText, customType === type && { color: COLORS.amber }]}>
-                      {type}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-
           {/* Live preview */}
           {preview && rangeValid && (
             <View style={st.section}>
@@ -300,10 +251,7 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
                     <Text style={st.previewText}>
                       {item.ids.join(' ↔ ')}
                     </Text>
-                    {customType.trim() ? (
-                      <Text style={st.previewCustomType}>{customType.trim()}</Text>
-                    ) : null}
-                    {idf ? <Text style={st.previewIdf}>{idf}{rackNumber ? ` · R${rackNumber}` : ''}</Text> : null}
+                    {idf ? <Text style={st.previewIdf}>{idf}</Text> : null}
                   </View>
                 ))}
                 {preview.length > 8 && (
@@ -395,7 +343,6 @@ const st = StyleSheet.create({
   },
   previewText: { fontFamily: 'monospace', fontSize: 13, color: COLORS.text, flex: 1 },
   previewIdf:  { fontSize: 10, color: COLORS.amber, fontWeight: '700' },
-  previewCustomType: { fontSize: 10, color: '#94a3b8', fontWeight: '700' },
   previewMore: { fontSize: 11, color: COLORS.textMuted, textAlign: 'center', paddingVertical: 4 },
   groupPill: {
     backgroundColor: 'rgba(124,58,237,0.2)', borderWidth: 1,
