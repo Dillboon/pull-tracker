@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet,
-  TextInput, Modal, Image, Alert, Dimensions,
+  TextInput, Modal, Image, Alert, Dimensions, ScrollView
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -17,7 +17,18 @@ import { uid, today } from '../utils';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-export default function GalleryScreen({ folders, galleryImages, setFolders, setGalleryImages, showToast, deleteFolderWithImages }) {
+export default function GalleryScreen({ 
+  folders, 
+  galleryImages, 
+  setFolders, 
+  setGalleryImages, 
+  showToast, 
+  deleteFolderWithImages,
+  // ADDED: Destructured props needed for the group import feature
+  projects = [],
+  groups = [],
+  project
+}) {
   const [activeFolder,  setActiveFolder]  = useState(null);
   const [lightbox,      setLightbox]      = useState(null);
   const [newFolderModal,setNewFolderModal] = useState(false);
@@ -28,6 +39,63 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
   const [folderReorderMode, setFolderReorderMode] = useState(false);
   const [metaExpanded,   setMetaExpanded]   = useState(false);
   const renameInputRef = useRef(null);
+
+  // ── Import Feature State ──────────────────────────────────────────────────
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [selectedPeerProject, setSelectedPeerProject] = useState(null);
+  const [selectedFolders, setSelectedFolders] = useState({});
+
+  // ── Group Detection & Import Logic ────────────────────────────────────────
+  const currentGroup = groups?.find(g => g.id === project?.groupId);
+  const peerProjects = currentGroup
+    ? projects.filter(p => p.id !== project?.id && p.groupId === currentGroup.id)
+    : [];
+
+  const handleImport = () => {
+    if (!selectedPeerProject) return;
+
+    let updatedFolders = [...folders];
+    let updatedImages = [...galleryImages];
+    let importedFoldersCount = 0;
+    let importedImagesCount = 0;
+
+    (selectedPeerProject.folders || []).forEach(folder => {
+      if (selectedFolders[folder.id]) {
+        const newFolderId = uid();
+        updatedFolders.push({
+          ...folder,
+          id: newFolderId, // Generate unique ID so it doesn't tether to the original project
+        });
+        importedFoldersCount++;
+
+        const fImages = (selectedPeerProject.galleryImages || []).filter(img => img.folderId === folder.id);
+        fImages.forEach(img => {
+          updatedImages.push({
+            ...img,
+            id: uid(),
+            folderId: newFolderId,
+          });
+          importedImagesCount++;
+        });
+      }
+    });
+
+    if (importedFoldersCount === 0) {
+      showToast('No folders selected');
+      return;
+    }
+
+    setFolders(updatedFolders);
+    setGalleryImages(updatedImages);
+    setShowImportModal(false);
+    setSelectedPeerProject(null);
+    setSelectedFolders({});
+    showToast(`✓ Imported ${importedFoldersCount} folder(s) and ${importedImagesCount} photo(s)`);
+  };
+
+  const toggleFolderSelection = (folderId) => {
+    setSelectedFolders(prev => ({ ...prev, [folderId]: !prev[folderId] }));
+  };
 
   // ── Lightbox navigation helpers ───────────────────────────────────────────
   const resetGesture = () => {
@@ -217,8 +285,6 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
 
   const saveImageToDevice = async (img) => {
     try {
-      // Check existing permission first to avoid showing a system dialog
-      // over the lightbox Modal (which dismisses it on Android)
       let { status } = await MediaLibrary.getPermissionsAsync();
       if (status !== 'granted') {
         const result = await MediaLibrary.requestPermissionsAsync();
@@ -251,10 +317,22 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
         <View style={s.header}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={s.headerTitle}>Gallery</Text>
             <Text style={s.headerSub}>{folders.length} FOLDER{folders.length !== 1 ? 'S' : ''}</Text>
           </View>
+          
+          {/* Import Button: only visible if grouping matches peers and not reordering */}
+          {peerProjects.length > 0 && !folderReorderMode && (
+            <TouchableOpacity 
+              style={[s.headerBtn, { backgroundColor: 'rgba(124,58,237,0.15)', borderColor: 'rgba(124,58,237,0.4)', marginRight: 8 }]} 
+              onPress={() => setShowImportModal(true)} 
+              activeOpacity={0.8}
+            >
+              <Text style={[s.headerBtnText, { color: '#a78bfa' }]}>🔗 Import</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity style={s.headerBtn} onPress={() => setNewFolderModal(true)} activeOpacity={0.8}>
             <Text style={s.headerBtnText}>+ New Folder</Text>
           </TouchableOpacity>
@@ -349,6 +427,72 @@ export default function GalleryScreen({ folders, galleryImages, setFolders, setG
             );
           }}
         />
+
+        {/* ── Group Import Modal ── */}
+        <Modal 
+          visible={showImportModal} 
+          transparent 
+          animationType="fade" 
+          onRequestClose={() => { setShowImportModal(false); setSelectedPeerProject(null); setSelectedFolders({}); }}
+        >
+          <View style={s.modalOverlay}>
+            <View style={[s.modalBox, { maxHeight: '80%' }]}>
+              <Text style={s.modalTitle}>Import from Group</Text>
+
+              {!selectedPeerProject ? (
+                <>
+                  <Text style={s.modalHint}>Select a companion project to import folders from.</Text>
+                  <FlatList
+                    data={peerProjects}
+                    keyExtractor={p => p.id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity style={s.peerCard} onPress={() => setSelectedPeerProject(item)}>
+                        <Text style={s.peerCardName}>{item.name}</Text>
+                        <Text style={s.peerCardMeta}>{(item.folders || []).length} folders</Text>
+                      </TouchableOpacity>
+                    )}
+                  />
+                  <TouchableOpacity style={[s.modalBtn, s.modalCancel, { marginTop: 16 }]} onPress={() => setShowImportModal(false)}>
+                    <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>Cancel</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={s.modalHint}>Select folders to clone from {selectedPeerProject.name}.</Text>
+                  <ScrollView style={{ flexShrink: 1, marginVertical: 10 }}>
+                    {(selectedPeerProject.folders || []).length === 0 ? (
+                      <Text style={{ color: COLORS.textMuted, fontStyle: 'italic' }}>No folders available.</Text>
+                    ) : (
+                      selectedPeerProject.folders.map(f => {
+                        const isChecked = !!selectedFolders[f.id];
+                        const imgCount = (selectedPeerProject.galleryImages || []).filter(img => img.folderId === f.id).length;
+                        return (
+                          <TouchableOpacity key={f.id} style={[s.checkRow, isChecked && s.checkRowActive]} onPress={() => toggleFolderSelection(f.id)}>
+                            <View style={[s.checkBox, isChecked && s.checkBoxActive]}>
+                              {isChecked && <Text style={{ color: COLORS.bg, fontSize: 10, fontWeight: '800' }}>✓</Text>}
+                            </View>
+                            <View>
+                              <Text style={s.checkRowText}>{f.name}</Text>
+                              <Text style={{ fontSize: 10, color: COLORS.textMuted }}>{imgCount} photos</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })
+                    )}
+                  </ScrollView>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                    <TouchableOpacity style={[s.modalBtn, s.modalCancel]} onPress={() => { setSelectedPeerProject(null); setSelectedFolders({}); }}>
+                      <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>Back</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.modalBtn, s.modalCreate]} onPress={handleImport}>
+                      <Text style={{ color: '#fff', fontWeight: '800' }}>Import</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
 
         {/* Rename folder modal */}
         <Modal
@@ -847,4 +991,29 @@ const s = StyleSheet.create({
   modalBtn:     { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center' },
   modalCancel:  { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: COLORS.border },
   modalCreate:  { backgroundColor: COLORS.blue },
+
+  // ── Added Import Modal Styles ─────────────────────────────────────────────
+  peerCard: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 8, padding: 12, marginBottom: 8,
+  },
+  peerCardName: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
+  peerCardMeta: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
+  checkRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 12, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: 'rgba(255,255,255,0.02)', marginBottom: 8,
+  },
+  checkRowActive: {
+    borderColor: 'rgba(124,58,237,0.4)', backgroundColor: 'rgba(124,58,237,0.08)',
+  },
+  checkBox: {
+    width: 18, height: 18, borderRadius: 4, borderWidth: 1.5,
+    borderColor: COLORS.textMuted, alignItems: 'center', justifyContent: 'center',
+  },
+  checkBoxActive: {
+    backgroundColor: '#a78bfa', borderColor: '#a78bfa',
+  },
+  checkRowText: { color: COLORS.text, fontSize: 14, fontWeight: '600' },
 });
