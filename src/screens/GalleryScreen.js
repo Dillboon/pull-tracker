@@ -1,850 +1,483 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, FlatList, StyleSheet,
-  TextInput, Modal, Image, Alert, Dimensions,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  Image,
+  FlatList,
+  Alert
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from 'react-native-reanimated';
-import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { COLORS } from '../theme';
-import { uid, today } from '../utils';
+import { uid } from '../utils';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+export default function GalleryScreen({
+  project,
+  folders,
+  galleryImages,
+  setFolders,
+  setGalleryImages,
+  deleteFolderWithImages,
+  projects,
+  groups,
+  showToast
+}) {
+  const [activeFolder, setActiveFolder] = useState(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [selectedPeerProject, setSelectedPeerProject] = useState(null);
+  const [selectedFolders, setSelectedFolders] = useState({});
+  const [selectedImages, setSelectedImages] = useState({});
 
-export default function GalleryScreen({ folders, galleryImages, setFolders, setGalleryImages, showToast, deleteFolderWithImages }) {
-  const [activeFolder,  setActiveFolder]  = useState(null);
-  const [lightbox,      setLightbox]      = useState(null);
-  const [newFolderModal,setNewFolderModal] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [editingNotes,  setEditingNotes]  = useState(null); // { imageId, notes }
-  const [renamingFolder, setRenamingFolder] = useState(null); // { id, name }
-  const [reorderMode,    setReorderMode]    = useState(false);
-  const [folderReorderMode, setFolderReorderMode] = useState(false);
-  const [metaExpanded,   setMetaExpanded]   = useState(false);
-  const renameInputRef = useRef(null);
-
-  // ── Lightbox navigation helpers ───────────────────────────────────────────
-  const resetGesture = () => {
-    scale.value = 1;
-    translateX.value = 0;
-    translateY.value = 0;
-  };
-
-  const folderImages = activeFolder
-    ? galleryImages.filter(i => i.folderId === activeFolder.id)
-    : [];
-
-  const lightboxIndex = lightbox
-    ? folderImages.findIndex(i => i.id === lightbox.id)
-    : -1;
-
-  const goToImage = (img) => {
-    resetGesture();
-    setMetaExpanded(false);
-    setLightbox(img);
-  };
-
-  // ── Image reorder ─────────────────────────────────────────────────────────
-  const moveImage = (imageId, direction) => {
-    const ids = folderImages.map(i => i.id);
-    const idx = ids.indexOf(imageId);
-    const newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= ids.length) return;
-    // Swap in the full galleryImages array
-    const next = [...galleryImages];
-    const aPos = next.findIndex(i => i.id === ids[idx]);
-    const bPos = next.findIndex(i => i.id === ids[newIdx]);
-    [next[aPos], next[bPos]] = [next[bPos], next[aPos]];
-    setGalleryImages(next);
-  };
-
-  // ── Folder reorder ────────────────────────────────────────────────────────
-  const moveFolder = (folderId, direction) => {
-    const idx = folders.findIndex(f => f.id === folderId);
-    const newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= folders.length) return;
-    const next = [...folders];
-    [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
-    setFolders(next);
-  };
-
-  // ── Reanimated Shared Values for Gestures ─────────────────────────────────
-  const scale = useSharedValue(1);
-  const baseScale = useSharedValue(1);
-  const initialFocal = useSharedValue({ x: 0, y: 0 });
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const context = useSharedValue({ x: 0, y: 0 });
-
-  const pinchGesture = Gesture.Pinch()
-    .onStart((event) => {
-      baseScale.value = scale.value;
-      initialFocal.value = { x: event.focalX, y: event.focalY };
-    })
-    .onUpdate((event) => {
-      scale.value = baseScale.value * event.scale;
-    })
-    .onEnd(() => {
-      if (scale.value < 1) {
-        scale.value = withSpring(1);
-      } else if (scale.value > 4) {
-        scale.value = withSpring(4);
-      }
-    });
-
-  const panGesture = Gesture.Pan()
-    .onStart(() => {
-      context.value = { x: translateX.value, y: translateY.value };
-    })
-    .onUpdate((event) => {
-      if (scale.value > 1) {
-        translateX.value = context.value.x + event.translationX;
-        translateY.value = context.value.y + event.translationY;
-      }
-    });
-
-  const doubleTapGesture = Gesture.Tap()
-    .numberOfTaps(2)
-    .onEnd(() => {
-      scale.value = withSpring(1);
-      translateX.value = withSpring(0);
-      translateY.value = withSpring(0);
-    });
-
-  const combinedGesture = Gesture.Race(
-    Gesture.Simultaneous(pinchGesture, panGesture),
-    doubleTapGesture
+  // ── Find Group and Companion Peer Projects ────────────────────────────────
+  const currentGroup = groups?.find(g => 
+    g.projectIds?.includes(project.id) || project.groupId === g.id
   );
 
-  const animatedImageStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
-  }));
+  const peerProjects = currentGroup
+    ? projects.filter(p => p.id !== project.id && (currentGroup.projectIds?.includes(p.id) || p.groupId === currentGroup.id))
+    : [];
 
-  // ── Folder CRUD ───────────────────────────────────────────────────────────
-  const createFolder = () => {
-    const name = newFolderName.trim();
-    if (!name) return;
-    if (folders.some(f => f.name.toLowerCase() === name.toLowerCase())) {
-      Alert.alert('Name taken', 'A folder with that name already exists.');
-      return;
-    }
-    setFolders([...folders, { id: uid(), name, createdAt: today() }]);
-    setNewFolderName('');
-    setNewFolderModal(false);
-    showToast('📁 Folder created');
+  const resetImportState = () => {
+    setSelectedPeerProject(null);
+    setSelectedFolders({});
+    setSelectedImages({});
   };
 
-  const deleteFolder = (folderId) => {
-    const count = galleryImages.filter(i => i.folderId === folderId).length;
-    Alert.alert(
-      'Delete Folder',
-      `Delete this folder and its ${count} photo${count !== 1 ? 's' : ''}? Cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => {
-          deleteFolderWithImages(folderId);
-          setActiveFolder(null);
-          showToast('Folder deleted');
-        }},
-      ]
-    );
+  const toggleFolderSelection = (folderId) => {
+    setSelectedFolders(prev => ({ ...prev, [folderId]: !prev[folderId] }));
   };
 
-  const renameFolder = (folderId, currentName) => {
-    setRenamingFolder({ id: folderId, name: currentName });
+  const toggleImageSelection = (imageId) => {
+    setSelectedImages(prev => ({ ...prev, [imageId]: !prev[imageId] }));
   };
 
-  const submitRename = () => {
-    const trimmed = renamingFolder?.name?.trim();
-    if (!trimmed) { setRenamingFolder(null); return; }
-    if (folders.some(f => f.id !== renamingFolder.id && f.name.toLowerCase() === trimmed.toLowerCase())) {
-      Alert.alert('Name taken', 'Another folder already has that name.');
-      return;
-    }
-    setFolders(folders.map(f => f.id === renamingFolder.id ? { ...f, name: trimmed } : f));
-    setActiveFolder(prev => prev?.id === renamingFolder.id ? { ...prev, name: trimmed } : prev);
-    setRenamingFolder(null);
-  };
+  // ── Import Execution Core Logic ───────────────────────────────────────────
+  const handleImport = () => {
+    if (!selectedPeerProject) return;
 
-  // ── Image CRUD ────────────────────────────────────────────────────────────
-  const pickImages = async (folderId) => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission needed', 'Allow photo library access in your device Settings.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      quality: 0.85,
+    let updatedFolders = [...folders];
+    let updatedImages = [...galleryImages];
+    let importedFoldersCount = 0;
+    let importedImagesCount = 0;
+
+    // 1. Process and clone selected folders + their nested images
+    selectedPeerProject.folders?.forEach(folder => {
+      if (selectedFolders[folder.id]) {
+        const newFolderId = uid();
+        updatedFolders.push({
+          ...folder,
+          id: newFolderId, // Generate new unique ID to avoid cross-project mutations
+        });
+        importedFoldersCount++;
+
+        // Find all images matching this old folder and map them to the new folder ID
+        const folderImages = (selectedPeerProject.galleryImages ?? []).filter(
+          img => img.folderId === folder.id
+        );
+        folderImages.forEach(img => {
+          updatedImages.push({
+            ...img,
+            id: uid(),
+            folderId: newFolderId,
+          });
+          importedImagesCount++;
+        });
+      }
     });
-    if (result.canceled) return;
 
-    try {
-      const added = await Promise.all(result.assets.map(async (asset) => {
-        const filename = `gallery-${uid()}.jpg`;
-        const dest = FileSystem.documentDirectory + filename;
-        await FileSystem.copyAsync({ from: asset.uri, to: dest });
-        return {
-          id:        uid(),
-          folderId,
-          uri:       dest,
-          name:      asset.fileName?.replace(/\.[^.]+$/, '') || `Photo ${today()}`,
-          notes:     '',
-          createdAt: today(),
-        };
-      }));
-      setGalleryImages([...galleryImages, ...added]);
-      showToast(`📷 ${added.length} photo${added.length !== 1 ? 's' : ''} added`);
-    } catch (e) {
-      showToast('Failed to save photos', 'error');
-    }
-  };
-
-  const updateNotes = (imageId, notes) => {
-    setGalleryImages(galleryImages.map(i => i.id === imageId ? { ...i, notes } : i));
-  };
-
-  const saveImageToDevice = async (img) => {
-    try {
-      // Check existing permission first to avoid showing a system dialog
-      // over the lightbox Modal (which dismisses it on Android)
-      let { status } = await MediaLibrary.getPermissionsAsync();
-      if (status !== 'granted') {
-        const result = await MediaLibrary.requestPermissionsAsync();
-        status = result.status;
+    // 2. Process individually selected loose/unassigned images
+    selectedPeerProject.galleryImages?.forEach(img => {
+      if (selectedImages[img.id]) {
+        updatedImages.push({
+          ...img,
+          id: uid(),
+          // Import to the root or inside the folder currently open
+          folderId: activeFolder ? activeFolder.id : null, 
+        });
+        importedImagesCount++;
       }
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Allow media library access in your device Settings to save photos.');
-        return;
-      }
-      await MediaLibrary.createAssetAsync(img.uri);
-      showToast('📥 Photo saved to device');
-    } catch (e) {
-      showToast('Failed to save photo', 'error');
+    });
+
+    if (importedFoldersCount === 0 && importedImagesCount === 0) {
+      showToast('No items selected', 'info');
+      return;
     }
+
+    // Persist changes back up to state
+    setFolders(updatedFolders);
+    setGalleryImages(updatedImages);
+    setShowImportModal(false);
+    resetImportState();
+    showToast(`✓ Imported ${importedFoldersCount} folders and ${importedImagesCount} files`);
   };
 
-  const deleteImage = (imageId) => {
-    Alert.alert('Delete Photo', 'Remove this photo permanently?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => {
-        setGalleryImages(galleryImages.filter(i => i.id !== imageId));
-        setLightbox(null);
-        showToast('Photo deleted');
-      }},
-    ]);
-  };
-
-  // ── Folder list (root view) ───────────────────────────────────────────────
-  if (!activeFolder) {
-    return (
-      <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-        <View style={s.header}>
-          <View>
-            <Text style={s.headerTitle}>Gallery</Text>
-            <Text style={s.headerSub}>{folders.length} FOLDER{folders.length !== 1 ? 'S' : ''}</Text>
-          </View>
-          <TouchableOpacity style={s.headerBtn} onPress={() => setNewFolderModal(true)} activeOpacity={0.8}>
-            <Text style={s.headerBtnText}>+ New Folder</Text>
-          </TouchableOpacity>
-          {folderReorderMode && (
-            <TouchableOpacity
-              style={[s.headerBtn, { backgroundColor: 'rgba(34,197,94,0.15)', borderColor: 'rgba(34,197,94,0.4)' }]}
-              onPress={() => setFolderReorderMode(false)}
-              activeOpacity={0.8}>
-              <Text style={{ color: COLORS.green, fontWeight: '800', fontSize: 15 }}>✓</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <FlatList
-          data={folders}
-          keyExtractor={f => f.id}
-          contentContainerStyle={{ padding: 14, paddingBottom: 40, gap: 10 }}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Text style={{ fontSize: 48 }}>🗂</Text>
-              <Text style={s.emptyTitle}>No folders yet</Text>
-              <Text style={s.emptyHint}>Organize job photos by area, room, or purpose</Text>
-              <TouchableOpacity style={s.emptyBtn} onPress={() => setNewFolderModal(true)}>
-                <Text style={s.emptyBtnText}>+ Create Folder</Text>
-              </TouchableOpacity>
-            </View>
-          }
-          renderItem={({ item: folder, index }) => {
-            const imgs   = galleryImages.filter(i => i.folderId === folder.id);
-            const latest = imgs.slice(-3).reverse();
-            return (
-              <TouchableOpacity
-                style={[s.folderCard, folderReorderMode && s.imageRowReordering]}
-                onPress={() => { if (folderReorderMode) return; setActiveFolder(folder); }}
-                onLongPress={() => setFolderReorderMode(true)}
-                delayLongPress={400}
-                activeOpacity={folderReorderMode ? 1 : 0.75}
-              >
-                {/* Stacked thumbnail preview */}
-                <View style={s.thumbStack}>
-                  {imgs.length === 0 ? (
-                    <View style={s.thumbEmpty}><Text style={{ fontSize: 26 }}>📁</Text></View>
-                  ) : (
-                    latest.map((img, idx) => (
-                      <Image
-                        key={img.id}
-                        source={{ uri: img.uri }}
-                        style={[s.stackThumb, {
-                          marginLeft: idx === 0 ? 0 : -22,
-                          zIndex: latest.length - idx,
-                          opacity: idx === 0 ? 1 : idx === 1 ? 0.75 : 0.5,
-                        }]}
-                      />
-                    ))
-                  )}
-                </View>
-
-                {/* Folder info */}
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={s.folderName} numberOfLines={1}>{folder.name}</Text>
-                  <Text style={s.folderMeta}>
-                    {imgs.length} photo{imgs.length !== 1 ? 's' : ''}  ·  Created {folder.createdAt}
-                  </Text>
-                  {imgs.length > 0 && imgs[imgs.length - 1].notes ? (
-                    <Text style={s.folderLatestNote} numberOfLines={1}>
-                      Latest: {imgs[imgs.length - 1].notes}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {folderReorderMode ? (
-                  <View style={s.reorderBtns}>
-                    <TouchableOpacity
-                      style={[s.reorderBtn, index === 0 && s.reorderBtnDisabled]}
-                      onPress={() => moveFolder(folder.id, -1)}
-                      disabled={index === 0}
-                    >
-                      <Text style={[s.reorderBtnText, index === 0 && { opacity: 0.25 }]}>↑</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[s.reorderBtn, index === folders.length - 1 && s.reorderBtnDisabled]}
-                      onPress={() => moveFolder(folder.id, 1)}
-                      disabled={index === folders.length - 1}
-                    >
-                      <Text style={[s.reorderBtnText, index === folders.length - 1 && { opacity: 0.25 }]}>↓</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <Text style={{ color: COLORS.textMuted, fontSize: 20, paddingLeft: 4 }}>›</Text>
-                )}
-              </TouchableOpacity>
-            );
-          }}
-        />
-
-        {/* Rename folder modal */}
-        <Modal
-          visible={!!renamingFolder}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setRenamingFolder(null)}
-          onShow={() => renameInputRef.current?.focus()}
-        >
-          <View style={s.modalOverlay}>
-            <View style={s.modalBox}>
-              <Text style={s.modalTitle}>Rename Folder</Text>
-              <TextInput
-                ref={renameInputRef}
-                value={renamingFolder?.name ?? ''}
-                onChangeText={t => setRenamingFolder(prev => ({ ...prev, name: t }))}
-                placeholder="Folder name"
-                placeholderTextColor={COLORS.textDim}
-                style={s.modalInput}
-                returnKeyType="done"
-                onSubmitEditing={submitRename}
-              />
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-                <TouchableOpacity style={[s.modalBtn, s.modalCancel]} onPress={() => setRenamingFolder(null)}>
-                  <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.modalBtn, s.modalCreate, !renamingFolder?.name?.trim() && { opacity: 0.4 }]}
-                  disabled={!renamingFolder?.name?.trim()}
-                  onPress={submitRename}>
-                  <Text style={{ color: '#fff', fontWeight: '800' }}>Save</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        {/* New folder modal */}
-        <Modal visible={newFolderModal} transparent animationType="fade" onRequestClose={() => setNewFolderModal(false)}>
-          <View style={s.modalOverlay}>
-            <View style={s.modalBox}>
-              <Text style={s.modalTitle}>New Folder</Text>
-              <Text style={s.modalHint}>Name by area, floor, panel, or purpose.</Text>
-              <TextInput
-                value={newFolderName}
-                onChangeText={setNewFolderName}
-                placeholder="e.g. Panel Room, Floor 2, Roof"
-                placeholderTextColor={COLORS.textDim}
-                style={s.modalInput}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={createFolder}
-              />
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-                <TouchableOpacity style={[s.modalBtn, s.modalCancel]}
-                  onPress={() => { setNewFolderModal(false); setNewFolderName(''); }}>
-                  <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.modalBtn, s.modalCreate, !newFolderName.trim() && { opacity: 0.4 }]}
-                  onPress={createFolder} disabled={!newFolderName.trim()}>
-                  <Text style={{ color: '#fff', fontWeight: '800' }}>Create</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      </View>
-    );
-  }
-
-  // ── Inside a folder ───────────────────────────────────────────────────────
+  // Current view images filter
+  const currentImages = galleryImages.filter(img => 
+    activeFolder ? img.folderId === activeFolder.id : !img.folderId
+  );
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      {/* Folder header */}
-      <View style={s.header}>
-        <TouchableOpacity onPress={() => { setActiveFolder(null); setReorderMode(false); }} style={s.backBtn} activeOpacity={0.7}>
-          <Text style={s.backArrow}>←</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={{ flex: 1 }} onPress={() => renameFolder(activeFolder.id, activeFolder.name)}>
-          <Text style={s.headerTitle} numberOfLines={1}>{activeFolder.name}</Text>
-          <Text style={s.headerSub}>{folderImages.length} PHOTO{folderImages.length !== 1 ? 'S' : ''}  ·  TAP TO RENAME</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.headerBtn, { backgroundColor: COLORS.redDim, borderColor: 'rgba(239,68,68,0.3)' }]}
-          onPress={() => deleteFolder(activeFolder.id)}>
-          <Text style={{ color: COLORS.red, fontWeight: '700', fontSize: 13 }}>🗑</Text>
-        </TouchableOpacity>
-        {reorderMode ? (
-          <TouchableOpacity
-            style={[s.headerBtn, { backgroundColor: 'rgba(34,197,94,0.15)', borderColor: 'rgba(34,197,94,0.4)' }]}
-            onPress={() => setReorderMode(false)}
-            activeOpacity={0.8}>
-            <Text style={{ color: COLORS.green, fontWeight: '800', fontSize: 15 }}>✓</Text>
+    <View style={st.container}>
+      {/* ── Gallery Action Header ── */}
+      <View style={st.actionBar}>
+        {activeFolder ? (
+          <TouchableOpacity style={st.backBtn} onPress={() => setActiveFolder(null)}>
+            <Text style={st.backText}>← Back to Folders</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={s.headerBtn} onPress={() => pickImages(activeFolder.id)} activeOpacity={0.8}>
-            <Text style={s.headerBtnText}>+ Photo</Text>
+          <Text style={st.sectionTitle}>PROJECT BLUEPRINTS & GALLERIES</Text>
+        )}
+
+        {/* Display action button only at root view if project has group companions */}
+        {!activeFolder && peerProjects.length > 0 && (
+          <TouchableOpacity 
+            style={st.importGroupBtn} 
+            onPress={() => setShowImportModal(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={st.importGroupBtnText}>🔗 Import From Group</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <FlatList
-        data={folderImages}
-        keyExtractor={i => i.id}
-        contentContainerStyle={{ padding: 12, paddingBottom: 40, gap: 10 }}
-        ListEmptyComponent={
-          <View style={s.empty}>
-            <Text style={{ fontSize: 44 }}>📷</Text>
-            <Text style={s.emptyTitle}>No photos yet</Text>
-            <Text style={s.emptyHint}>Tap "+ Photo" to add from your library</Text>
+      {/* ── Main Workspace Scroll Content ── */}
+      <ScrollView style={st.scrollContainer} contentContainerStyle={st.scrollContent}>
+        {activeFolder ? (
+          <View>
+            <Text style={st.folderHeaderTitle}>📁 {activeFolder.name}</Text>
+            {currentImages.length === 0 ? (
+              <Text style={st.emptyText}>No blueprint designs inside this folder.</Text>
+            ) : (
+              <View style={st.imageGrid}>
+                {currentImages.map(img => (
+                  <View key={img.id} style={st.imageCard}>
+                    <Image source={{ uri: img.uri }} style={st.blueprintImage} resizeMode="cover" />
+                    {img.name && <Text style={st.imageName} numberOfLines={1}>{img.name}</Text>}
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
-        }
-        renderItem={({ item: img, index }) => (
-          <TouchableOpacity
-            style={[s.imageRow, reorderMode && s.imageRowReordering]}
-            onPress={() => {
-              if (reorderMode) return;
-              resetGesture();
-              setLightbox(img);
-            }}
-            onLongPress={() => setReorderMode(true)}
-            delayLongPress={400}
-            activeOpacity={reorderMode ? 1 : 0.8}
-          >
-            <Image source={{ uri: img.uri }} style={s.rowThumb} />
-            <View style={{ flex: 1, gap: 3 }}>
-              <Text style={s.imageName} numberOfLines={1}>{img.name}</Text>
-              <Text style={s.imageDate}>{img.createdAt}</Text>
-              {img.notes ? (
-                <Text style={s.imageNotes} numberOfLines={3}>{img.notes}</Text>
-              ) : (
-                !reorderMode && (
-                  <TouchableOpacity onPress={() => setEditingNotes({ imageId: img.id, notes: '' })}>
-                    <Text style={s.addNotesBtn}>+ Add notes</Text>
-                  </TouchableOpacity>
-                )
-              )}
+        ) : (
+          <View>
+            {folders.length === 0 && (
+              <Text style={st.emptyText}>No folders created yet. Add folders or utilize group syncing.</Text>
+            )}
+            
+            {folders.length > 0 && (
+              <View style={st.folderList}>
+                {folders.map(f => {
+                  const count = galleryImages.filter(img => img.folderId === f.id).length;
+                  return (
+                    <TouchableOpacity 
+                      key={f.id} 
+                      style={st.folderCard} 
+                      onPress={() => setActiveFolder(f)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={st.folderIconInfo}>
+                        <Text style={st.folderIcon}>📁</Text>
+                        <View>
+                          <Text style={st.folderName}>{f.name}</Text>
+                          <Text style={st.folderMeta}>{count} sheet{count !== 1 ? 's' : ''}</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity 
+                        style={st.deleteBtn} 
+                        onPress={() => {
+                          Alert.alert(
+                            "Delete Folder",
+                            `Delete "${f.name}" and all internal documents?`,
+                            [
+                              { text: "Cancel", style: "cancel" },
+                              { text: "Delete", style: "destructive", onPress: () => deleteFolderWithImages(f.id) }
+                            ]
+                          );
+                        }}
+                      >
+                        <Text style={st.deleteBtnText}>✕</Text>
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Root/Unassigned Blueprints */}
+            {currentImages.length > 0 && (
+              <View style={{ marginTop: 24 }}>
+                <Text style={st.sectionTitle}>UNASSIGNED FILES</Text>
+                <View style={st.imageGrid}>
+                  {currentImages.map(img => (
+                    <View key={img.id} style={st.imageCard}>
+                      <Image source={{ uri: img.uri }} style={st.blueprintImage} resizeMode="cover" />
+                      {img.name && <Text style={st.imageName} numberOfLines={1}>{img.name}</Text>}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* ── Import From Group Context Modal ── */}
+      <Modal 
+        visible={showImportModal} 
+        transparent 
+        animationType="slide" 
+        onRequestClose={() => { setShowImportModal(false); resetImportState(); }}
+      >
+        <View style={st.modalOverlay}>
+          <View style={st.modalBox}>
+            <View style={st.modalHeader}>
+              <Text style={st.modalTitle}>IMPORT FROM: {currentGroup?.name?.toUpperCase() || 'SHARED GROUP'}</Text>
+              <TouchableOpacity onPress={() => { setShowImportModal(false); resetImportState(); }}>
+                <Text style={st.closeModalX}>✕</Text>
+              </TouchableOpacity>
             </View>
-            {reorderMode ? (
-              <View style={s.reorderBtns}>
-                <TouchableOpacity
-                  style={[s.reorderBtn, index === 0 && s.reorderBtnDisabled]}
-                  onPress={() => moveImage(img.id, -1)}
-                  disabled={index === 0}
-                >
-                  <Text style={[s.reorderBtnText, index === 0 && { opacity: 0.25 }]}>↑</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.reorderBtn, index === folderImages.length - 1 && s.reorderBtnDisabled]}
-                  onPress={() => moveImage(img.id, 1)}
-                  disabled={index === folderImages.length - 1}
-                >
-                  <Text style={[s.reorderBtnText, index === folderImages.length - 1 && { opacity: 0.25 }]}>↓</Text>
-                </TouchableOpacity>
+
+            {!selectedPeerProject ? (
+              /* STEP 1: Choose Peer Project */
+              <View style={{ flex: 1 }}>
+                <Text style={st.modalSubtitle}>Select a project group member to source blueprints from:</Text>
+                <FlatList
+                  data={peerProjects}
+                  keyExtractor={item => item.id}
+                  renderItem={({ item }) => {
+                    const fCount = item.folders?.length || 0;
+                    const iCount = item.galleryImages?.length || 0;
+                    return (
+                      <TouchableOpacity 
+                        style={st.projectSelectCard} 
+                        onPress={() => setSelectedPeerProject(item)}
+                      >
+                        <View>
+                          <Text style={st.projectSelectName}>{item.name}</Text>
+                          <Text style={st.projectSelectMeta}>{fCount} folders · {iCount} documents</Text>
+                        </View>
+                        <Text style={st.arrowRight}>→</Text>
+                      </TouchableOpacity>
+                    );
+                  }}
+                  ListEmptyComponent={<Text style={st.emptyText}>No other companion projects in this group.</Text>}
+                />
               </View>
             ) : (
-              <TouchableOpacity
-                style={s.editNotesBtn}
-                onPress={() => setEditingNotes({ imageId: img.id, notes: img.notes })}>
-                <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>✏</Text>
-              </TouchableOpacity>
-            )}
-          </TouchableOpacity>
-        )}
-      />
+              /* STEP 2: Pick items from chosen project */
+              <View style={{ flex: 1 }}>
+                <TouchableOpacity style={st.backToProjectsBtn} onPress={() => resetImportState()}>
+                  <Text style={st.backToProjectsText}>← Change Sourcing Project</Text>
+                </TouchableOpacity>
 
-      {/* Rename folder modal (also needed here — modal lives in component state,
-          not tied to which branch is active) */}
-      <Modal
-        visible={!!renamingFolder}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRenamingFolder(null)}
-        onShow={() => renameInputRef.current?.focus()}
-      >
-        <View style={s.modalOverlay}>
-          <View style={s.modalBox}>
-            <Text style={s.modalTitle}>Rename Folder</Text>
-            <TextInput
-              ref={renameInputRef}
-              value={renamingFolder?.name ?? ''}
-              onChangeText={t => setRenamingFolder(prev => ({ ...prev, name: t }))}
-              placeholder="Folder name"
-              placeholderTextColor={COLORS.textDim}
-              style={s.modalInput}
-              returnKeyType="done"
-              onSubmitEditing={submitRename}
-            />
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-              <TouchableOpacity style={[s.modalBtn, s.modalCancel]} onPress={() => setRenamingFolder(null)}>
-                <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.modalBtn, s.modalCreate, !renamingFolder?.name?.trim() && { opacity: 0.4 }]}
-                disabled={!renamingFolder?.name?.trim()}
-                onPress={submitRename}>
-                <Text style={{ color: '#fff', fontWeight: '800' }}>Save</Text>
-              </TouchableOpacity>
-            </View>
+                <Text style={st.browsingTitle}>Sourcing: <Text style={{ color: COLORS.text }}>{selectedPeerProject.name}</Text></Text>
+                
+                <ScrollView style={{ flex: 1, marginTop: 10 }}>
+                  {/* Folders List Selection */}
+                  <Text style={st.modalSectionHeading}>FOLDERS (Copies folder & all internal sheets)</Text>
+                  {(selectedPeerProject.folders || []).length === 0 ? (
+                    <Text style={st.modalEmptyText}>No folders available inside this project.</Text>
+                  ) : (
+                    selectedPeerProject.folders.map(f => {
+                      const imgCount = (selectedPeerProject.galleryImages || []).filter(img => img.folderId === f.id).length;
+                      const isChecked = !!selectedFolders[f.id];
+                      return (
+                        <TouchableOpacity 
+                          key={f.id} 
+                          style={[st.checkboxRow, isChecked && st.checkboxRowActive]} 
+                          onPress={() => toggleFolderSelection(f.id)}
+                        >
+                          <View style={st.checkbox}>
+                            {isChecked && <View style={st.checkboxChecked} />}
+                          </View>
+                          <Text style={st.checkboxLabel}>📁 {f.name} ({imgCount} images)</Text>
+                        </TouchableOpacity>
+                      );
+                    })
+                  )}
+
+                  {/* Loose Images Selection */}
+                  <Text style={[st.modalSectionHeading, { marginTop: 18 }]}>LOOSE / SINGLE BLUEPRINTS</Text>
+                  {(() => {
+                    const looseImages = (selectedPeerProject.galleryImages || []).filter(img => !img.folderId);
+                    if (looseImages.length === 0) {
+                      return <Text style={st.modalEmptyText}>No unassigned blueprints available.</Text>;
+                    }
+                    return looseImages.map(img => {
+                      const isChecked = !!selectedImages[img.id];
+                      return (
+                        <TouchableOpacity 
+                          key={img.id} 
+                          style={[st.checkboxRow, isChecked && st.checkboxRowActive]} 
+                          onPress={() => toggleImageSelection(img.id)}
+                        >
+                          <View style={st.checkbox}>
+                            {isChecked && <View style={st.checkboxChecked} />}
+                          </View>
+                          <Image source={{ uri: img.uri }} style={st.thumbnail} />
+                          <Text style={st.checkboxLabel} numberOfLines={1}>
+                            {img.name || 'Blueprint Layout Sheet'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    });
+                  })()}
+                </ScrollView>
+
+                {/* Footer Modal Controls */}
+                <View style={st.modalActions}>
+                  <TouchableOpacity 
+                    style={[st.modalBtn, st.modalBtnCancel]} 
+                    onPress={() => { setShowImportModal(false); resetImportState(); }}
+                  >
+                    <Text style={st.modalBtnCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[st.modalBtn, st.modalBtnSave]} 
+                    onPress={handleImport}
+                  >
+                    <Text style={st.modalBtnSaveText}>Import Selected</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
-
-      {/* Edit notes modal */}
-      {editingNotes && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setEditingNotes(null)}>
-          <View style={s.modalOverlay}>
-            <View style={s.modalBox}>
-              <Text style={s.modalTitle}>Photo Notes</Text>
-              <Text style={s.modalHint}>Location, what's shown, issues, panel info…</Text>
-              <TextInput
-                value={editingNotes.notes}
-                onChangeText={t => setEditingNotes({ ...editingNotes, notes: t })}
-                placeholder="e.g. North wall panel, circuits 1-20"
-                placeholderTextColor={COLORS.textDim}
-                style={[s.modalInput, { minHeight: 90, textAlignVertical: 'top' }]}
-                multiline
-                autoFocus
-              />
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-                <TouchableOpacity style={[s.modalBtn, s.modalCancel]} onPress={() => setEditingNotes(null)}>
-                  <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.modalBtn, s.modalCreate]}
-                  onPress={() => { updateNotes(editingNotes.imageId, editingNotes.notes); setEditingNotes(null); }}>
-                  <Text style={{ color: '#fff', fontWeight: '800' }}>Save</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* Lightbox */}
-      {lightbox && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => {
-          resetGesture();
-          setMetaExpanded(false);
-          setLightbox(null);
-        }}>
-          {/*
-            Android renders Modal in a separate native window, completely outside
-            the app's GestureHandlerRootView. Without this second root, the
-            GestureDetector has nothing to attach to and silently ignores all touches.
-          */}
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <View style={s.lightbox}>
-
-              {/* ── Gesture zone: image only ──────────────────────────────── */}
-              <GestureDetector gesture={combinedGesture}>
-                <Animated.View style={s.imageCenterContainer}>
-                  <Animated.Image
-                    source={{ uri: lightbox.uri }}
-                    style={[s.lightboxImage, animatedImageStyle]}
-                    resizeMode="contain"
-                  />
-                </Animated.View>
-              </GestureDetector>
-
-              {/* ── Close button (outside GestureDetector — no touch conflicts) */}
-              <TouchableOpacity
-                style={s.lightboxClose}
-                onPress={() => {
-                  resetGesture();
-                  setMetaExpanded(false);
-                  setLightbox(null);
-                }}
-              >
-                <Text style={s.lightboxCloseText}>✕</Text>
-              </TouchableOpacity>
-
-              {/* ── Meta panel — collapsed shows only nav, expanded shows full detail */}
-              <View style={s.lightboxMeta}>
-
-                {/* Nav row — always visible */}
-                <View style={s.lightboxNavRow}>
-                  <TouchableOpacity
-                    style={[s.lightboxNavBtn, lightboxIndex === 0 && s.lightboxNavBtnDisabled]}
-                    onPress={() => lightboxIndex > 0 && goToImage(folderImages[lightboxIndex - 1])}
-                    disabled={lightboxIndex === 0}
-                  >
-                    <Text style={[s.lightboxNavText, lightboxIndex === 0 && { opacity: 0.25 }]}>←</Text>
-                  </TouchableOpacity>
-
-                  {/* Tap centre to expand/collapse */}
-                  <TouchableOpacity
-                    style={s.lightboxNavCenter}
-                    onPress={() => setMetaExpanded(v => !v)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={s.lightboxCounter}>
-                      {lightboxIndex + 1} / {folderImages.length}
-                    </Text>
-                    <Text style={s.lightboxExpandChevron}>{metaExpanded ? '▾' : '▴'}</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[s.lightboxNavBtn, lightboxIndex === folderImages.length - 1 && s.lightboxNavBtnDisabled]}
-                    onPress={() => lightboxIndex < folderImages.length - 1 && goToImage(folderImages[lightboxIndex + 1])}
-                    disabled={lightboxIndex === folderImages.length - 1}
-                  >
-                    <Text style={[s.lightboxNavText, lightboxIndex === folderImages.length - 1 && { opacity: 0.25 }]}>→</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Expanded detail */}
-                {metaExpanded && (
-                  <View style={s.lightboxDetail}>
-                    <Text style={s.lightboxName}>{lightbox.name}</Text>
-                    <Text style={s.lightboxDate}>{lightbox.createdAt}</Text>
-                    {lightbox.notes ? (
-                      <Text style={s.lightboxNotes}>{lightbox.notes}</Text>
-                    ) : (
-                      <Text style={{ color: COLORS.textMuted, fontSize: 12, fontStyle: 'italic' }}>No notes</Text>
-                    )}
-                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                      <TouchableOpacity
-                        style={[s.modalBtn, s.lbEditBtn]}
-                        onPress={() => {
-                          setEditingNotes({ imageId: lightbox.id, notes: lightbox.notes });
-                          setMetaExpanded(false);
-                          setLightbox(null);
-                        }}>
-                        <Text style={{ color: COLORS.amber, fontWeight: '700' }}>✏  Edit Notes</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[s.modalBtn, s.lbSaveBtn]}
-                        onPress={() => saveImageToDevice(lightbox)}>
-                        <Text style={{ color: COLORS.blue, fontWeight: '700' }}>📥  Save</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[s.modalBtn, s.lbDeleteBtn]}
-                        onPress={() => deleteImage(lightbox.id)}>
-                        <Text style={{ color: COLORS.red, fontWeight: '700' }}>🗑</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-              </View>
-
-            </View>
-          </GestureHandlerRootView>
-        </Modal>
-      )}
     </View>
   );
 }
 
-const s = StyleSheet.create({
-  // ── Header ────────────────────────────────────────────────────────────────
-  header: {
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+const st = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  actionBar: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
   },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: COLORS.text, letterSpacing: -0.2 },
-  headerSub:   { fontSize: 9,  fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1, marginTop: 1 },
-  headerBtn: {
-    backgroundColor: COLORS.blueDim,
-    borderWidth: 1, borderColor: 'rgba(59,130,246,0.4)',
-    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7,
+  sectionTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8, color: COLORS.textMuted },
+  folderHeaderTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text, marginBottom: 12 },
+  importGroupBtn: {
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.35)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  headerBtnText: { color: COLORS.blue, fontWeight: '800', fontSize: 12 },
-  backBtn: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 8, width: 34, height: 34,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  backArrow: { color: COLORS.blue, fontSize: 18, fontWeight: '700' },
-
-  // ── Folder cards ──────────────────────────────────────────────────────────
+  importGroupBtnText: { color: COLORS.blue, fontSize: 11, fontWeight: '700' },
+  backBtn: { paddingVertical: 2 },
+  backText: { color: COLORS.blue, fontSize: 13, fontWeight: '600' },
+  scrollContainer: { flex: 1 },
+  scrollContent: { padding: 14 },
+  emptyText: { color: COLORS.textMuted, fontSize: 12, textAlign: 'center', marginTop: 32 },
+  folderList: { gap: 8 },
   folderCard: {
     backgroundColor: COLORS.surface,
-    borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  folderIconInfo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  folderIcon: { fontSize: 22 },
+  folderName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  folderMeta: { fontSize: 11, color: COLORS.textMuted, marginTop: 1 },
+  deleteBtn: { padding: 4 },
+  deleteBtnText: { color: '#ef4444', fontSize: 14, fontWeight: '600' },
+  imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
+  imageCard: {
+    width: '48%',
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  blueprintImage: { width: '100%', height: 110, backgroundColor: '#1e293b' },
+  imageName: { fontSize: 11, color: COLORS.text, padding: 6, fontWeight: '500' },
+  
+  // Modal layout structural components
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
+  modalBox: {
+    backgroundColor: COLORS.bg,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderTopWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    height: '82%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+    paddingBottom: 10,
+    marginBottom: 12,
+  },
+  modalTitle: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.5 },
+  closeModalX: { color: COLORS.textMuted, fontSize: 16, fontWeight: '600', paddingHorizontal: 6 },
+  modalSubtitle: { color: COLORS.textMuted, fontSize: 12, marginBottom: 12, lineHeight: 16 },
+  projectSelectCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  thumbStack:  { flexDirection: 'row', alignItems: 'center', width: 80 },
-  stackThumb:  { width: 46, height: 46, borderRadius: 8, borderWidth: 2, borderColor: COLORS.surface },
-  thumbEmpty:  { width: 46, height: 46, borderRadius: 8, backgroundColor: COLORS.surface2, alignItems: 'center', justifyContent: 'center' },
-  folderName:  { fontSize: 15, fontWeight: '800', color: COLORS.text },
-  folderMeta:  { fontSize: 10, color: COLORS.textMuted },
-  folderLatestNote: { fontSize: 11, color: COLORS.textSub, fontStyle: 'italic' },
-
-  // ── Image rows ────────────────────────────────────────────────────────────
-  imageRow: {
-    backgroundColor: COLORS.surface,
-    borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 10,
-    padding: 10,
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-  },
-  imageRowReordering: {
-    borderColor: 'rgba(59,130,246,0.25)',
-    backgroundColor: 'rgba(59,130,246,0.04)',
-  },
-  rowThumb:     { width: 72, height: 72, borderRadius: 8, backgroundColor: COLORS.surface2 },
-  imageName:    { fontSize: 13, fontWeight: '700', color: COLORS.text },
-  imageDate:    { fontSize: 10, color: COLORS.textMuted },
-  imageNotes:   { fontSize: 12, color: COLORS.textSub, lineHeight: 17 },
-  addNotesBtn:  { fontSize: 11, color: COLORS.blue, fontWeight: '600' },
-  editNotesBtn: {
-    padding: 6, backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 6, borderWidth: 1, borderColor: COLORS.border,
-  },
-
-  // ── Lightbox ──────────────────────────────────────────────────────────────
-  lightbox: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.96)',
-  },
-  imageCenterContainer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
+  projectSelectName: { color: COLORS.text, fontSize: 14, fontWeight: '700' },
+  projectSelectMeta: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
+  arrowRight: { color: COLORS.blue, fontSize: 15, fontWeight: '700' },
+  backToProjectsBtn: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    paddingVertical: 7,
     alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 80,
+    marginBottom: 10,
   },
-  lightboxClose: {
-    position: 'absolute', top: 48, right: 20, zIndex: 10,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 20, width: 36, height: 36,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  lightboxCloseText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  lightboxImage: { width: SCREEN_W, height: SCREEN_H * 0.62 },
-  lightboxMeta: {
+  backToProjectsText: { color: COLORS.text, fontSize: 11, fontWeight: '600' },
+  browsingTitle: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
+  modalSectionHeading: { fontSize: 9, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.5, marginTop: 14, marginBottom: 6 },
+  modalEmptyText: { color: COLORS.textMuted, fontSize: 11, fontStyle: 'italic', paddingLeft: 4 },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: COLORS.surface,
-    borderTopWidth: 1, borderTopColor: COLORS.border,
-    position: 'absolute', bottom: 0, left: 0, right: 0,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    padding: 10,
+    marginBottom: 6,
+    gap: 10,
   },
-  lightboxDetail: {
-    paddingHorizontal: 16, paddingBottom: 16, paddingTop: 12, gap: 4,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
-  },
-  lightboxName:  { fontSize: 15, fontWeight: '800', color: COLORS.text },
-  lightboxDate:  { fontSize: 10, color: COLORS.textMuted, marginBottom: 4 },
-  lightboxNotes: { fontSize: 13, color: COLORS.textSub, lineHeight: 19 },
-  lbEditBtn:   { flex: 1, backgroundColor: COLORS.amberDim, borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)' },
-  lbSaveBtn:   { flex: 1, backgroundColor: COLORS.blueDim,  borderWidth: 1, borderColor: 'rgba(59,130,246,0.4)'  },
-  lbDeleteBtn: { flex: 0, paddingHorizontal: 14, backgroundColor: COLORS.redDim, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' },
-
-  // ── Lightbox navigation ───────────────────────────────────────────────────
-  lightboxNavRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 12, paddingVertical: 10,
-  },
-  lightboxNavCenter: {
-    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2,
-  },
-  lightboxExpandChevron: { fontSize: 10, color: COLORS.textMuted },
-  lightboxNavBtn: {
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 8,
-    width: 40, height: 36, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-  },
-  lightboxNavBtnDisabled: { opacity: 0.4 },
-  lightboxNavText:   { color: COLORS.blue, fontSize: 18, fontWeight: '700' },
-  lightboxCounter:   { fontSize: 12, fontWeight: '700', color: COLORS.textMuted },
-
-  // ── Reorder controls ──────────────────────────────────────────────────────
-  reorderBtns: { flexDirection: 'column', gap: 4 },
-  reorderBtn: {
-    backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 6,
-    width: 34, height: 30, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  reorderBtnDisabled: { opacity: 0.4 },
-  reorderBtnText: { color: COLORS.blue, fontSize: 16, fontWeight: '800' },
-
-  // ── Empty states ──────────────────────────────────────────────────────────
-  empty:        { alignItems: 'center', paddingTop: 80, gap: 10 },
-  emptyTitle:   { fontSize: 18, fontWeight: '800', color: COLORS.textDim },
-  emptyHint:    { fontSize: 12, color: COLORS.textDim, textAlign: 'center', paddingHorizontal: 40 },
-  emptyBtn:     { marginTop: 8, backgroundColor: COLORS.blue, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 12 },
-  emptyBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
-
-  // ── Modals ────────────────────────────────────────────────────────────────
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalBox:     { backgroundColor: COLORS.surface, borderRadius: 14, padding: 20, width: '100%', borderWidth: 1, borderColor: COLORS.borderHi },
-  modalTitle:   { fontSize: 17, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
-  modalHint:    { fontSize: 11, color: COLORS.textMuted, marginBottom: 14 },
-  modalInput:   { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, padding: 12, color: COLORS.text, fontSize: 13 },
-  modalBtn:     { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center' },
-  modalCancel:  { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: COLORS.border },
-  modalCreate:  { backgroundColor: COLORS.blue },
+  checkboxRowActive: { borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.02)' },
+  checkbox: { width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: COLORS.textMuted, alignItems: 'center', justifyContent: 'center' },
+  checkboxChecked: { width: 9, height: 9, borderRadius: 2, backgroundColor: COLORS.amber },
+  checkboxLabel: { color: COLORS.text, fontSize: 13, fontWeight: '500', flex: 1 },
+  thumbnail: { width: 28, height: 28, borderRadius: 4, backgroundColor: '#1e293b' },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 14, borderTopWidth: 1, borderColor: COLORS.border, paddingTop: 12 },
+  modalBtn: { flex: 1, paddingVertical: 11, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  modalBtnCancel: { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: COLORS.border },
+  modalBtnCancelText: { color: COLORS.textMuted, fontWeight: '700', fontSize: 13 },
+  modalBtnSave: { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.35)' },
+  modalBtnSaveText: { color: COLORS.amber, fontWeight: '800', fontSize: 13 },
 });
