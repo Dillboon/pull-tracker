@@ -24,10 +24,11 @@ export default function GalleryScreen({
   setGalleryImages, 
   showToast, 
   deleteFolderWithImages,
-  // ADDED: Destructured props needed for the group import feature
+  // ── Added for Group Import Feature ──
   projects = [],
   groups = [],
-  project
+  project,
+  updateGalleryData 
 }) {
   const [activeFolder,  setActiveFolder]  = useState(null);
   const [lightbox,      setLightbox]      = useState(null);
@@ -40,12 +41,11 @@ export default function GalleryScreen({
   const [metaExpanded,   setMetaExpanded]   = useState(false);
   const renameInputRef = useRef(null);
 
-  // ── Import Feature State ──────────────────────────────────────────────────
+  // ── Import Feature State & Logic ──────────────────────────────────────────
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedPeerProject, setSelectedPeerProject] = useState(null);
   const [selectedFolders, setSelectedFolders] = useState({});
 
-  // ── Group Detection & Import Logic ────────────────────────────────────────
   const currentGroup = groups?.find(g => g.id === project?.groupId);
   const peerProjects = currentGroup
     ? projects.filter(p => p.id !== project?.id && p.groupId === currentGroup.id)
@@ -62,19 +62,12 @@ export default function GalleryScreen({
     (selectedPeerProject.folders || []).forEach(folder => {
       if (selectedFolders[folder.id]) {
         const newFolderId = uid();
-        updatedFolders.push({
-          ...folder,
-          id: newFolderId, // Generate unique ID so it doesn't tether to the original project
-        });
+        updatedFolders.push({ ...folder, id: newFolderId });
         importedFoldersCount++;
 
         const fImages = (selectedPeerProject.galleryImages || []).filter(img => img.folderId === folder.id);
         fImages.forEach(img => {
-          updatedImages.push({
-            ...img,
-            id: uid(),
-            folderId: newFolderId,
-          });
+          updatedImages.push({ ...img, id: uid(), folderId: newFolderId });
           importedImagesCount++;
         });
       }
@@ -85,8 +78,14 @@ export default function GalleryScreen({
       return;
     }
 
-    setFolders(updatedFolders);
-    setGalleryImages(updatedImages);
+    // Safely batch update to prevent React state race conditions
+    if (updateGalleryData) {
+      updateGalleryData(updatedFolders, updatedImages);
+    } else {
+      setFolders(updatedFolders);
+      setTimeout(() => setGalleryImages(updatedImages), 100);
+    }
+
     setShowImportModal(false);
     setSelectedPeerProject(null);
     setSelectedFolders({});
@@ -322,7 +321,7 @@ export default function GalleryScreen({
             <Text style={s.headerSub}>{folders.length} FOLDER{folders.length !== 1 ? 'S' : ''}</Text>
           </View>
           
-          {/* Import Button: only visible if grouping matches peers and not reordering */}
+          {/* 🔗 Import Group Button */}
           {peerProjects.length > 0 && !folderReorderMode && (
             <TouchableOpacity 
               style={[s.headerBtn, { backgroundColor: 'rgba(124,58,237,0.15)', borderColor: 'rgba(124,58,237,0.4)', marginRight: 8 }]} 

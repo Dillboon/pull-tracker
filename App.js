@@ -269,6 +269,7 @@ export default function App() {
     setFolders:       (next) => updateActiveProject({ folders: next }),
     setGalleryImages: (next) => updateActiveProject({ galleryImages: next }),
     deleteFolderWithImages,
+	updateGalleryData: (f, i) => updateActiveProject({ folders: f, galleryImages: i }),
   };
 
   return (
