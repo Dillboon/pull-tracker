@@ -257,7 +257,6 @@ export default function App() {
     addDrop, bulkAddDrops, updateDrop, deleteDrop,
     updateIdfs, clearAllDrops, showToast,
     setProjects, projects,
-	groups,
     updateProjectNotes,
     templates:        activeProject.templates ?? [],
     updateTemplates,
