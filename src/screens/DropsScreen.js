@@ -228,7 +228,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                 onPress={() => { setIdfDropdown(v => !v); setStatusDropdown(false); setRackDropdown(false); setCustomTypeDropdown(false); }}
                 activeOpacity={0.8}
               >
-                <Text style={[s.dropBtnText, filterIdf !== 'ALL' && { color: COLORS.amber, fontWeight: '700' }]}>
+                <Text numberOfLines={1} style={[s.dropBtnText, filterIdf !== 'ALL' && { color: COLORS.amber, fontWeight: '700' }]}>
                   {filterIdf === 'ALL' ? 'IDF' : idfLabel}
                 </Text>
                 <Text style={[s.dropCaret, idfDropdown && s.dropCaretOpen]}>▾</Text>
@@ -260,7 +260,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                   onPress={() => { setRackDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); setCustomTypeDropdown(false); }}
                   activeOpacity={0.8}
                 >
-                  <Text style={[s.dropBtnText, filterRack !== 'ALL' && { color: COLORS.green, fontWeight: '700' }]}>
+                  <Text numberOfLines={1} style={[s.dropBtnText, filterRack !== 'ALL' && { color: COLORS.green, fontWeight: '700' }]}>
                     {filterRack === 'ALL' ? 'RACK' : `Rack ${filterRack}`}
                   </Text>
                   <Text style={[s.dropCaret, rackDropdown && s.dropCaretOpen]}>▾</Text>
@@ -302,7 +302,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                   onPress={() => { setCustomTypeDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); setRackDropdown(false); }}
                   activeOpacity={0.8}
                 >
-                  <Text style={[s.dropBtnText, filterCustomType !== 'ALL' && { color: '#a78bfa', fontWeight: '700' }]}>
+                  <Text numberOfLines={1} style={[s.dropBtnText, filterCustomType !== 'ALL' && { color: '#a78bfa', fontWeight: '700' }]}>
                     {filterCustomType === 'ALL' ? 'TYPE' : filterCustomType}
                   </Text>
                   <Text style={[s.dropCaret, customTypeDropdown && s.dropCaretOpen]}>▾</Text>
@@ -343,8 +343,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                 onPress={() => { setStatusDropdown(v => !v); setIdfDropdown(false); setRackDropdown(false); setCustomTypeDropdown(false); }}
                 activeOpacity={0.8}
               >
-                <Text style={[s.dropBtnText, filterStatus !== 'ALL' && { color: COLORS.blue, fontWeight: '700' }]}>
-                  {filterStatus === 'ALL' ? 'STATUS' : statusLabel}
+                <Text numberOfLines={1} style={[s.dropBtnText, filterStatus !== 'ALL' && { color: COLORS.blue, fontWeight: '700' }]}>
+                  {filterStatus === 'ALL' ? 'STAT' : statusLabel}
                 </Text>
                 <Text style={[s.dropCaret, statusDropdown && s.dropCaretOpen]}>▾</Text>
               </TouchableOpacity>
@@ -597,7 +597,7 @@ const s = StyleSheet.create({
   dropdownRow: {
     flexDirection: 'row',
     gap: 6,
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   dropBtn: {
     flexDirection: 'row',
@@ -632,7 +632,7 @@ const s = StyleSheet.create({
   },
   dropBtnText: {
     fontSize: 11, fontWeight: '600',
-    color: COLORS.textMuted, letterSpacing: 0.5, flex: 1,
+    color: COLORS.textMuted, letterSpacing: 0.3, flex: 1,
   },
   dropCaret: {
     fontSize: 9, color: COLORS.textMuted, marginLeft: 3,
