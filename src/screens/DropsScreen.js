@@ -228,8 +228,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                 onPress={() => { setIdfDropdown(v => !v); setStatusDropdown(false); setRackDropdown(false); setCustomTypeDropdown(false); }}
                 activeOpacity={0.8}
               >
-                <Text numberOfLines={1} style={[s.dropBtnText, filterIdf !== 'ALL' && { color: COLORS.amber, fontWeight: '700' }]}>
-                  {filterIdf === 'ALL' ? 'IDF' : idfLabel}
+                <Text style={[s.dropBtnText, filterIdf !== 'ALL' && { color: COLORS.amber }]}>
+                  📍 {idfLabel}
                 </Text>
                 <Text style={[s.dropCaret, idfDropdown && s.dropCaretOpen]}>▾</Text>
               </TouchableOpacity>
@@ -260,8 +260,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                   onPress={() => { setRackDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); setCustomTypeDropdown(false); }}
                   activeOpacity={0.8}
                 >
-                  <Text numberOfLines={1} style={[s.dropBtnText, filterRack !== 'ALL' && { color: COLORS.green, fontWeight: '700' }]}>
-                    {filterRack === 'ALL' ? 'RACK' : `Rack ${filterRack}`}
+                  <Text style={[s.dropBtnText, filterRack !== 'ALL' && { color: COLORS.green }]}>
+                    🗄 {filterRack === 'ALL' ? 'All Racks' : `Rack ${filterRack}`}
                   </Text>
                   <Text style={[s.dropCaret, rackDropdown && s.dropCaretOpen]}>▾</Text>
                 </TouchableOpacity>
@@ -302,8 +302,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                   onPress={() => { setCustomTypeDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); setRackDropdown(false); }}
                   activeOpacity={0.8}
                 >
-                  <Text numberOfLines={1} style={[s.dropBtnText, filterCustomType !== 'ALL' && { color: '#a78bfa', fontWeight: '700' }]}>
-                    {filterCustomType === 'ALL' ? 'TYPE' : filterCustomType}
+                  <Text style={[s.dropBtnText, filterCustomType !== 'ALL' && { color: '#a78bfa' }]}>
+                    🏷️ {filterCustomType === 'ALL' ? 'All Types' : filterCustomType}
                   </Text>
                   <Text style={[s.dropCaret, customTypeDropdown && s.dropCaretOpen]}>▾</Text>
                 </TouchableOpacity>
@@ -343,8 +343,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                 onPress={() => { setStatusDropdown(v => !v); setIdfDropdown(false); setRackDropdown(false); setCustomTypeDropdown(false); }}
                 activeOpacity={0.8}
               >
-                <Text numberOfLines={1} style={[s.dropBtnText, filterStatus !== 'ALL' && { color: COLORS.blue, fontWeight: '700' }]}>
-                  {filterStatus === 'ALL' ? 'STAT' : statusLabel}
+                <Text style={[s.dropBtnText, filterStatus !== 'ALL' && { color: COLORS.blue }]}>
+                  ◈ {statusLabel}
                 </Text>
                 <Text style={[s.dropCaret, statusDropdown && s.dropCaretOpen]}>▾</Text>
               </TouchableOpacity>
@@ -375,8 +375,6 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                 <Text style={s.clearBtnText}>✕</Text>
               </TouchableOpacity>
             )}
-
-            <View style={s.filterDivider} />
 
             <TouchableOpacity
               style={[s.iconBtn, search.length > 0 && s.iconBtnActive]}
@@ -569,8 +567,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 const s = StyleSheet.create({
   filterBox: {
     backgroundColor: COLORS.bg,
-    padding: 8,
-    paddingBottom: 6,
+    padding: 10,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
     zIndex: 10,
@@ -579,24 +577,24 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 7, paddingHorizontal: 10, paddingVertical: 7,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
     color: COLORS.text, fontSize: 13,
   },
   iconBtn: {
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 7, paddingHorizontal: 8, paddingVertical: 7,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
     alignItems: 'center', justifyContent: 'center',
-    minWidth: 32,
+    minWidth: 36,
   },
   iconBtnActive: {
     backgroundColor: COLORS.blueDim,
     borderColor: 'rgba(59,130,246,0.4)',
   },
-  iconBtnText: { color: COLORS.textSub, fontSize: 15 },
+  iconBtnText: { color: COLORS.textSub, fontSize: 16 },
   dropdownRow: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
     alignItems: 'flex-start',
   },
   dropBtn: {
@@ -606,9 +604,9 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 7,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   dropBtnActive: {
     borderColor: 'rgba(255,255,255,0.2)',
@@ -631,11 +629,11 @@ const s = StyleSheet.create({
     borderColor: 'rgba(124,58,237,0.4)',
   },
   dropBtnText: {
-    fontSize: 11, fontWeight: '600',
+    fontSize: 11, fontWeight: '700',
     color: COLORS.textMuted, letterSpacing: 0.3, flex: 1,
   },
   dropCaret: {
-    fontSize: 9, color: COLORS.textMuted, marginLeft: 3,
+    fontSize: 10, color: COLORS.textMuted, marginLeft: 4,
   },
   dropCaretOpen: {
     transform: [{ rotate: '180deg' }],
@@ -670,20 +668,13 @@ const s = StyleSheet.create({
   dropItemActivePurple: { backgroundColor: 'rgba(124,58,237,0.08)' },
   dropItemText: { fontSize: 12, fontWeight: '600', color: COLORS.textSub },
   clearBtn: {
-    backgroundColor: 'rgba(239,68,68,0.1)',
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.22)',
-    borderRadius: 7,
-    paddingHorizontal: 8, paddingVertical: 7,
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)',
+    borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 8,
     alignItems: 'center', justifyContent: 'center',
-    minWidth: 32,
   },
-  clearBtnText: { color: '#f87171', fontSize: 12, fontWeight: '700' },
-  filterDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: 'rgba(255,255,255,0.09)',
-    marginHorizontal: 1,
-  },
+  clearBtnText: { color: '#f87171', fontSize: 13, fontWeight: '800' },
   empty: { alignItems: 'center', paddingTop: 80, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textDim },
   emptyHint:  { fontSize: 12, color: COLORS.textDim, textAlign: 'center', paddingHorizontal: 40 },
