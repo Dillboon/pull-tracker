@@ -53,7 +53,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     });
   }, [drops]);
 
-  const idfLabel    = filterIdf === 'ALL' ? 'All IDFs' : filterIdf;
+  const idfLabel = filterIdf === 'ALL' ? 'All IDFs' : filterIdf;
   const statusLabel = STATUS_FILTERS.find(f => f.key === filterStatus)?.label ?? 'All';
   
   const activeRacks = filterIdf !== 'ALL'
@@ -220,110 +220,125 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
             )}
           </View>
         ) : (
-          <View style={s.dropdownRow}>
-            {/* IDF dropdown */}
-            <View style={{ flex: 1 }}>
-              <TouchableOpacity
-                style={[s.dropBtn, idfDropdown && s.dropBtnActive, filterIdf !== 'ALL' && s.dropBtnAmber]}
-                onPress={() => { setIdfDropdown(v => !v); setStatusDropdown(false); setRackDropdown(false); setCustomTypeDropdown(false); }}
-                activeOpacity={0.8}
-              >
-                <Text style={[s.dropBtnText, filterIdf !== 'ALL' && { color: COLORS.amber }]}>
-                  📍 {idfLabel}
-                </Text>
-                <Text style={[s.dropCaret, idfDropdown && s.dropCaretOpen]}>▾</Text>
-              </TouchableOpacity>
-
-              {idfDropdown && (
-                <View style={[s.dropMenu, { zIndex: 20 }]}>
-                  {['ALL', ...idfList].map(idf => (
-                    <TouchableOpacity
-                      key={idf}
-                      style={[s.dropItem, filterIdf === idf && s.dropItemActive]}
-                      onPress={() => { setFilterIdf(idf); setFilterRack('ALL'); setIdfDropdown(false); }}
-                    >
-                      <Text style={[s.dropItemText, filterIdf === idf && { color: COLORS.amber, fontWeight: '800' }]}>
-                        {idf === 'ALL' ? 'All IDFs' : idf}
-                      </Text>
-                      {filterIdf === idf && <Text style={{ color: COLORS.amber, fontSize: 12 }}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* Rack dropdown */}
-            {showRackFilter && (
-              <View style={{ flex: 1 }}>
+          <View style={s.filterGroup}>
+            {/* Row 1: Responsive Layout Filter Matrix */}
+            <View style={s.filterGridRow}>
+              
+              {/* IDF dropdown */}
+              <View style={s.dropContainer}>
                 <TouchableOpacity
-                  style={[s.dropBtn, rackDropdown && s.dropBtnActive, filterRack !== 'ALL' && s.dropBtnGreen]}
-                  onPress={() => { setRackDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); setCustomTypeDropdown(false); }}
+                  style={[s.dropBtn, idfDropdown && s.dropBtnActive, filterIdf !== 'ALL' && s.dropBtnAmber]}
+                  onPress={() => { setIdfDropdown(v => !v); setStatusDropdown(false); setRackDropdown(false); setCustomTypeDropdown(false); }}
                   activeOpacity={0.8}
                 >
-                  <Text style={[s.dropBtnText, filterRack !== 'ALL' && { color: COLORS.green }]}>
-                    🗄 {filterRack === 'ALL' ? 'All Racks' : `Rack ${filterRack}`}
+                  <Text 
+                    style={[s.dropBtnText, filterIdf !== 'ALL' && { color: COLORS.amber }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                  >
+                    📍 {idfLabel}
                   </Text>
-                  <Text style={[s.dropCaret, rackDropdown && s.dropCaretOpen]}>▾</Text>
+                  <Text style={[s.dropCaret, idfDropdown && s.dropCaretOpen]}>▾</Text>
                 </TouchableOpacity>
 
-                {rackDropdown && (
-                  <View style={[s.dropMenu, { zIndex: 20 }]}>
-                    <TouchableOpacity
-                      style={[s.dropItem, filterRack === 'ALL' && s.dropItemActiveGreen]}
-                      onPress={() => { setFilterRack('ALL'); setRackDropdown(false); }}
-                    >
-                      <Text style={[s.dropItemText, filterRack === 'ALL' && { color: COLORS.green, fontWeight: '800' }]}>
-                        All Racks
-                      </Text>
-                      {filterRack === 'ALL' && <Text style={{ color: COLORS.green, fontSize: 12 }}>✓</Text>}
-                    </TouchableOpacity>
-                    {activeRacks.map(rack => (
+                {idfDropdown && (
+                  <View style={[s.dropMenu, { zIndex: 25 }]}>
+                    {['ALL', ...idfList].map(idf => (
                       <TouchableOpacity
-                        key={rack}
-                        style={[s.dropItem, filterRack === rack && s.dropItemActiveGreen]}
-                        onPress={() => { setFilterRack(rack); setRackDropdown(false); }}
+                        key={idf}
+                        style={[s.dropItem, filterIdf === idf && s.dropItemActive]}
+                        onPress={() => { setFilterIdf(idf); setFilterRack('ALL'); setIdfDropdown(false); }}
                       >
-                        <Text style={[s.dropItemText, filterRack === rack && { color: COLORS.green, fontWeight: '800' }]}>
-                          Rack {rack}
+                        <Text style={[s.dropItemText, filterIdf === idf && { color: COLORS.amber, fontWeight: '800' }]}>
+                          {idf === 'ALL' ? 'All IDFs' : idf}
                         </Text>
-                        {filterRack === rack && <Text style={{ color: COLORS.green, fontSize: 12 }}>✓</Text>}
+                        {filterIdf === idf && <Text style={{ color: COLORS.amber, fontSize: 12 }}>✓</Text>}
                       </TouchableOpacity>
                     ))}
                   </View>
                 )}
               </View>
-            )}
 
-            {/* Custom Drop Type dropdown */}
-            {showCustomTypeFilter && (
-              <View style={{ flex: 1 }}>
-                <TouchableOpacity
-                  style={[s.dropBtn, customTypeDropdown && s.dropBtnActive, filterCustomType !== 'ALL' && s.dropBtnPurple]}
-                  onPress={() => { setCustomTypeDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); setRackDropdown(false); }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[s.dropBtnText, filterCustomType !== 'ALL' && { color: '#a78bfa' }]}>
-                    🏷️ {filterCustomType === 'ALL' ? 'All Types' : filterCustomType}
-                  </Text>
-                  <Text style={[s.dropCaret, customTypeDropdown && s.dropCaretOpen]}>▾</Text>
-                </TouchableOpacity>
-
-                {customTypeDropdown && (
-                  <View style={[s.dropMenu, { zIndex: 20 }]}>
-                    <TouchableOpacity
-                      style={[s.dropItem, filterCustomType === 'ALL' && s.dropItemActivePurple]}
-                      onPress={() => { setFilterCustomType('ALL'); setCustomTypeDropdown(false); }}
+              {/* Rack dropdown */}
+              {showRackFilter && (
+                <View style={s.dropContainer}>
+                  <TouchableOpacity
+                    style={[s.dropBtn, rackDropdown && s.dropBtnActive, filterRack !== 'ALL' && s.dropBtnGreen]}
+                    onPress={() => { setRackDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); setCustomTypeDropdown(false); }}
+                    activeOpacity={0.8}
+                  >
+                    <Text 
+                      style={[s.dropBtnText, filterRack !== 'ALL' && { color: COLORS.green }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
                     >
-                      <Text style={[s.dropItemText, filterCustomType === 'ALL' && { color: '#a78bfa', fontWeight: '800' }]}>
-                        All Types
-                      </Text>
-                      {filterCustomType === 'ALL' && <Text style={{ color: '#a78bfa', fontSize: 12 }}>✓</Text>}
-                    </TouchableOpacity>
-                    {activeCustomTypes.map(type => (
+                      🗄 {filterRack === 'ALL' ? 'All Racks' : `Rack ${filterRack}`}
+                    </Text>
+                    <Text style={[s.dropCaret, rackDropdown && s.dropCaretOpen]}>▾</Text>
+                  </TouchableOpacity>
+
+                  {rackDropdown && (
+                    <View style={[s.dropMenu, { zIndex: 25 }]}>
                       <TouchableOpacity
-                        key={type}
-                        style={[s.dropItem, filterCustomType === type && s.dropItemActivePurple]}
-                        onPress={() => { setFilterCustomType(type); setCustomTypeDropdown(false); }}
+                        style={[s.dropItem, filterRack === 'ALL' && s.dropItemActiveGreen]}
+                        onPress={() => { setFilterRack('ALL'); setRackDropdown(false); }}
+                      >
+                        <Text style={[s.dropItemText, filterRack === 'ALL' && { color: COLORS.green, fontWeight: '800' }]}>
+                          All Racks
+                        </Text>
+                        {filterRack === 'ALL' && <Text style={{ color: COLORS.green, fontSize: 12 }}>✓</Text>}
+                      </TouchableOpacity>
+                      {activeRacks.map(rack => (
+                        <TouchableOpacity
+                          key={rack}
+                          style={[s.dropItem, filterRack === rack && s.dropItemActiveGreen]}
+                          onPress={() => { setFilterRack(rack); setRackDropdown(false); }}
+                        >
+                          <Text style={[s.dropItemText, filterRack === rack && { color: COLORS.green, fontWeight: '800' }]}>
+                            Rack {rack}
+                          </Text>
+                          {filterRack === rack && <Text style={{ color: COLORS.green, fontSize: 12 }}>✓</Text>}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Custom Drop Type dropdown */}
+              {showCustomTypeFilter && (
+                <View style={s.dropContainer}>
+                  <TouchableOpacity
+                    style={[s.dropBtn, customTypeDropdown && s.dropBtnActive, filterCustomType !== 'ALL' && s.dropBtnPurple]}
+                    onPress={() => { setCustomTypeDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); setRackDropdown(false); }}
+                    activeOpacity={0.8}
+                  >
+                    <Text 
+                      style={[s.dropBtnText, filterCustomType !== 'ALL' && { color: '#a78bfa' }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                    >
+                      🏷️ {filterCustomType === 'ALL' ? 'All Types' : filterCustomType}
+                    </Text>
+                    <Text style={[s.dropCaret, customTypeDropdown && s.dropCaretOpen]}>▾</Text>
+                  </TouchableOpacity>
+
+                  {customTypeDropdown && (
+                    <View style={[s.dropMenu, { zIndex: 25 }]}>
+                      <TouchableOpacity
+                        style={[s.dropItem, filterCustomType === 'ALL' && s.dropItemActivePurple]}
+                        onPress={() => { setFilterCustomType('ALL'); setCustomTypeDropdown(false); }}
+                      >
+                        <Text style={[s.dropItemText, filterCustomType === 'ALL' && { color: '#a78bfa', fontWeight: '800' }]}>
+                          All Types
+                        </Text>
+                        {filterCustomType === 'ALL' && <Text style={{ color: '#a78bfa', fontSize: 12 }}>✓</Text>}
+                      </TouchableOpacity>
+                      {activeCustomTypes.map(type => (
+                        <TouchableOpacity
+                          key={type}
+                          style={[s.dropItem, filterCustomType === type && s.dropItemActivePurple]}
+                          onPress={() => { setFilterCustomType(type); setCustomTypeDropdown(false); }}
                       >
                         <Text style={[s.dropItemText, filterCustomType === type && { color: '#a78bfa', fontWeight: '800' }]}>
                           {type}
@@ -337,20 +352,24 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
             )}
 
             {/* Status dropdown */}
-            <View style={{ flex: 1 }}>
+            <View style={s.dropContainer}>
               <TouchableOpacity
                 style={[s.dropBtn, statusDropdown && s.dropBtnActive, filterStatus !== 'ALL' && s.dropBtnBlue]}
                 onPress={() => { setStatusDropdown(v => !v); setIdfDropdown(false); setRackDropdown(false); setCustomTypeDropdown(false); }}
                 activeOpacity={0.8}
               >
-                <Text style={[s.dropBtnText, filterStatus !== 'ALL' && { color: COLORS.blue }]}>
+                <Text 
+                  style={[s.dropBtnText, filterStatus !== 'ALL' && { color: COLORS.blue }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
                   ◈ {statusLabel}
                 </Text>
                 <Text style={[s.dropCaret, statusDropdown && s.dropCaretOpen]}>▾</Text>
               </TouchableOpacity>
 
               {statusDropdown && (
-                <View style={[s.dropMenu, { zIndex: 20 }]}>
+                <View style={[s.dropMenu, { zIndex: 25 }]}>
                   {STATUS_FILTERS.map(f => (
                     <TouchableOpacity
                       key={f.key}
@@ -366,15 +385,20 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                 </View>
               )}
             </View>
+          </View>
 
+          {/* Row 2: Action Utility Dashboard */}
+          <View style={s.utilityRow}>
             {hasFilter && (
               <TouchableOpacity
                 style={s.clearBtn}
                 onPress={() => { setFilterIdf('ALL'); setFilterStatus('ALL'); setFilterRack('ALL'); setFilterCustomType('ALL'); closeDropdowns(); }}
               >
-                <Text style={s.clearBtnText}>✕</Text>
+                <Text style={s.clearBtnText}>✕ Clear</Text>
               </TouchableOpacity>
             )}
+
+            <View style={{ flex: 1 }} />
 
             <TouchableOpacity
               style={[s.iconBtn, search.length > 0 && s.iconBtnActive]}
@@ -393,8 +417,9 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
               <Text style={s.iconBtnText}>⟳</Text>
             </TouchableOpacity>
           </View>
-        )}
-      </View>
+        </View>
+      )}
+    </View>
 
       {/* ── Drop list ── */}
       <FlatList
@@ -572,6 +597,24 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
     zIndex: 10,
+  },
+  filterGroup: {
+    gap: 8,
+  },
+  filterGridRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  dropContainer: {
+    flex: 1,
+    minWidth: '47%',
+  },
+  utilityRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    marginTop: 2,
   },
   searchInputInline: {
     flex: 1,
