@@ -65,7 +65,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   const activeCustomTypes = useMemo(() => {
     return [...new Set(drops.map(d => d.customType).filter(Boolean))].sort();
   }, [drops]);
-  const showCustomTypeFilter = activeCustomTypes.length >= 2;
+  const showCustomTypeFilter = activeCustomTypes.length >= 1;
 
   const hasFilter = filterIdf !== 'ALL' || filterStatus !== 'ALL' || filterRack !== 'ALL' || filterCustomType !== 'ALL';
 
