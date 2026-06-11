@@ -234,7 +234,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
                   style={s.clearCapsule}
                   onPress={() => { setFilterIdf('ALL'); setFilterStatus('ALL'); setFilterRack('ALL'); setFilterCustomType('ALL'); closeDropdowns(); }}
                 >
-                  <Text style={s.clearCapsuleText}>✕</Text>
+                  <Text style={s.clearCapsuleText}>Exit ✕</Text>
                 </TouchableOpacity>
               )}
 
