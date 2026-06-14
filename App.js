@@ -257,6 +257,7 @@ export default function App() {
     addDrop, bulkAddDrops, updateDrop, deleteDrop,
     updateIdfs, clearAllDrops, showToast,
     setProjects, projects,
+	groups,
     updateProjectNotes,
     templates:        activeProject.templates ?? [],
     updateTemplates,
@@ -268,6 +269,7 @@ export default function App() {
     setFolders:       (next) => updateActiveProject({ folders: next }),
     setGalleryImages: (next) => updateActiveProject({ galleryImages: next }),
     deleteFolderWithImages,
+	updateGalleryData: (f, i) => updateActiveProject({ folders: f, galleryImages: i }),
   };
 
   return (

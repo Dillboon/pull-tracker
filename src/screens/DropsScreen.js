@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity, ScrollView,
   FlatList, StyleSheet, KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
 import DropCard from '../components/DropCard';
@@ -19,17 +19,19 @@ const STATUS_FILTERS = [
 ];
 
 export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, addDropFromTemplate, templates, customTypeList = [], onEditCustomTypes }) {
-  const [filterIdf,      setFilterIdf]      = useState('ALL');
-  const [filterStatus,   setFilterStatus]   = useState('ALL');
-  const [filterRack,     setFilterRack]     = useState('ALL');
-  const [search,         setSearch]         = useState('');
-  const [showBulk,       setShowBulk]       = useState(false);
-  const [showTemplates,  setShowTemplates]  = useState(false);
-  const [fabOpen,        setFabOpen]        = useState(false);
-  const [idfDropdown,    setIdfDropdown]    = useState(false);
-  const [statusDropdown, setStatusDropdown] = useState(false);
-  const [rackDropdown,   setRackDropdown]   = useState(false);
-  const [searchOpen,     setSearchOpen]     = useState(false);
+  const [filterIdf,         setFilterIdf]         = useState('ALL');
+  const [filterStatus,      setFilterStatus]      = useState('ALL');
+  const [filterRack,        setFilterRack]        = useState('ALL');
+  const [filterCustomType,  setFilterCustomType]  = useState('ALL');
+  const [search,            setSearch]            = useState('');
+  const [showBulk,          setShowBulk]          = useState(false);
+  const [showTemplates,     setShowTemplates]     = useState(false);
+  const [fabOpen,           setFabOpen]           = useState(false);
+  const [idfDropdown,       setIdfDropdown]       = useState(false);
+  const [statusDropdown,    setStatusDropdown]    = useState(false);
+  const [rackDropdown,      setRackDropdown]      = useState(false);
+  const [customTypeDropdown, setCustomTypeDropdown] = useState(false);
+  const [searchOpen,        setSearchOpen]        = useState(false);
   const searchInputRef = useRef(null);
   const flatListRef    = useRef(null);
   const scrollTimer    = useRef(null);
@@ -51,17 +53,28 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     });
   }, [drops]);
 
-  const idfLabel    = filterIdf === 'ALL' ? 'All IDFs' : filterIdf;
+  const idfLabel = filterIdf === 'ALL' ? 'All' : filterIdf;
   const statusLabel = STATUS_FILTERS.find(f => f.key === filterStatus)?.label ?? 'All';
+  
   const activeRacks = filterIdf !== 'ALL'
     ? [...new Set(drops.filter(d => d.idf === filterIdf).map(d => d.rackNumber).filter(Boolean))].sort()
     : [];
   const showRackFilter = filterIdf !== 'ALL' && activeRacks.length >= 2;
-  const hasFilter   = filterIdf !== 'ALL' || filterStatus !== 'ALL' || filterRack !== 'ALL';
 
-  const closeDropdowns = () => { setIdfDropdown(false); setStatusDropdown(false); setRackDropdown(false); };
+  const activeCustomTypes = useMemo(() => {
+    return [...new Set(drops.map(d => d.customType).filter(Boolean))].sort();
+  }, [drops]);
+  const showCustomTypeFilter = activeCustomTypes.length >= 1;
 
-  // Auto-focus the search input after it mounts
+  const hasFilter = filterIdf !== 'ALL' || filterStatus !== 'ALL' || filterRack !== 'ALL' || filterCustomType !== 'ALL';
+
+  const closeDropdowns = () => { 
+    setIdfDropdown(false); 
+    setStatusDropdown(false); 
+    setRackDropdown(false); 
+    setCustomTypeDropdown(false); 
+  };
+
   useEffect(() => {
     if (searchOpen) {
       const t = setTimeout(() => searchInputRef.current?.focus(), 50);
@@ -85,8 +98,6 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     prevScrollY.current = y;
     scrollY.current     = y;
 
-    // Show down arrow only when scrolling down and not already at the bottom
-    // Show up arrow only when scrolling up and not already at the top
     if (scrollingDown && !atBottom) {
       setShowScrollDown(true);
       setShowScrollUp(false);
@@ -95,7 +106,6 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
       setShowScrollDown(false);
     }
 
-    // Always hide both when at the boundary
     if (atTop)    setShowScrollUp(false);
     if (atBottom) setShowScrollDown(false);
 
@@ -113,12 +123,10 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 
   const handleRefresh = () => {
     const sorted = [...drops].sort((a, b) => {
-      // Primary: IDF alphabetically
       const idfA = (a.idf || '').toLowerCase();
       const idfB = (b.idf || '').toLowerCase();
       if (idfA < idfB) return -1;
       if (idfA > idfB) return 1;
-      // Secondary: cable ID numerically
       const numA = parseInt(a.cableA);
       const numB = parseInt(b.cableA);
       const hasA = !isNaN(numA);
@@ -134,6 +142,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   const filtered = useMemo(() => drops.filter(d => {
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
     if (filterRack !== 'ALL' && (d.rackNumber || '') !== filterRack) return false;
+    if (filterCustomType !== 'ALL' && (d.customType || '') !== filterCustomType) return false;
     if (filterStatus === 'COMPLETE'   && !(d.overrideComplete || (d.roughPull && d.terminated && d.tested))) return false;
     if (filterStatus === 'INCOMPLETE' &&  (d.overrideComplete || (d.roughPull && d.terminated && d.tested))) return false;
     if (filterStatus === 'TERMINATED' && !(d.roughPull && d.terminated && !d.tested)) return false;
@@ -155,11 +164,10 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     const ai = lockedOrder.indexOf(a.id);
     const bi = lockedOrder.indexOf(b.id);
     return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
-  }), [drops, filterIdf, filterStatus, filterRack, search, lockedOrder]);
+  }), [drops, filterIdf, filterStatus, filterRack, filterCustomType, search, lockedOrder]);
 
-  // Build a set of cable IDs that appear more than once within the same IDF
   const conflictIds = useMemo(() => {
-    const seenByIdf = new Map(); // idf → Map<id, count>
+    const seenByIdf = new Map();
     for (const d of drops) {
       const idf = d.idf || '';
       if (!seenByIdf.has(idf)) seenByIdf.set(idf, new Map());
@@ -183,173 +191,208 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* ── Filter bar ── */}
-      <View style={s.filterBox}>
+      {/* ── Filter Bar Hub ── */}
+      <View style={s.filterHub}>
         {searchOpen ? (
-          /* ── Expanded search row ── */
-          <View style={s.dropdownRow}>
+          <View style={s.searchRowExpanded}>
             <TouchableOpacity
-              style={s.iconBtn}
+              style={s.searchBackBtn}
               onPress={() => { setSearchOpen(false); setSearch(''); closeDropdowns(); }}
             >
-              <Text style={s.iconBtnText}>←</Text>
+              <Text style={s.searchBackArrow}>←</Text>
             </TouchableOpacity>
-            <TextInput
-              ref={searchInputRef}
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search cable IDs, IDF, notes…"
-              placeholderTextColor={COLORS.textDim}
-              style={s.searchInputInline}
-              returnKeyType="search"
-              onSubmitEditing={() => searchInputRef.current?.blur()}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity style={s.iconBtn} onPress={() => setSearch('')}>
-                <Text style={s.iconBtnText}>✕</Text>
-              </TouchableOpacity>
-            )}
+            <View style={s.searchInputWrapper}>
+              <TextInput
+                ref={searchInputRef}
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search cable IDs, IDF, notes…"
+                placeholderTextColor={COLORS.textDim}
+                style={s.searchFieldInline}
+                returnKeyType="search"
+                onSubmitEditing={() => searchInputRef.current?.blur()}
+              />
+              {search.length > 0 && (
+                <TouchableOpacity style={s.searchClearInline} onPress={() => setSearch('')}>
+                  <Text style={s.searchClearInlineText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         ) : (
-          /* ── Normal filter row ── */
-          <View style={s.dropdownRow}>
-            {/* IDF dropdown */}
-            <View style={{ flex: 1 }}>
+          <View style={s.mainHubLayout}>
+            
+            {/* Horizontal Pill Track for Filters */}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              contentContainerStyle={s.pillRailContainer}
+            >
+              {/* Clear All Capsule */}
+              {hasFilter && (
+                <TouchableOpacity
+                  style={s.clearCapsule}
+                  onPress={() => { setFilterIdf('ALL'); setFilterStatus('ALL'); setFilterRack('ALL'); setFilterCustomType('ALL'); closeDropdowns(); }}
+                >
+                  <Text style={s.clearCapsuleText}>✕</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* IDF Capsule */}
               <TouchableOpacity
-                style={[s.dropBtn, idfDropdown && s.dropBtnActive, filterIdf !== 'ALL' && s.dropBtnAmber]}
-                onPress={() => { setIdfDropdown(v => !v); setStatusDropdown(false); }}
+                style={[s.capsuleBtn, idfDropdown && s.capsuleBtnActive, filterIdf !== 'ALL' && s.capsuleBtnAmber]}
+                onPress={() => { setIdfDropdown(v => !v); setStatusDropdown(false); setRackDropdown(false); setCustomTypeDropdown(false); }}
                 activeOpacity={0.8}
               >
-                <Text style={[s.dropBtnText, filterIdf !== 'ALL' && { color: COLORS.amber }]}>
-                  📍 {idfLabel}
+                <Text style={[s.capsuleLabel, filterIdf !== 'ALL' && { color: COLORS.amber }]}>
+                  IDF: <Text style={s.capsuleVal}>{idfLabel}</Text>
                 </Text>
-                <Text style={[s.dropCaret, idfDropdown && s.dropCaretOpen]}>▾</Text>
+                <Text style={[s.capsuleCaret, idfDropdown && s.capsuleCaretOpen]}>▾</Text>
               </TouchableOpacity>
 
-              {idfDropdown && (
-                <View style={[s.dropMenu, { zIndex: 20 }]}>
-                  {['ALL', ...idfList].map(idf => (
-                    <TouchableOpacity
-                      key={idf}
-                      style={[s.dropItem, filterIdf === idf && s.dropItemActive]}
-                      onPress={() => { setFilterIdf(idf); setFilterRack('ALL'); setIdfDropdown(false); }}
-                    >
-                      <Text style={[s.dropItemText, filterIdf === idf && { color: COLORS.amber, fontWeight: '800' }]}>
-                        {idf === 'ALL' ? 'All IDFs' : idf}
-                      </Text>
-                      {filterIdf === idf && <Text style={{ color: COLORS.amber, fontSize: 12 }}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* Rack dropdown — only when a specific IDF is selected with 2+ rack numbers */}
-            {showRackFilter && (
-              <View style={{ flex: 1 }}>
+              {/* Rack Capsule */}
+              {showRackFilter && (
                 <TouchableOpacity
-                  style={[s.dropBtn, rackDropdown && s.dropBtnActive, filterRack !== 'ALL' && s.dropBtnGreen]}
-                  onPress={() => { setRackDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); }}
+                  style={[s.capsuleBtn, rackDropdown && s.capsuleBtnActive, filterRack !== 'ALL' && s.capsuleBtnGreen]}
+                  onPress={() => { setRackDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); setCustomTypeDropdown(false); }}
                   activeOpacity={0.8}
                 >
-                  <Text style={[s.dropBtnText, filterRack !== 'ALL' && { color: COLORS.green }]}>
-                    🗄 {filterRack === 'ALL' ? 'All Racks' : `Rack ${filterRack}`}
+                  <Text style={[s.capsuleLabel, filterRack !== 'ALL' && { color: COLORS.green }]}>
+                    Rack: <Text style={s.capsuleVal}>{filterRack === 'ALL' ? 'All' : filterRack}</Text>
                   </Text>
-                  <Text style={[s.dropCaret, rackDropdown && s.dropCaretOpen]}>▾</Text>
+                  <Text style={[s.capsuleCaret, rackDropdown && s.capsuleCaretOpen]}>▾</Text>
                 </TouchableOpacity>
+              )}
 
-                {rackDropdown && (
-                  <View style={[s.dropMenu, { zIndex: 20 }]}>
-                    <TouchableOpacity
-                      style={[s.dropItem, filterRack === 'ALL' && s.dropItemActiveGreen]}
-                      onPress={() => { setFilterRack('ALL'); setRackDropdown(false); }}
-                    >
-                      <Text style={[s.dropItemText, filterRack === 'ALL' && { color: COLORS.green, fontWeight: '800' }]}>
-                        All Racks
-                      </Text>
-                      {filterRack === 'ALL' && <Text style={{ color: COLORS.green, fontSize: 12 }}>✓</Text>}
-                    </TouchableOpacity>
-                    {activeRacks.map(rack => (
-                      <TouchableOpacity
-                        key={rack}
-                        style={[s.dropItem, filterRack === rack && s.dropItemActiveGreen]}
-                        onPress={() => { setFilterRack(rack); setRackDropdown(false); }}
-                      >
-                        <Text style={[s.dropItemText, filterRack === rack && { color: COLORS.green, fontWeight: '800' }]}>
-                          Rack {rack}
-                        </Text>
-                        {filterRack === rack && <Text style={{ color: COLORS.green, fontSize: 12 }}>✓</Text>}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
+              {/* Custom Drop Type Capsule */}
+              {showCustomTypeFilter && (
+                <TouchableOpacity
+                  style={[s.capsuleBtn, customTypeDropdown && s.capsuleBtnActive, filterCustomType !== 'ALL' && s.capsuleBtnPurple]}
+                  onPress={() => { setCustomTypeDropdown(v => !v); setIdfDropdown(false); setStatusDropdown(false); setRackDropdown(false); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.capsuleLabel, filterCustomType !== 'ALL' && { color: '#a78bfa' }]}>
+                    Type: <Text style={s.capsuleVal}>{filterCustomType === 'ALL' ? 'All' : filterCustomType}</Text>
+                  </Text>
+                  <Text style={[s.capsuleCaret, customTypeDropdown && s.capsuleCaretOpen]}>▾</Text>
+                </TouchableOpacity>
+              )}
 
-            {/* Status dropdown */}
-            <View style={{ flex: 1 }}>
+              {/* Status Capsule */}
               <TouchableOpacity
-                style={[s.dropBtn, statusDropdown && s.dropBtnActive, filterStatus !== 'ALL' && s.dropBtnBlue]}
-                onPress={() => { setStatusDropdown(v => !v); setIdfDropdown(false); }}
+                style={[s.capsuleBtn, statusDropdown && s.capsuleBtnActive, filterStatus !== 'ALL' && s.capsuleBtnBlue]}
+                onPress={() => { setStatusDropdown(v => !v); setIdfDropdown(false); setRackDropdown(false); setCustomTypeDropdown(false); }}
                 activeOpacity={0.8}
               >
-                <Text style={[s.dropBtnText, filterStatus !== 'ALL' && { color: COLORS.blue }]}>
-                  ◈ {statusLabel}
+                <Text style={[s.capsuleLabel, filterStatus !== 'ALL' && { color: COLORS.blue }]}>
+                  Status: <Text style={s.capsuleVal}>{statusLabel}</Text>
                 </Text>
-                <Text style={[s.dropCaret, statusDropdown && s.dropCaretOpen]}>▾</Text>
+                <Text style={[s.capsuleCaret, statusDropdown && s.capsuleCaretOpen]}>▾</Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            {/* Fixed Utility Panel on Right */}
+            <View style={s.utilityFixedDock}>
+              {expandedCount > 0 && (
+                <TouchableOpacity style={s.dockIconButton} onPress={handleCollapseAll}>
+                  <Text style={s.dockIconText}>⊟</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[s.dockIconButton, search.length > 0 && s.dockIconActiveBlue]}
+                onPress={() => { setSearchOpen(true); closeDropdowns(); }}
+              >
+                <Text style={[s.dockIconText, search.length > 0 && { color: COLORS.blue }]}>⌕</Text>
               </TouchableOpacity>
 
-              {statusDropdown && (
-                <View style={[s.dropMenu, { zIndex: 20 }]}>
-                  {STATUS_FILTERS.map(f => (
-                    <TouchableOpacity
-                      key={f.key}
-                      style={[s.dropItem, filterStatus === f.key && s.dropItemActiveBlue]}
-                      onPress={() => { setFilterStatus(f.key); setStatusDropdown(false); }}
-                    >
-                      <Text style={[s.dropItemText, filterStatus === f.key && { color: COLORS.blue, fontWeight: '800' }]}>
-                        {f.label}
-                      </Text>
-                      {filterStatus === f.key && <Text style={{ color: COLORS.blue, fontSize: 12 }}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+              <TouchableOpacity style={s.dockIconButton} onPress={handleRefresh}>
+                <Text style={s.dockIconText}>⟳</Text>
+              </TouchableOpacity>
             </View>
 
-            {hasFilter && (
+          </View>
+        )}
+
+        {/* ── Floating Dropdown Panels (Layered over Content Area) ── */}
+        {idfDropdown && (
+          <View style={[s.floatingMenuOverlay, { left: 8 }]}>
+            {['ALL', ...idfList].map(idf => (
               <TouchableOpacity
-                style={s.clearBtn}
-                onPress={() => { setFilterIdf('ALL'); setFilterStatus('ALL'); setFilterRack('ALL'); closeDropdowns(); }}
+                key={idf}
+                style={[s.menuItemRow, filterIdf === idf && s.menuItemActiveAmber]}
+                onPress={() => { setFilterIdf(idf); setFilterRack('ALL'); setIdfDropdown(false); }}
               >
-                <Text style={s.clearBtnText}>✕</Text>
+                <Text style={[s.menuItemText, filterIdf === idf && { color: COLORS.amber, fontWeight: '700' }]}>
+                  {idf === 'ALL' ? 'All IDFs' : `IDF ${idf}`}
+                </Text>
+                {filterIdf === idf && <Text style={{ color: COLORS.amber, fontSize: 11 }}>✓</Text>}
               </TouchableOpacity>
-            )}
+            ))}
+          </View>
+        )}
 
-            {/* Search icon button */}
+        {rackDropdown && (
+          <View style={[s.floatingMenuOverlay, { left: 60 }]}>
             <TouchableOpacity
-              style={[s.iconBtn, search.length > 0 && s.iconBtnActive]}
-              onPress={() => { setSearchOpen(true); closeDropdowns(); }}
+              style={[s.menuItemRow, filterRack === 'ALL' && s.menuItemActiveGreen]}
+              onPress={() => { setFilterRack('ALL'); setRackDropdown(false); }}
             >
-              <Text style={[s.iconBtnText, search.length > 0 && { color: COLORS.blue }]}>🔍</Text>
+              <Text style={[s.menuItemText, filterRack === 'ALL' && { color: COLORS.green, fontWeight: '700' }]}>All Racks</Text>
+              {filterRack === 'ALL' && <Text style={{ color: COLORS.green, fontSize: 11 }}>✓</Text>}
             </TouchableOpacity>
-
-            {/* Collapse all — only shown when cards are open */}
-            {expandedCount > 0 && (
-              <TouchableOpacity style={s.iconBtn} onPress={handleCollapseAll}>
-                <Text style={s.iconBtnText}>⊟</Text>
+            {activeRacks.map(rack => (
+              <TouchableOpacity
+                key={rack}
+                style={[s.menuItemRow, filterRack === rack && s.menuItemActiveGreen]}
+                onPress={() => { setFilterRack(rack); setRackDropdown(false); }}
+              >
+                <Text style={[s.menuItemText, filterRack === rack && { color: COLORS.green, fontWeight: '700' }]}>Rack {rack}</Text>
+                {filterRack === rack && <Text style={{ color: COLORS.green, fontSize: 11 }}>✓</Text>}
               </TouchableOpacity>
-            )}
+            ))}
+          </View>
+        )}
 
-            {/* Refresh / sort button */}
-            <TouchableOpacity style={s.iconBtn} onPress={handleRefresh}>
-              <Text style={s.iconBtnText}>⟳</Text>
+        {customTypeDropdown && (
+          <View style={[s.floatingMenuOverlay, { left: 100 }]}>
+            <TouchableOpacity
+              style={[s.menuItemRow, filterCustomType === 'ALL' && s.menuItemActivePurple]}
+              onPress={() => { setFilterCustomType('ALL'); setCustomTypeDropdown(false); }}
+            >
+              <Text style={[s.menuItemText, filterCustomType === 'ALL' && { color: '#a78bfa', fontWeight: '700' }]}>All Types</Text>
+              {filterCustomType === 'ALL' && <Text style={{ color: '#a78bfa', fontSize: 11 }}>✓</Text>}
             </TouchableOpacity>
+            {activeCustomTypes.map(type => (
+              <TouchableOpacity
+                key={type}
+                style={[s.menuItemRow, filterCustomType === type && s.menuItemActivePurple]}
+                onPress={() => { setFilterCustomType(type); setCustomTypeDropdown(false); }}
+              >
+                <Text style={[s.menuItemText, filterCustomType === type && { color: '#a78bfa', fontWeight: '700' }]}>{type}</Text>
+                {filterCustomType === type && <Text style={{ color: '#a78bfa', fontSize: 11 }}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {statusDropdown && (
+          <View style={[s.floatingMenuOverlay, { right: 8, left: undefined }]}>
+            {STATUS_FILTERS.map(f => (
+              <TouchableOpacity
+                key={f.key}
+                style={[s.menuItemRow, filterStatus === f.key && s.menuItemActiveBlue]}
+                onPress={() => { setFilterStatus(f.key); setStatusDropdown(false); }}
+              >
+                <Text style={[s.menuItemText, filterStatus === f.key && { color: COLORS.blue, fontWeight: '700' }]}>{f.label}</Text>
+                {filterStatus === f.key && <Text style={{ color: COLORS.blue, fontSize: 11 }}>✓</Text>}
+              </TouchableOpacity>
+            ))}
           </View>
         )}
       </View>
 
-      {/* ── Drop list ── */}
+      {/* ── Drop List Content Area ── */}
       <FlatList
         ref={flatListRef}
         data={filtered}
@@ -385,7 +428,6 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
         onScrollBeginDrag={() => { closeDropdowns(); setFabOpen(false); }}
       />
 
-      {/* Bulk import modal */}
       <BulkImportModal
         visible={showBulk}
         onClose={() => setShowBulk(false)}
@@ -393,7 +435,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
         idfList={idfList}
       />
 
-      {/* ── Speed-dial FAB ── */}
+      {/* Speed-dial FAB Layer */}
       {fabOpen && (
         <TouchableOpacity
           style={s.fabBackdrop}
@@ -455,7 +497,8 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
           </Text>
         </TouchableOpacity>
       </View>
-      {/* Template picker modal */}
+
+      {/* Template picker Modal */}
       {showTemplates && (
         <Modal visible transparent animationType="fade" onRequestClose={() => setShowTemplates(false)}>
           <TouchableOpacity
@@ -487,7 +530,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
         </Modal>
       )}
 
-      {/* ── Scroll jump arrows ── */}
+      {/* Scroll Navigation Controls */}
       {showScrollUp && (
         <TouchableOpacity
           style={s.scrollArrowTop}
@@ -518,146 +561,201 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
 }
 
 const s = StyleSheet.create({
-  // ── Filter bar ──────────────────────────────────────────────────────────
-  filterBox: {
+  filterHub: {
     backgroundColor: COLORS.bg,
-    padding: 10,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-    zIndex: 10,
-  },
-  searchInputInline: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
-    color: COLORS.text, fontSize: 13,
-  },
-  iconBtn: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
-    alignItems: 'center', justifyContent: 'center',
-    minWidth: 36,
-  },
-  iconBtnActive: {
-    backgroundColor: COLORS.blueDim,
-    borderColor: 'rgba(59,130,246,0.4)',
-  },
-  iconBtnText: { color: COLORS.textSub, fontSize: 16 },
-  dropdownRow: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'flex-start',
-  },
-  dropBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  dropBtnActive: {
-    borderColor: 'rgba(255,255,255,0.2)',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  dropBtnAmber: {
-    backgroundColor: COLORS.amberDim,
-    borderColor: 'rgba(245,158,11,0.4)',
-  },
-  dropBtnBlue: {
-    backgroundColor: COLORS.blueDim,
-    borderColor: 'rgba(59,130,246,0.4)',
-  },
-  dropBtnGreen: {
-    backgroundColor: 'rgba(34,197,94,0.1)',
-    borderColor: 'rgba(34,197,94,0.4)',
-  },
-  dropBtnText: {
-    fontSize: 11, fontWeight: '700',
-    color: COLORS.textMuted, letterSpacing: 0.3, flex: 1,
-  },
-  dropCaret: {
-    fontSize: 10, color: COLORS.textMuted, marginLeft: 4,
-  },
-  dropCaretOpen: {
-    transform: [{ rotate: '180deg' }],
-  },
-  dropMenu: {
-    position: 'absolute',
-    top: '100%',
-    left: 0, right: 0,
-    marginTop: 4,
-    backgroundColor: '#1e2530',
-    borderWidth: 1,
-    borderColor: COLORS.borderHi,
-    borderRadius: 9,
-    overflow: 'hidden',
-    elevation: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-  },
-  dropItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
     paddingVertical: 10,
+    paddingHorizontal: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.05)',
+    zIndex: 100,
+    position: 'relative',
   },
-  dropItemActive:      { backgroundColor: COLORS.amberDim },
-  dropItemActiveBlue:  { backgroundColor: COLORS.blueDim  },
-  dropItemActiveGreen: { backgroundColor: 'rgba(34,197,94,0.08)' },
-  dropItemText: { fontSize: 12, fontWeight: '600', color: COLORS.textSub },
-  clearBtn: {
-    backgroundColor: 'rgba(239,68,68,0.15)',
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)',
+  mainHubLayout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 36,
+  },
+  pillRailContainer: {
+    alignItems: 'center',
+    paddingRight: 10,
+    gap: 6,
+  },
+  utilityFixedDock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.bg,
+    paddingLeft: 6,
+  },
+  dockIconButton: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
     borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 8,
-    alignItems: 'center', justifyContent: 'center',
+    height: 34,
+    width: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  clearBtnText: { color: '#f87171', fontSize: 13, fontWeight: '800' },
-  // ── Empty state ──────────────────────────────────────────────────────────
+  dockIconActiveBlue: {
+    backgroundColor: COLORS.blueDim,
+    borderColor: 'rgba(59,130,246,0.3)',
+  },
+  dockIconText: {
+    color: COLORS.textSub,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  capsuleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    height: 32,
+    gap: 4,
+  },
+  capsuleBtnActive: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  capsuleBtnAmber: {
+    backgroundColor: 'rgba(245,158,11,0.06)',
+    borderColor: 'rgba(245,158,11,0.25)',
+  },
+  capsuleBtnBlue: {
+    backgroundColor: 'rgba(59,130,246,0.06)',
+    borderColor: 'rgba(59,130,246,0.25)',
+  },
+  capsuleBtnGreen: {
+    backgroundColor: 'rgba(34,197,94,0.06)',
+    borderColor: 'rgba(34,197,94,0.25)',
+  },
+  capsuleBtnPurple: {
+    backgroundColor: 'rgba(124,58,237,0.06)',
+    borderColor: 'rgba(124,58,237,0.25)',
+  },
+  capsuleLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: COLORS.textMuted,
+  },
+  capsuleVal: {
+    fontWeight: '700',
+    color: COLORS.textSub,
+  },
+  capsuleCaret: {
+    fontSize: 10,
+    color: COLORS.textDim,
+    marginTop: 1,
+  },
+  capsuleCaretOpen: {
+    transform: [{ rotate: '180deg' }],
+  },
+  clearCapsule: {
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.25)',
+    borderRadius: 20,
+    height: 32,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearCapsuleText: {
+    color: '#f87171',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  searchRowExpanded: {
+    flexDirection: 'row',
+    height: 36,
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchBackBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchBackArrow: {
+    color: COLORS.textSub,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  searchInputWrapper: {
+    flex: 1,
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  searchFieldInline: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 8,
+    paddingLeft: 10,
+    paddingRight: 32,
+    height: 36,
+    color: COLORS.text,
+    fontSize: 13,
+  },
+  searchClearInline: {
+    position: 'absolute',
+    right: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchClearInlineText: {
+    color: COLORS.textDim,
+    fontSize: 11,
+  },
+  floatingMenuOverlay: {
+    position: 'absolute',
+    top: 50,
+    minWidth: 130,
+    backgroundColor: '#161b22',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    overflow: 'hidden',
+    elevation: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+  },
+  menuItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.03)',
+  },
+  menuItemActiveAmber:  { backgroundColor: 'rgba(245,158,11,0.05)' },
+  menuItemActiveBlue:   { backgroundColor: 'rgba(59,130,246,0.05)' },
+  menuItemActiveGreen:  { backgroundColor: 'rgba(34,197,94,0.05)' },
+  menuItemActivePurple: { backgroundColor: 'rgba(124,58,237,0.05)' },
+  menuItemText: {
+    fontSize: 13,
+    color: COLORS.textSub,
+  },
   empty: { alignItems: 'center', paddingTop: 80, gap: 8 },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textDim },
   emptyHint:  { fontSize: 12, color: COLORS.textDim, textAlign: 'center', paddingHorizontal: 40 },
-
-  // ── Speed-dial FAB ───────────────────────────────────────────────────────
-  fabBackdrop: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    zIndex: 30,
-  },
-  fabContainer: {
-    position: 'absolute',
-    bottom: 18,
-    right: 18,
-    alignItems: 'flex-end',
-    zIndex: 40,
-  },
-  fabActions: {
-    alignItems: 'flex-end',
-    gap: 10,
-    marginBottom: 12,
-  },
+  fabBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 },
+  fabContainer: { position: 'absolute', bottom: 18, right: 18, alignItems: 'flex-end', zIndex: 40 },
+  fabActions: { alignItems: 'flex-end', gap: 10, marginBottom: 12 },
   fabAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
-    borderRadius: 50,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 16, paddingVertical: 11, borderRadius: 50,
+    elevation: 6, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 6,
   },
   fabActionBlue:   { backgroundColor: '#1d4ed8' },
   fabActionPurple: { backgroundColor: '#5b21b6' },
@@ -665,55 +763,25 @@ const s = StyleSheet.create({
   fabActionIcon:   { color: '#fff', fontSize: 16, fontWeight: '800' },
   fabActionText:   { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   fabMain: {
-    width: 56, height: 56,
-    borderRadius: 28,
-    backgroundColor: '#16a34a',
-    alignItems: 'center', justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#16a34a',
-    shadowOpacity: 0.6,
-    shadowRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    width: 56, height: 56, borderRadius: 28, backgroundColor: '#16a34a',
+    alignItems: 'center', justifyContent: 'center', elevation: 8,
+    shadowColor: '#16a34a', shadowOpacity: 0.6, shadowRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
-  fabMainOpen: {
-    backgroundColor: '#374151',
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-  },
+  fabMainOpen: { backgroundColor: '#374151', shadowColor: '#000', shadowOpacity: 0.4 },
   fabMainText:     { color: '#fff', fontSize: 28, fontWeight: '300', lineHeight: 32 },
   fabMainTextOpen: { fontSize: 20, fontWeight: '700' },
-
-  // ── Scroll jump arrows ──────────────────────────────────────────────────
   scrollArrowTop: {
-    position: 'absolute',
-    top: 58, // just below the filter bar
-    alignSelf: 'center',
-    left: '50%',
-    marginLeft: -20,
-    width: 40, height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(30,37,48,0.92)',
-    borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center', justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 6,
-    zIndex: 25,
+    position: 'absolute', top: 58, alignSelf: 'center', left: '50%', marginLeft: -20,
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(30,37,48,0.92)',
+    borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center',
+    elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 6, zIndex: 25,
   },
   scrollArrowBottom: {
-    position: 'absolute',
-    bottom: 58,
-    alignSelf: 'center',
-    left: '50%',
-    marginLeft: -20,
-    width: 40, height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(30,37,48,0.92)',
-    borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center', justifyContent: 'center',
-    elevation: 8,
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 6,
-    zIndex: 25,
+    position: 'absolute', bottom: 58, alignSelf: 'center', left: '50%', marginLeft: -20,
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(30,37,48,0.92)',
+    borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center',
+    elevation: 8, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 6, zIndex: 25,
   },
   scrollArrowText: { color: COLORS.blue, fontSize: 13, fontWeight: '800' },
   templateModal: {
@@ -725,10 +793,8 @@ const s = StyleSheet.create({
     color: COLORS.textMuted, padding: 14, paddingBottom: 8,
   },
   templateRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 12,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
-    gap: 10,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', gap: 10,
   },
   templateName: { fontSize: 14, fontWeight: '700', color: COLORS.text },
   templateMeta: { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
