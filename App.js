@@ -1,8 +1,11 @@
 import 'react-native-gesture-handler';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, SafeAreaView, TouchableOpacity, Text, StyleSheet, Modal, TextInput } from 'react-native';
+import { View, SafeAreaView, TouchableOpacity, Text, StyleSheet, Modal, TextInput, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing    from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import ProjectsScreen  from './src/screens/ProjectsScreen';
@@ -197,7 +200,99 @@ export default function App() {
     showToast('✓ Custom shortcuts updated');
   }, [customTypesInput, updateActiveProject, showToast]);
 
-  // ── Gallery folder + image deletion ───────────────────────────────────────
+  // ── Backup & Restore ──────────────────────────────────────────────────────
+  const backupData = useCallback(async () => {
+    try {
+      const backup = {
+        version:    1,
+        exportedAt: new Date().toISOString(),
+        projects:   projects.map(p => ({
+          ...p,
+          // Gallery images are device file paths — preserve folder structure but strip URIs
+          galleryImages: [],
+        })),
+        groups,
+      };
+      const json     = JSON.stringify(backup, null, 2);
+      const fileName = `cabletrack-backup-${today()}.json`;
+      const filePath = FileSystem.documentDirectory + fileName;
+      await FileSystem.writeAsStringAsync(filePath, json, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(filePath, {
+          mimeType:    'application/json',
+          dialogTitle: 'Save CableTrack Backup',
+          UTI:         'public.json',
+        });
+      } else {
+        showToast('Sharing not available on this device', 'error');
+      }
+    } catch (e) {
+      showToast('Backup failed: ' + e.message, 'error');
+    }
+  }, [projects, groups, showToast]);
+
+  const restoreData = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type:                 'application/json',
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+
+      const file    = result.assets[0];
+      const content = await FileSystem.readAsStringAsync(file.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      let backup;
+      try {
+        backup = JSON.parse(content);
+      } catch {
+        showToast('Invalid backup file', 'error');
+        return;
+      }
+
+      if (!backup.version || !Array.isArray(backup.projects)) {
+        showToast('Unrecognised backup format', 'error');
+        return;
+      }
+
+      const dateStr = backup.exportedAt
+        ? new Date(backup.exportedAt).toLocaleDateString()
+        : 'unknown date';
+
+      Alert.alert(
+        'Restore Backup',
+        `Restoring will replace ALL current projects and groups with the backup from ${dateStr}.\n\n` +
+        `${backup.projects.length} project(s) will be restored.\n\nThis cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text:  'Restore',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const restoredProjects = backup.projects ?? [];
+                const restoredGroups   = backup.groups   ?? [];
+                await AsyncStorage.setItem('cable-projects', JSON.stringify(restoredProjects));
+                await AsyncStorage.setItem('cable-groups',   JSON.stringify(restoredGroups));
+                setProjectsState(restoredProjects);
+                setGroupsState(restoredGroups);
+                setActiveProject(null);
+                showToast(`✓ ${restoredProjects.length} project${restoredProjects.length !== 1 ? 's' : ''} restored`);
+              } catch (e) {
+                showToast('Restore failed: ' + e.message, 'error');
+              }
+            },
+          },
+        ]
+      );
+    } catch (e) {
+      showToast('Could not read backup file', 'error');
+    }
+  }, [showToast]);
   const deleteFolderWithImages = useCallback((folderId) => {
     updateActiveProject({
       folders:       (activeProject.folders       ?? []).filter(f => f.id !== folderId),
@@ -258,6 +353,8 @@ export default function App() {
     updateIdfs, clearAllDrops, showToast,
     setProjects, projects,
 	groups,
+    backupData,
+    restoreData,
     updateProjectNotes,
     templates:        activeProject.templates ?? [],
     updateTemplates,

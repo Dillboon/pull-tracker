@@ -12,6 +12,7 @@ export default function SettingsScreen({
   drops, idfList, updateIdfs, clearAllDrops,
   project, setProjects, projects,
   updateProjectNotes, templates, updateTemplates, showToast,
+  backupData, restoreData,
 }) {
   const [newIdf,        setNewIdf]        = useState('');
   const [editName,      setEditName]      = useState(project.name);
@@ -404,6 +405,33 @@ export default function SettingsScreen({
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Data Backup */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>DATA BACKUP</Text>
+        <Text style={s.hint}>
+          Backs up all projects and groups across the entire app — not just this project. Gallery photos are not included.
+        </Text>
+        <TouchableOpacity
+          style={[s.btn, { backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.35)' }]}
+          onPress={backupData}
+        >
+          <Text style={{ color: COLORS.blue, fontWeight: '800', fontSize: 13 }}>
+            ⬆  EXPORT BACKUP (.json)
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.btn, { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.35)' }]}
+          onPress={restoreData}
+        >
+          <Text style={{ color: COLORS.amber, fontWeight: '800', fontSize: 13 }}>
+            ⬇  IMPORT BACKUP (.json)
+          </Text>
+        </TouchableOpacity>
+        <Text style={s.hint}>
+          Importing will overwrite all current data. Save a fresh backup first if needed.
+        </Text>
+      </View>
 
       {/* Danger zone */}
       <View style={[s.section, { borderColor: 'rgba(239,68,68,0.25)' }]}>
