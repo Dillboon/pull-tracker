@@ -214,7 +214,7 @@ export default function App() {
         groups,
       };
       const json     = JSON.stringify(backup, null, 2);
-      const fileName = `cabletrack-backup-${today()}.json`;
+      const fileName = `cabletrack-backup-${today().replace(/\//g, '-')}.json`;
       const filePath = FileSystem.documentDirectory + fileName;
       await FileSystem.writeAsStringAsync(filePath, json, {
         encoding: FileSystem.EncodingType.UTF8,
