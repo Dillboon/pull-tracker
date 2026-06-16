@@ -18,7 +18,7 @@ const STATUS_FILTERS = [
   { key: 'ATTENTION',  label: 'Attention Notes'},
 ];
 
-export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, addDropFromTemplate, templates, customTypeList = [], onEditCustomTypes }) {
+export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, addDropFromTemplate, templates, customTypeList = [], onEditCustomTypes, onReorder }) {
   const [filterIdf,         setFilterIdf]         = useState('ALL');
   const [filterStatus,      setFilterStatus]      = useState('ALL');
   const [filterRack,        setFilterRack]        = useState('ALL');
@@ -165,6 +165,7 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     });
 
     setLockedOrder(sorted.map(d => d.id));
+    onReorder?.(sorted);
   };
 
   const filtered = useMemo(() => drops.filter(d => {

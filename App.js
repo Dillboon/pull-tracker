@@ -351,6 +351,7 @@ export default function App() {
     project:          activeProject,
     addDrop, bulkAddDrops, updateDrop, deleteDrop,
     updateIdfs, clearAllDrops, showToast,
+    onReorder: (sortedDrops) => updateActiveProject({ drops: sortedDrops }),
     setProjects, projects,
 	groups,
     backupData,
