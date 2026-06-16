@@ -10,7 +10,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import ProjectsScreen  from './src/screens/ProjectsScreen';
 import DropsScreen     from './src/screens/DropsScreen';
-import DevicesScreen   from './src/screens/DevicesScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import SettingsScreen  from './src/screens/SettingsScreen';
 import GalleryScreen   from './src/screens/GalleryScreen';
@@ -21,7 +20,7 @@ import { emptyDrop, today } from './src/utils';
 
 export default function App() {
   const [projects,       setProjectsState] = useState([]);
-  const [groups,         setGroupsState]   = useState([]);
+  const [groups,         setGroupsState]   = useState([]);   // ← new
   const [activeProject,  setActiveProject] = useState(null);
   const [activeTab,      setActiveTab]     = useState('drops');
   const [loaded,         setLoaded]        = useState(false);
@@ -29,15 +28,11 @@ export default function App() {
   const toastTimer      = useRef(null);
   const pendingDelete   = useRef(null);
   const persistTimer    = useRef(null);
-  const persistGrpTimer = useRef(null);
+  const persistGrpTimer = useRef(null);    // ← new
 
   // Custom drop types configuration state
   const [showCustomTypesModal, setShowCustomTypesModal] = useState(false);
   const [customTypesInput, setCustomTypesInput] = useState('');
-
-  // Custom device types configuration state
-  const [showCustomDevTypesModal, setShowCustomDevTypesModal] = useState(false);
-  const [customDevTypesInput, setCustomDevTypesInput] = useState('');
 
   // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -45,10 +40,10 @@ export default function App() {
       try {
         const [projectData, groupData] = await Promise.all([
           AsyncStorage.getItem('cable-projects'),
-          AsyncStorage.getItem('cable-groups'),
+          AsyncStorage.getItem('cable-groups'),      // ← new
         ]);
         if (projectData) setProjectsState(JSON.parse(projectData));
-        if (groupData)   setGroupsState(JSON.parse(groupData));
+        if (groupData)   setGroupsState(JSON.parse(groupData));  // ← new
       } catch (e) {
         console.error('Load error:', e);
       } finally {
@@ -157,46 +152,6 @@ export default function App() {
     });
   }, [activeProject, updateActiveProject, showToast, projects, persistProjects]);
 
-  // ── Device CRUD ───────────────────────────────────────────────────────────
-  const addDevice = useCallback((type) => {
-    const { uid, today } = require('./src/utils');
-    const newDevice = {
-      id: uid(),
-      type: type || 'Generic',
-      name: '', macAddress: '', ipAddress: '', location: '',
-      installed: false, configured: false, online: false,
-      notes: '', createdAt: today(),
-    };
-    const currentDevices = activeProject.devices || [];
-    updateActiveProject({ devices: [...currentDevices, newDevice] });
-    showToast(`+ ${type} added`);
-  }, [activeProject, updateActiveProject, showToast]);
-
-  const updateDevice = useCallback((updated) => {
-    const stamped = { ...updated, updatedAt: today() };
-    const next = (activeProject.devices || []).map(d => d.id === stamped.id ? stamped : d);
-    updateActiveProject({ devices: next });
-  }, [activeProject, updateActiveProject]);
-
-  const deleteDevice = useCallback((id) => {
-    const next = (activeProject.devices || []).filter(d => d.id !== id);
-    updateActiveProject({ devices: next });
-    showToast('Device deleted', 'info');
-  }, [activeProject, updateActiveProject, showToast]);
-
-  const handleEditCustomDevTypes = useCallback(() => {
-    const currentList = activeProject.customDeviceTypes ?? ['Camera', 'WAP', 'Reader', 'Switch'];
-    setCustomDevTypesInput(currentList.join(', '));
-    setShowCustomDevTypesModal(true);
-  }, [activeProject]);
-
-  const saveCustomDevTypes = useCallback(() => {
-    const parsed = customDevTypesInput.split(',').map(item => item.trim()).filter(Boolean);
-    updateActiveProject({ customDeviceTypes: parsed });
-    setShowCustomDevTypesModal(false);
-    showToast('✓ Device shortcuts updated');
-  }, [customDevTypesInput, updateActiveProject, showToast]);
-
   // ── IDF management ────────────────────────────────────────────────────────
   const updateIdfs = useCallback((next) => {
     updateActiveProject({ idfList: next });
@@ -253,6 +208,7 @@ export default function App() {
         exportedAt: new Date().toISOString(),
         projects:   projects.map(p => ({
           ...p,
+          // Gallery images are device file paths — preserve folder structure but strip URIs
           galleryImages: [],
         })),
         groups,
@@ -337,7 +293,6 @@ export default function App() {
       showToast('Could not read backup file', 'error');
     }
   }, [showToast]);
-
   const deleteFolderWithImages = useCallback((folderId) => {
     updateActiveProject({
       folders:       (activeProject.folders       ?? []).filter(f => f.id !== folderId),
@@ -345,6 +300,7 @@ export default function App() {
     });
   }, [activeProject, updateActiveProject]);
 
+  // ── Clear all drops ───────────────────────────────────────────────────────
   const clearAllDrops = useCallback(() => {
     updateActiveProject({ drops: [] });
     showToast('All drops cleared');
@@ -379,8 +335,8 @@ export default function App() {
             projects={projects}
             setProjects={setProjects}
             onOpenProject={openProject}
-            groups={groups}
-            setGroups={setGroups}
+            groups={groups}          // ← new
+            setGroups={setGroups}    // ← new
           />
           {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} />}
         </SafeAreaView>
@@ -397,33 +353,21 @@ export default function App() {
     updateIdfs, clearAllDrops, showToast,
     onReorder: (sortedDrops) => updateActiveProject({ drops: sortedDrops }),
     setProjects, projects,
-    groups,
+	groups,
     backupData,
     restoreData,
     updateProjectNotes,
     templates:        activeProject.templates ?? [],
     updateTemplates,
     addDropFromTemplate,
-    
-    // Custom Drop Types
     customTypeList:    activeProject.customTypeList ?? ['WAP', 'Camera', 'Card Reader'],
     onEditCustomTypes: handleEditCustomTypes,
-    
-    // Devices API
-    devices:              activeProject.devices || [],
-    addDevice, 
-    updateDevice, 
-    deleteDevice,
-    customDeviceTypes:    activeProject.customDeviceTypes ?? ['Camera', 'WAP', 'Reader', 'Switch'],
-    onEditCustomDevTypes: handleEditCustomDevTypes,
-
-    // Gallery
     folders:          activeProject.folders       ?? [],
     galleryImages:    activeProject.galleryImages ?? [],
     setFolders:       (next) => updateActiveProject({ folders: next }),
     setGalleryImages: (next) => updateActiveProject({ galleryImages: next }),
     deleteFolderWithImages,
-    updateGalleryData: (f, i) => updateActiveProject({ folders: f, galleryImages: i }),
+	updateGalleryData: (f, i) => updateActiveProject({ folders: f, galleryImages: i }),
   };
 
   return (
@@ -452,7 +396,6 @@ export default function App() {
 
         <View style={{ flex: 1 }}>
           {activeTab === 'drops'     && <DropsScreen     {...screenProps} />}
-          {activeTab === 'devices'   && <DevicesScreen   {...screenProps} />}
           {activeTab === 'dashboard' && <DashboardScreen {...screenProps} />}
           {activeTab === 'settings'  && <SettingsScreen  {...screenProps} />}
           {activeTab === 'gallery'   && <GalleryScreen   {...screenProps} />}
@@ -461,7 +404,7 @@ export default function App() {
         <TabBar activeTab={activeTab} setActiveTab={setActiveTab} />
         {toast && <Toast msg={toast.msg} type={toast.type} onUndo={toast.onUndo} />}
 
-        {/* ── Custom Drop Types Edit Modal ── */}
+        {/* ── Custom Types Edit Modal (Cross-platform safe) ── */}
         {showCustomTypesModal && (
           <Modal visible transparent animationType="fade" onRequestClose={() => setShowCustomTypesModal(false)}>
             <TouchableOpacity
@@ -493,47 +436,6 @@ export default function App() {
                   <TouchableOpacity
                     style={[st.modalBtn, st.modalBtnSave]}
                     onPress={saveCustomTypes}
-                  >
-                    <Text style={st.modalBtnSaveText}>Save Shortcuts</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </Modal>
-        )}
-
-        {/* ── Custom Device Types Edit Modal ── */}
-        {showCustomDevTypesModal && (
-          <Modal visible transparent animationType="fade" onRequestClose={() => setShowCustomDevTypesModal(false)}>
-            <TouchableOpacity
-              style={st.modalOverlay}
-              activeOpacity={1}
-              onPress={() => setShowCustomDevTypesModal(false)}
-            >
-              <TouchableOpacity activeOpacity={1} style={st.modalBox}>
-                <Text style={st.modalTitle}>MANAGE DEVICE TYPES</Text>
-                <Text style={st.modalHint}>Configure the shortcuts available when adding new hardware devices:</Text>
-                
-                <TextInput
-                  value={customDevTypesInput}
-                  onChangeText={setCustomDevTypesInput}
-                  placeholder="e.g. Camera, WAP, Reader, Switch, Server"
-                  placeholderTextColor="#4b5563"
-                  style={st.modalInput}
-                  autoCapitalize="words"
-                  autoFocus
-                />
-
-                <View style={st.modalActions}>
-                  <TouchableOpacity
-                    style={[st.modalBtn, st.modalBtnCancel]}
-                    onPress={() => setShowCustomDevTypesModal(false)}
-                  >
-                    <Text style={st.modalBtnCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[st.modalBtn, st.modalBtnSave]}
-                    onPress={saveCustomDevTypes}
                   >
                     <Text style={st.modalBtnSaveText}>Save Shortcuts</Text>
                   </TouchableOpacity>
@@ -580,7 +482,7 @@ const st = StyleSheet.create({
     fontSize: 9, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 0.8,
   },
 
-  // Modals
+  // Custom Types Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
