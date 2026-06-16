@@ -102,16 +102,48 @@ function getPatchedLabel(drop) {
   return patchedIds.length > 0 ? `Yes (${patchedIds.join('/')})` : 'No';
 }
 
-// UPDATED: Added Natural Sorting helper to handle numbers and letters sequentially
+// Natural sort — numeric when possible, trailing-number aware for C-001, IDF-02, R10 etc.
+function natSort(a, b) {
+  const numA = parseInt(a, 10);
+  const numB = parseInt(b, 10);
+  if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+  const trailA = a.match(/(\d+)$/)?.[1];
+  const trailB = b.match(/(\d+)$/)?.[1];
+  if (trailA && trailB) {
+    const prefixA = a.slice(0, a.length - trailA.length);
+    const prefixB = b.slice(0, b.length - trailB.length);
+    if (prefixA === prefixB) return parseInt(trailA, 10) - parseInt(trailB, 10);
+  }
+  return a.localeCompare(b);
+}
+
+// 4-level sort: IDF → Custom Type → Rack Number → Cable ID
+// Mirrors the refresh sort in DropsScreen so exports match the on-screen order.
 function getSortedDrops(drops) {
   return [...drops].sort((a, b) => {
+    // 1. IDF alphabetically — unassigned drops sort last
     const idfA = (a.idf || '').toLowerCase();
     const idfB = (b.idf || '').toLowerCase();
-    if (idfA !== idfB) return idfA.localeCompare(idfB);
-    
-    const cableA = String(a.cableA || '');
-    const cableB = String(b.cableA || '');
-    return cableA.localeCompare(cableB, undefined, { numeric: true, sensitivity: 'base' });
+    if (!idfA && idfB)  return 1;
+    if (idfA && !idfB)  return -1;
+    if (idfA !== idfB)  return natSort(idfA, idfB);
+
+    // 2. Custom type alphabetically — standard (no type) drops sort first within each IDF
+    const typeA = (a.customType || '').toLowerCase();
+    const typeB = (b.customType || '').toLowerCase();
+    if (!typeA && typeB)  return -1;
+    if (typeA && !typeB)  return 1;
+    if (typeA !== typeB)  return natSort(typeA, typeB);
+
+    // 3. Rack number — no rack sorts first, then natural sort (R2 before R10)
+    const rackA = (a.rackNumber || '').toLowerCase();
+    const rackB = (b.rackNumber || '').toLowerCase();
+    if (!rackA && rackB)  return -1;
+    if (rackA && !rackB)  return 1;
+    if (rackA !== rackB)  return natSort(rackA, rackB);
+
+    // 4. Cable ID — natural sort (C-002 before C-010)
+    return natSort(a.cableA || '', b.cableA || '');
   });
 }
 
