@@ -122,20 +122,48 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   };
 
   const handleRefresh = () => {
+    // Natural sort — numeric if possible, trailing-number aware for prefixed IDs like C-001
+    const natSort = (a, b) => {
+      const numA = parseInt(a, 10);
+      const numB = parseInt(b, 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      // Extract trailing number for strings like C-001, IDF-02, R10
+      const trailA = a.match(/(\d+)$/)?.[1];
+      const trailB = b.match(/(\d+)$/)?.[1];
+      if (trailA && trailB) {
+        const prefixA = a.slice(0, a.length - trailA.length);
+        const prefixB = b.slice(0, b.length - trailB.length);
+        if (prefixA === prefixB) return parseInt(trailA, 10) - parseInt(trailB, 10);
+      }
+      return a.localeCompare(b);
+    };
+
     const sorted = [...drops].sort((a, b) => {
+      // 1. IDF alphabetically — blank/unassigned drops sort last
       const idfA = (a.idf || '').toLowerCase();
       const idfB = (b.idf || '').toLowerCase();
-      if (idfA < idfB) return -1;
-      if (idfA > idfB) return 1;
-      const numA = parseInt(a.cableA);
-      const numB = parseInt(b.cableA);
-      const hasA = !isNaN(numA);
-      const hasB = !isNaN(numB);
-      if (!hasA && !hasB) return 0;
-      if (!hasA) return 1;
-      if (!hasB) return -1;
-      return numA - numB;
+      if (!idfA && idfB)  return 1;
+      if (idfA && !idfB)  return -1;
+      if (idfA !== idfB)  return natSort(idfA, idfB);
+
+      // 2. Custom type alphabetically — standard (no type) drops sort first within each IDF
+      const typeA = (a.customType || '').toLowerCase();
+      const typeB = (b.customType || '').toLowerCase();
+      if (!typeA && typeB)  return -1;
+      if (typeA && !typeB)  return 1;
+      if (typeA !== typeB)  return natSort(typeA, typeB);
+
+      // 3. Rack number — no rack sorts first, then natural sort (R2 before R10)
+      const rackA = (a.rackNumber || '').toLowerCase();
+      const rackB = (b.rackNumber || '').toLowerCase();
+      if (!rackA && rackB)  return -1;
+      if (rackA && !rackB)  return 1;
+      if (rackA !== rackB)  return natSort(rackA, rackB);
+
+      // 4. Cable ID — natural sort (C-002 before C-010)
+      return natSort(a.cableA || '', b.cableA || '');
     });
+
     setLockedOrder(sorted.map(d => d.id));
   };
 
