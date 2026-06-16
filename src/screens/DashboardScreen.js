@@ -89,6 +89,11 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
     }
   });
 
+  // ── Device Stats ──────────────────────────────────────────────────────────
+  const devices = project?.devices || [];
+  const totalDev = devices.length;
+  const onlineDev = devices.filter(d => d.online).length;
+
   // Calculate percentage based on total pipeline steps (3 steps per drop)
   const pct      = total > 0 ? Math.round(((rp + tm + ts) / (total * 3)) * 100) : 0;
   const pctColor = pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : COLORS.textMuted;
@@ -142,7 +147,7 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
           <Text style={s.heroProject} numberOfLines={2}>{project.name}</Text>
           <Text style={s.heroSub}>
             <Text style={{ color: pctColor, fontWeight: '800' }}>{complete}</Text>
-            <Text style={{ color: COLORS.textMuted }}> of {total} drop{total !== 1 ? 's' : ''} complete</Text>
+            <Text style={{ color: COLORS.textMuted }}> of {total} drops 100% complete</Text>
           </Text>
           <View style={[s.barTrack, { marginTop: 10, height: 5 }]}>
             <View style={[s.barFill, { width: `${pct}%`, backgroundColor: pctColor }]} />
@@ -153,10 +158,12 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
       {/* ── Quick stat grid ── */}
       <View style={s.statGrid}>
         {[
-          { label: 'Total',     val: total,     color: COLORS.textSub },
-          { label: 'Complete',  val: complete,  color: pctColor },
+          { label: 'Drops',     val: total,     color: COLORS.textSub },
           { label: 'Attention', val: attention, color: attention > 0 ? COLORS.amber : COLORS.textMuted },
           { label: 'Patched',   val: patched,   color: patched  > 0 ? COLORS.green : COLORS.textMuted },
+          { label: 'Complete',  val: complete,  color: pctColor },
+          { label: 'Devices',   val: totalDev,  color: COLORS.blue },
+          { label: 'Online',    val: onlineDev, color: onlineDev === totalDev && totalDev > 0 ? COLORS.green : COLORS.amber },
         ].map(({ label, val, color }) => (
           <View key={label} style={s.statCard}>
             <Text style={[s.statVal, { color }]}>{val}</Text>
@@ -214,9 +221,11 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
            {activeIdfs.map(idf => {
               const idrops   = drops.filter(d => d.idf === idf);
               const idfDone  = idrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
+              
               const idfRp    = idrops.filter(d => d.roughPull   || d.overrideComplete).length;
               const idfTm    = idrops.filter(d => d.terminated  || d.overrideComplete).length;
               const idfTs    = idrops.filter(d => d.tested      || d.overrideComplete).length;
+              
               // Calculate percentage based on pipeline steps for this specific IDF
               const idfPct   = idrops.length > 0 ? Math.round(((idfRp + idfTm + idfTs) / (idrops.length * 3)) * 100) : 0;
               const idfColor = idfPct === 100 ? COLORS.green : idfPct > 0 ? COLORS.amber : COLORS.textMuted;
@@ -355,9 +364,9 @@ const s = StyleSheet.create({
   heroSub:     { fontSize: 11, color: COLORS.textMuted, marginTop: 3 },
 
   // Stat grid
-  statGrid: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   statCard: {
-    flex: 1, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+    flexBasis: '30%', flexGrow: 1, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
     borderRadius: 10, padding: 10, alignItems: 'center',
   },
   statVal:   { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },

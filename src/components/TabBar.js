@@ -4,6 +4,7 @@ import { COLORS } from '../theme';
 
 const TABS = [
   { key: 'drops',     icon: '≡',  label: 'Drops'   },
+  { key: 'devices',   icon: '✇',  label: 'Devices' },
   { key: 'dashboard', icon: '◈',  label: 'Stats'   },
   { key: 'gallery',   icon: '▣', label: 'Gallery' },
   { key: 'settings',  icon: '⚙',  label: 'Config'  },
