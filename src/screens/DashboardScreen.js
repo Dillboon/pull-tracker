@@ -89,7 +89,8 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
     }
   });
 
-  const pct      = total > 0 ? Math.round((complete / total) * 100) : 0;
+  // Calculate percentage based on total pipeline steps (3 steps per drop)
+  const pct      = total > 0 ? Math.round(((rp + tm + ts) / (total * 3)) * 100) : 0;
   const pctColor = pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : COLORS.textMuted;
 
   const activeIdfs = idfList.filter(idf => drops.some(d => d.idf === idf));
@@ -210,15 +211,16 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
         <View style={s.section}>
           <Text style={s.sectionTitle}>BY IDF CLOSET</Text>
           <View style={{ marginTop: 10, gap: 8 }}>
-            {activeIdfs.map(idf => {
+           {activeIdfs.map(idf => {
               const idrops   = drops.filter(d => d.idf === idf);
               const idfDone  = idrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
-              const idfPct   = idrops.length > 0 ? Math.round((idfDone / idrops.length) * 100) : 0;
-              const idfColor = idfPct === 100 ? COLORS.green : idfPct > 0 ? COLORS.amber : COLORS.textMuted;
-              const isOpen   = expandedIdf === idf;
               const idfRp    = idrops.filter(d => d.roughPull   || d.overrideComplete).length;
               const idfTm    = idrops.filter(d => d.terminated  || d.overrideComplete).length;
               const idfTs    = idrops.filter(d => d.tested      || d.overrideComplete).length;
+              // Calculate percentage based on pipeline steps for this specific IDF
+              const idfPct   = idrops.length > 0 ? Math.round(((idfRp + idfTm + idfTs) / (idrops.length * 3)) * 100) : 0;
+              const idfColor = idfPct === 100 ? COLORS.green : idfPct > 0 ? COLORS.amber : COLORS.textMuted;
+              const isOpen   = expandedIdf === idf;
 
               return (
                 <View key={idf} style={[s.idfCard, isOpen && s.idfCardOpen]}>

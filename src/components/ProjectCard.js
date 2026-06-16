@@ -19,12 +19,16 @@ export default function ProjectCard({
   onRemoveFromGroup,
 }) {
   const total    = project.drops.length;
-  // Updated to include overrideComplete
+  
   const complete = project.drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
-  const rp       = project.drops.filter(d => d.roughPull).length;
-  const tm       = project.drops.filter(d => d.terminated).length;
-  const ts       = project.drops.filter(d => d.tested).length;
-  const pct      = total > 0 ? Math.round((complete / total) * 100) : 0;
+  
+  // Update these to account for overrideComplete drops as well
+  const rp       = project.drops.filter(d => d.roughPull || d.overrideComplete).length;
+  const tm       = project.drops.filter(d => d.terminated || d.overrideComplete).length;
+  const ts       = project.drops.filter(d => d.tested || d.overrideComplete).length;
+  
+  // Calculate percentage based on pipeline steps
+  const pct      = total > 0 ? Math.round(((rp + tm + ts) / (total * 3)) * 100) : 0;
   const isArchived = project.status === 'archived';
 
   return (

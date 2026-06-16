@@ -52,9 +52,17 @@ function GroupSection({
   exporting,
 }) {
   const totalDrops = projects.reduce((s, p) => s + p.drops.length, 0);
-  const doneDrops  = projects.reduce((s, p) =>
-    s + p.drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length, 0);
-  const pct = totalDrops > 0 ? Math.round((doneDrops / totalDrops) * 100) : 0;
+  
+  // Calculate all pipeline steps across all projects in the group
+  const pipelineSteps = projects.reduce((sum, p) => {
+    const rp = p.drops.filter(d => d.roughPull || d.overrideComplete).length;
+    const tm = p.drops.filter(d => d.terminated || d.overrideComplete).length;
+    const ts = p.drops.filter(d => d.tested || d.overrideComplete).length;
+    return sum + rp + tm + ts;
+  }, 0);
+
+  // Apply the pipeline percentage logic
+  const pct = totalDrops > 0 ? Math.round((pipelineSteps / (totalDrops * 3)) * 100) : 0;
 
   return (
     <View style={gs.container}>
