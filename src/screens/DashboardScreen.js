@@ -87,18 +87,6 @@ function TypeDetailCard({ typeKey, isCustom, drops }) {
   const tm    = typeDrops.filter(d => d.terminated  || d.overrideComplete).length;
   const ts    = typeDrops.filter(d => d.tested      || d.overrideComplete).length;
   const done  = typeDrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
-  const score = typeDrops.reduce((sum, d) => {
-function RackRow({ label, drops }) {
-  const total = drops.length;
-  const rp    = drops.filter(d => d.roughPull   || d.overrideComplete).length;
-  const tm    = drops.filter(d => d.terminated  || d.overrideComplete).length;
-  const ts    = drops.filter(d => d.tested      || d.overrideComplete).length;
-  const done  = drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
-  const score = drops.reduce((sum, d) => {
-    if (d.overrideComplete) return sum + 3;
-    return sum + (d.roughPull ? 1 : 0) + (d.terminated ? 1 : 0) + (d.tested ? 1 : 0);
-  }, 0);
-  const pct   = total > 0 ? Math.round((score / (total * 3)) * 100) : 0;
 
   // IDF breakdown for this type
   const typeIdfs = [...new Set(typeDrops.map(d => d.idf).filter(Boolean))].sort();
@@ -146,6 +134,7 @@ function RackRow({ label, drops }) {
               }, 0);
               const idfPct   = idfTypeDrops.length > 0 ? Math.round((idfScore / (idfTypeDrops.length * 3)) * 100) : 0;
               const idfColor = idfPct === 100 ? COLORS.green : idfPct > 0 ? COLORS.amber : COLORS.textMuted;
+              
               return (
                 <View key={idf} style={s.rackRow}>
                   <View style={{ flex: 1 }}>
@@ -169,6 +158,38 @@ function RackRow({ label, drops }) {
           </View>
         </>
       )}
+    </View>
+  );
+}
+
+function RackRow({ label, drops }) {
+  const total = drops.length;
+  const done  = drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
+  const score = drops.reduce((sum, d) => {
+    if (d.overrideComplete) return sum + 3;
+    return sum + (d.roughPull ? 1 : 0) + (d.terminated ? 1 : 0) + (d.tested ? 1 : 0);
+  }, 0);
+  
+  const pct   = total > 0 ? Math.round((score / (total * 3)) * 100) : 0;
+  const color = pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : COLORS.textMuted;
+
+  return (
+    <View style={s.rackRow}>
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+          <Text style={s.rackLabel}>{label}</Text>
+          <Text style={[s.rackMeta, { color }]}>
+            {done}/{total} done
+          </Text>
+          <View style={{ flex: 1 }} />
+          <View style={[s.idfPctPill, { backgroundColor: color + '22', borderColor: color + '44' }]}>
+            <Text style={[s.idfPctText, { color }]}>{pct}%</Text>
+          </View>
+        </View>
+        <View style={[s.barTrack, { height: 2 }]}>
+          <View style={[s.barFill, { width: `${pct}%`, backgroundColor: color }]} />
+        </View>
+      </View>
     </View>
   );
 }
