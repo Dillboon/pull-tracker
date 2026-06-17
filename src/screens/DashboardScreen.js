@@ -63,6 +63,49 @@ function ExportButtons({ drops, label, exporting, onExport }) {
   );
 }
 
+function RackRow({ label, drops }) {
+  const total = drops.length;
+  const rp    = drops.filter(d => d.roughPull   || d.overrideComplete).length;
+  const tm    = drops.filter(d => d.terminated  || d.overrideComplete).length;
+  const ts    = drops.filter(d => d.tested      || d.overrideComplete).length;
+  const done  = drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
+  const score = drops.reduce((sum, d) => {
+    if (d.overrideComplete) return sum + 3;
+    return sum + (d.roughPull ? 1 : 0) + (d.terminated ? 1 : 0) + (d.tested ? 1 : 0);
+  }, 0);
+  const pct   = total > 0 ? Math.round((score / (total * 3)) * 100) : 0;
+  const color = pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : COLORS.textMuted;
+
+  return (
+    <View style={s.rackRow}>
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <Text style={s.rackLabel}>{label}</Text>
+          <Text style={[s.rackMeta, { color }]}>{done}/{total} done</Text>
+          <View style={{ flex: 1 }} />
+          <View style={[s.idfPctPill, { backgroundColor: color + '22', borderColor: color + '44' }]}>
+            <Text style={[s.idfPctText, { color }]}>{pct}%</Text>
+          </View>
+        </View>
+        <View style={[s.barTrack, { height: 2 }]}>
+          <View style={[s.barFill, { width: `${pct}%`, backgroundColor: color }]} />
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+          {[
+            { label: 'RP', val: rp,   color: COLORS.amber },
+            { label: 'TM', val: tm,   color: COLORS.blue  },
+            { label: 'TS', val: ts,   color: COLORS.green },
+          ].map(({ label: l, val, color: c }) => (
+            <Text key={l} style={{ fontSize: 9, color: c, fontWeight: '700' }}>
+              {l}: {val}
+            </Text>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function DashboardScreen({ drops, idfList, showToast, project }) {
@@ -287,6 +330,31 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
                         exporting={exporting}
                         onExport={handleIdfExport}
                       />
+
+                      {/* Rack breakdown — only when racks are used within this IDF */}
+                      {(() => {
+                        const idfRacks  = [...new Set(idrops.map(d => d.rackNumber).filter(Boolean))].sort();
+                        const unracked  = idrops.filter(d => !d.rackNumber);
+                        if (idfRacks.length === 0) return null;
+                        return (
+                          <>
+                            <View style={[s.divider, { marginTop: 14 }]} />
+                            <Text style={[s.subLabel, { marginBottom: 8 }]}>BY RACK</Text>
+                            <View style={{ gap: 6 }}>
+                              {unracked.length > 0 && (
+                                <RackRow label="Unassigned" drops={unracked} />
+                              )}
+                              {idfRacks.map(rack => (
+                                <RackRow
+                                  key={rack}
+                                  label={`Rack ${rack}`}
+                                  drops={idrops.filter(d => d.rackNumber === rack)}
+                                />
+                              ))}
+                            </View>
+                          </>
+                        );
+                      })()}
                     </View>
                   )}
                 </View>
@@ -413,6 +481,15 @@ const s = StyleSheet.create({
   idfMiniVal:   { fontSize: 16, fontWeight: '800' },
   idfMiniLabel: { fontSize: 9, color: COLORS.textMuted, marginTop: 2, fontWeight: '600' },
   chevron:      { fontSize: 12, color: COLORS.textMuted, marginLeft: 8 },
+  rackRow: {
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 7,
+    padding: 9,
+  },
+  rackLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textSub, fontFamily: 'monospace' },
+  rackMeta:  { fontSize: 10, fontWeight: '600' },
 
   // IDF export buttons
   idfExportBtn:  { flex: 1, borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1 },
