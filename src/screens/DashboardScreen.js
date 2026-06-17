@@ -27,12 +27,26 @@ function PipelineBar({ label, count, total, color }) {
   );
 }
 
-function TypePill({ label, count, color }) {
+function TypePill({ label, count, color, onPress, isExpanded }) {
+  const Wrapper = onPress ? TouchableOpacity : View;
   return (
-    <View style={[s.typePill, { borderColor: color + '44' }]}>
+    <Wrapper
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[
+        s.typePill,
+        { borderColor: color + '44' },
+        isExpanded && { borderColor: color + 'aa', backgroundColor: color + '1a' },
+      ]}
+    >
       <Text style={[s.typePillCount, { color }]}>{count}</Text>
       <Text style={s.typePillLabel}>{label}</Text>
-    </View>
+      {onPress && (
+        <Text style={{ fontSize: 8, color, opacity: 0.8, marginLeft: 1 }}>
+          {isExpanded ? '▴' : '▾'}
+        </Text>
+      )}
+    </Wrapper>
   );
 }
 
@@ -92,9 +106,9 @@ function RackRow({ label, drops }) {
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
           {[
-            { label: 'RP', val: rp,   color: COLORS.amber },
-            { label: 'TM', val: tm,   color: COLORS.blue  },
-            { label: 'TS', val: ts,   color: COLORS.green },
+            { label: 'RP', val: rp, color: COLORS.amber },
+            { label: 'TM', val: tm, color: COLORS.blue  },
+            { label: 'TS', val: ts, color: COLORS.green },
           ].map(({ label: l, val, color: c }) => (
             <Text key={l} style={{ fontSize: 9, color: c, fontWeight: '700' }}>
               {l}: {val}
@@ -106,11 +120,101 @@ function RackRow({ label, drops }) {
   );
 }
 
+function TypeDetailCard({ typeKey, isCustom, drops }) {
+  const typeDrops = isCustom
+    ? drops.filter(d => d.customType === typeKey)
+    : drops.filter(d => getGroupType(d) === typeKey);
+
+  const total = typeDrops.length;
+  const rp    = typeDrops.filter(d => d.roughPull   || d.overrideComplete).length;
+  const tm    = typeDrops.filter(d => d.terminated  || d.overrideComplete).length;
+  const ts    = typeDrops.filter(d => d.tested      || d.overrideComplete).length;
+  const done  = typeDrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
+  const score = typeDrops.reduce((sum, d) => {
+    if (d.overrideComplete) return sum + 3;
+    return sum + (d.roughPull ? 1 : 0) + (d.terminated ? 1 : 0) + (d.tested ? 1 : 0);
+  }, 0);
+  const pct   = total > 0 ? Math.round((score / (total * 3)) * 100) : 0;
+
+  // IDF breakdown for this type
+  const typeIdfs = [...new Set(typeDrops.map(d => d.idf).filter(Boolean))].sort();
+
+  return (
+    <View style={{ gap: 10, marginTop: 4 }}>
+      {/* Mini stat row */}
+      <View style={s.idfMiniStats}>
+        {[
+          { label: 'Pulled', val: rp,   color: COLORS.amber },
+          { label: 'Term.',  val: tm,   color: COLORS.blue  },
+          { label: 'Tested', val: ts,   color: COLORS.green },
+          { label: 'Done',   val: done, color: COLORS.pink  },
+        ].map(({ label, val, color }) => (
+          <View key={label} style={s.idfMiniStat}>
+            <Text style={[s.idfMiniVal, { color }]}>{val}</Text>
+            <Text style={s.idfMiniLabel}>{label}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Pipeline bars */}
+      <View>
+        {[
+          { label: 'Rough Pull', count: rp,   color: COLORS.amber },
+          { label: 'Terminated', count: tm,   color: COLORS.blue  },
+          { label: 'Tested',     count: ts,   color: COLORS.green },
+          { label: 'Complete',   count: done, color: COLORS.pink  },
+        ].map(stage => (
+          <PipelineBar key={stage.label} {...stage} total={total} />
+        ))}
+      </View>
+
+      {/* By IDF breakdown for this type */}
+      {typeIdfs.length > 0 && (
+        <>
+          <Text style={s.subLabel}>BY IDF</Text>
+          <View style={{ gap: 5 }}>
+            {typeIdfs.map(idf => {
+              const idfTypeDrops = typeDrops.filter(d => d.idf === idf);
+              const idfDone  = idfTypeDrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
+              const idfScore = idfTypeDrops.reduce((sum, d) => {
+                if (d.overrideComplete) return sum + 3;
+                return sum + (d.roughPull ? 1 : 0) + (d.terminated ? 1 : 0) + (d.tested ? 1 : 0);
+              }, 0);
+              const idfPct   = idfTypeDrops.length > 0 ? Math.round((idfScore / (idfTypeDrops.length * 3)) * 100) : 0;
+              const idfColor = idfPct === 100 ? COLORS.green : idfPct > 0 ? COLORS.amber : COLORS.textMuted;
+              return (
+                <View key={idf} style={s.rackRow}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <Text style={s.rackLabel}>{idf}</Text>
+                      <Text style={[s.rackMeta, { color: idfColor }]}>
+                        {idfDone}/{idfTypeDrops.length} done
+                      </Text>
+                      <View style={{ flex: 1 }} />
+                      <View style={[s.idfPctPill, { backgroundColor: idfColor + '22', borderColor: idfColor + '44' }]}>
+                        <Text style={[s.idfPctText, { color: idfColor }]}>{idfPct}%</Text>
+                      </View>
+                    </View>
+                    <View style={[s.barTrack, { height: 2 }]}>
+                      <View style={[s.barFill, { width: `${idfPct}%`, backgroundColor: idfColor }]} />
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function DashboardScreen({ drops, idfList, showToast, project }) {
-  const [exporting,   setExporting]   = useState(null);
-  const [expandedIdf, setExpandedIdf] = useState(null);
+  const [exporting,    setExporting]    = useState(null);
+  const [expandedIdf,  setExpandedIdf]  = useState(null);
+  const [expandedType, setExpandedType] = useState(null);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const total    = drops.length;
@@ -230,20 +334,47 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
         <View style={s.section}>
           <Text style={s.sectionTitle}>DROP TYPES</Text>
           <View style={[s.typeRow, { marginTop: 10 }]}>
-            <TypePill label="Single" count={singles} color={COLORS.textSub} />
-            {doubles > 0 && <TypePill label="Double" count={doubles} color={COLORS.purple} />}
-            {triples > 0 && <TypePill label="Triple" count={triples} color={COLORS.teal}   />}
-            {quads   > 0 && <TypePill label="Quad"   count={quads}   color={COLORS.orange} />}
+            <TypePill label="Single" count={singles} color={COLORS.textSub}
+              onPress={() => setExpandedType(expandedType === 'single' ? null : 'single')}
+              isExpanded={expandedType === 'single'} />
+            {doubles > 0 && <TypePill label="Double" count={doubles} color={COLORS.purple}
+              onPress={() => setExpandedType(expandedType === 'double' ? null : 'double')}
+              isExpanded={expandedType === 'double'} />}
+            {triples > 0 && <TypePill label="Triple" count={triples} color={COLORS.teal}
+              onPress={() => setExpandedType(expandedType === 'triple' ? null : 'triple')}
+              isExpanded={expandedType === 'triple'} />}
+            {quads > 0 && <TypePill label="Quad" count={quads} color={COLORS.orange}
+              onPress={() => setExpandedType(expandedType === 'quad' ? null : 'quad')}
+              isExpanded={expandedType === 'quad'} />}
           </View>
+
+          {/* Expanded detail for standard types */}
+          {expandedType && ['single','double','triple','quad'].includes(expandedType) && (
+            <>
+              <View style={s.divider} />
+              <TypeDetailCard typeKey={expandedType} isCustom={false} drops={drops} />
+            </>
+          )}
+
           {Object.keys(customTypeCounts).length > 0 && (
             <>
               <View style={s.divider} />
               <Text style={[s.subLabel, { marginBottom: 8 }]}>CUSTOM TYPES</Text>
               <View style={s.typeRow}>
                 {Object.entries(customTypeCounts).map(([type, count]) => (
-                  <TypePill key={type} label={type} count={count} color={COLORS.teal} />
+                  <TypePill key={type} label={type} count={count} color={COLORS.teal}
+                    onPress={() => setExpandedType(expandedType === type ? null : type)}
+                    isExpanded={expandedType === type} />
                 ))}
               </View>
+
+              {/* Expanded detail for custom types */}
+              {expandedType && !['single','double','triple','quad'].includes(expandedType) && (
+                <>
+                  <View style={[s.divider, { marginTop: 10 }]} />
+                  <TypeDetailCard typeKey={expandedType} isCustom={true} drops={drops} />
+                </>
+              )}
             </>
           )}
         </View>
@@ -333,8 +464,8 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
 
                       {/* Rack breakdown — only when racks are used within this IDF */}
                       {(() => {
-                        const idfRacks  = [...new Set(idrops.map(d => d.rackNumber).filter(Boolean))].sort();
-                        const unracked  = idrops.filter(d => !d.rackNumber);
+                        const idfRacks = [...new Set(idrops.map(d => d.rackNumber).filter(Boolean))].sort();
+                        const unracked = idrops.filter(d => !d.rackNumber);
                         if (idfRacks.length === 0) return null;
                         return (
                           <>
