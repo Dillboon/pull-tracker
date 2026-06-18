@@ -571,10 +571,10 @@ const s = StyleSheet.create({
   statGrid: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   statCard: {
     flex: 1, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 10, padding: 9, alignItems: 'center',
+    borderRadius: 10, padding: 10, alignItems: 'center',
   },
   statVal:   { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
-  statLabel: { fontSize: 9, color: COLORS.textMuted, fontWeight: '700', marginTop: 3, letterSpacing: 0.3, textTransform: 'uppercase' },
+  statLabel: { fontSize: 8, color: COLORS.textMuted, fontWeight: '700', marginTop: 3, letterSpacing: 0.3, textTransform: 'uppercase' },
 
   // Sections
   section: {
