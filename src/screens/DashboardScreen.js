@@ -316,8 +316,8 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
         {[
           { label: 'Total',      val: total,            color: COLORS.textSub },
           { label: 'Complete',   val: complete,          color: pctColor },
+		  { label: 'Incomplete', val: total - complete,  color: (total - complete) > 0 ? COLORS.red : COLORS.textMuted },
           { label: 'Attention',  val: attention,         color: attention > 0 ? COLORS.amber : COLORS.textMuted },
-          { label: 'Incomplete', val: total - complete,  color: (total - complete) > 0 ? COLORS.red : COLORS.textMuted },
         ].map(({ label, val, color }) => (
           <View key={label} style={s.statCard}>
             <Text style={[s.statVal, { color }]}>{val}</Text>
@@ -571,7 +571,7 @@ const s = StyleSheet.create({
   statGrid: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   statCard: {
     flex: 1, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 10, padding: 10, alignItems: 'center',
+    borderRadius: 10, padding: 9, alignItems: 'center',
   },
   statVal:   { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
   statLabel: { fontSize: 9, color: COLORS.textMuted, fontWeight: '700', marginTop: 3, letterSpacing: 0.3, textTransform: 'uppercase' },
