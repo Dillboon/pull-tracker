@@ -175,6 +175,9 @@ function TypeDetailCard({ typeKey, isCustom, drops }) {
           <View style={{ gap: 5 }}>
             {typeIdfs.map(idf => {
               const idfTypeDrops = typeDrops.filter(d => d.idf === idf);
+              const idfRp    = idfTypeDrops.filter(d => d.roughPull   || d.overrideComplete).length;
+              const idfTm    = idfTypeDrops.filter(d => d.terminated  || d.overrideComplete).length;
+              const idfTs    = idfTypeDrops.filter(d => d.tested      || d.overrideComplete).length;
               const idfDone  = idfTypeDrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
               const idfScore = idfTypeDrops.reduce((sum, d) => {
                 if (d.overrideComplete) return sum + 3;
@@ -197,6 +200,17 @@ function TypeDetailCard({ typeKey, isCustom, drops }) {
                     </View>
                     <View style={[s.barTrack, { height: 2 }]}>
                       <View style={[s.barFill, { width: `${idfPct}%`, backgroundColor: idfColor }]} />
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                      {[
+                        { label: 'RP', val: idfRp, color: COLORS.amber },
+                        { label: 'TM', val: idfTm, color: COLORS.blue  },
+                        { label: 'TS', val: idfTs, color: COLORS.green },
+                      ].map(({ label: l, val, color: c }) => (
+                        <Text key={l} style={{ fontSize: 9, color: c, fontWeight: '700' }}>
+                          {l}: {val}
+                        </Text>
+                      ))}
                     </View>
                   </View>
                 </View>
@@ -300,10 +314,10 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
       {/* ── Quick stat grid ── */}
       <View style={s.statGrid}>
         {[
-          { label: 'Total',     val: total,     color: COLORS.textSub },
-          { label: 'Complete',  val: complete,  color: pctColor },
-          { label: 'Attention', val: attention, color: attention > 0 ? COLORS.amber : COLORS.textMuted },
-          { label: 'Patched',   val: patched,   color: patched  > 0 ? COLORS.green : COLORS.textMuted },
+          { label: 'Total',      val: total,            color: COLORS.textSub },
+          { label: 'Complete',   val: complete,          color: pctColor },
+          { label: 'Attention',  val: attention,         color: attention > 0 ? COLORS.amber : COLORS.textMuted },
+          { label: 'Incomplete', val: total - complete,  color: (total - complete) > 0 ? COLORS.red : COLORS.textMuted },
         ].map(({ label, val, color }) => (
           <View key={label} style={s.statCard}>
             <Text style={[s.statVal, { color }]}>{val}</Text>
