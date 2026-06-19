@@ -2,13 +2,6 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { COLORS } from '../theme';
 
-/**
- * ProjectCard
- *
- * New optional props for group support:
- * onMoveToGroup   — if provided, shows "↗ Group" button for ungrouped active projects
- * onRemoveFromGroup — if provided, shows "↙ Ungroup" button for projects inside a group
- */
 export default function ProjectCard({
   project,
   onOpen,
@@ -20,15 +13,15 @@ export default function ProjectCard({
 }) {
   const total    = project.drops.length;
   
-  const complete = project.drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.tested)).length;
+  const complete = project.drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested)).length;
   
-  // Update these to account for overrideComplete drops as well
   const rp       = project.drops.filter(d => d.roughPull || d.overrideComplete).length;
-  const tm       = project.drops.filter(d => d.terminated || d.overrideComplete).length;
+  const ft       = project.drops.filter(d => d.terminated || d.overrideComplete).length;
+  const rt       = project.drops.filter(d => d.rackTerminated || d.overrideComplete).length;
   const ts       = project.drops.filter(d => d.tested || d.overrideComplete).length;
   
-  // Calculate percentage based on pipeline steps
-  const pct      = total > 0 ? Math.round(((rp + tm + ts) / (total * 3)) * 100) : 0;
+  // Calculate percentage based on 4 pipeline steps
+  const pct      = total > 0 ? Math.round(((rp + ft + rt + ts) / (total * 4)) * 100) : 0;
   const isArchived = project.status === 'archived';
 
   return (
@@ -73,9 +66,9 @@ export default function ProjectCard({
           {[
             { label: 'Drops',  val: total,    color: COLORS.textSub },
             { label: 'Pulled', val: rp,       color: COLORS.amber   },
-            { label: 'Term.',  val: tm,       color: COLORS.blue    },
+            { label: 'F.Term', val: ft,       color: COLORS.blue    },
+            { label: 'R.Term', val: rt,       color: COLORS.purple  },
             { label: 'Tested', val: ts,       color: COLORS.green   },
-            { label: 'Done',   val: complete, color: COLORS.pink    },
           ].map(({ label, val, color }) => (
             <View key={label} style={s.stat}>
               <Text style={[s.statVal, { color }]}>{val}</Text>
@@ -103,7 +96,6 @@ export default function ProjectCard({
               <Text style={[s.actionText, { color: COLORS.blue }]}>▶ Open</Text>
             </TouchableOpacity>
 
-            {/* Group action: Ungroup (inside a group) OR Move to Group (ungrouped) */}
             {onRemoveFromGroup ? (
               <TouchableOpacity style={[s.actionBtn, s.ungroupBtn]} onPress={onRemoveFromGroup}>
                 <Text style={[s.actionText, { color: COLORS.textMuted }]}>↙ Ungroup</Text>
@@ -201,8 +193,8 @@ const s = StyleSheet.create({
     padding: 10,
   },
   stat:      { alignItems: 'center' },
-  statVal:   { fontSize: 16, fontWeight: '800' },
-  statLabel: { fontSize: 9, color: COLORS.textMuted, marginTop: 2, fontWeight: '600' },
+  statVal:   { fontSize: 15, fontWeight: '800' },
+  statLabel: { fontSize: 8, color: COLORS.textMuted, marginTop: 2, fontWeight: '600' },
   barTrack: {
     height: 4,
     backgroundColor: 'rgba(255,255,255,0.06)',

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { COLORS, STATUS_FIELDS } from '../theme';
-import { completionCount, progressColor, getGroupType } from '../utils';
+import { progressColor, getGroupType } from '../utils';
 
 const GROUP_TYPES = ['single', 'double', 'triple', 'quad'];
 
@@ -43,10 +43,10 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
   const [expanded, setExpanded] = useState(false);
   const swipeableRef = useRef(null);
   
-  // Visual progress overrides for complete flag
-  const count      = drop.overrideComplete ? 3 : completionCount(drop);
+  // Visual progress overrides for complete flag internally calculated to 4 steps
+  const count      = drop.overrideComplete ? 4 : ((drop.roughPull ? 1 : 0) + (drop.terminated ? 1 : 0) + (drop.rackTerminated ? 1 : 0) + (drop.tested ? 1 : 0));
   const pColor     = drop.overrideComplete ? COLORS.green : progressColor(drop);
-  const isComplete = drop.overrideComplete || count === 3;
+  const isComplete = drop.overrideComplete || count === 4;
   const groupType  = getGroupType(drop);
 
   const hasConflict = conflictIds && [drop.cableA, drop.cableB, drop.cableC, drop.cableD]
@@ -77,11 +77,12 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
   };
 
   const quickCompleteAll = () => {
-    const allDone = drop.roughPull && drop.terminated && drop.tested;
+    const allDone = drop.roughPull && drop.terminated && drop.rackTerminated && drop.tested;
     onUpdate({ 
       ...drop, 
       roughPull: !allDone, 
       terminated: !allDone, 
+      rackTerminated: !allDone,
       tested: !allDone,
       overrideComplete: false // Reset manual override flag if status is manually adjusted
     });
@@ -255,7 +256,7 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
             activeOpacity={0.7}
           >
             <View style={[s.ring, { borderColor: pColor }]}>
-              <Text style={[s.ringText, { color: pColor }]}>{count}/3</Text>
+              <Text style={[s.ringText, { color: pColor }]}>{count}/4</Text>
             </View>
           </TouchableOpacity>
           <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>{expanded ? '▴' : '▾'}</Text>
@@ -623,7 +624,7 @@ const s = StyleSheet.create({
     flex: 1, alignItems: 'center', paddingVertical: 10,
     borderRadius: 8, borderWidth: 1.5, gap: 4,
   },
-  toggleLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
+  toggleLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.2 },
   deleteBtn: {
     backgroundColor: COLORS.redDim,
     borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)',

@@ -55,21 +55,22 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
   const handleImport = () => {
     if (!preview) return;
     const drops = preview.map(item => ({
-      id:         uid(),
-      groupType:  item.groupType,
-      isDouble:   item.groupType === 'double',
-      cableA:     item.ids[0] || '',
-      cableB:     item.ids[1] || '',
-      cableC:     item.ids[2] || '',
-      cableD:     item.ids[3] || '',
+      id:             uid(),
+      groupType:      item.groupType,
+      isDouble:       item.groupType === 'double',
+      cableA:         item.ids[0] || '',
+      cableB:         item.ids[1] || '',
+      cableC:         item.ids[2] || '',
+      cableD:         item.ids[3] || '',
       idf,
-      rackNumber: rackNumber.trim(),
-      customType: customType.trim(),
-      roughPull:  false,
-      terminated: false,
-      tested:     false,
-      notes:      '',
-      createdAt:  today(),
+      rackNumber:     rackNumber.trim(),
+      customType:     customType.trim(),
+      roughPull:      false,
+      terminated:     false,
+      rackTerminated: false,
+      tested:         false,
+      notes:          '',
+      createdAt:      today(),
     }));
     onImport(drops);
     setRackNumber('');

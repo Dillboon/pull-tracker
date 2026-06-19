@@ -1,17 +1,3 @@
-/**
- * ProjectsScreen.js
- *
- * Groups feature:
- *  • Create named groups to visually bundle related projects
- *  • Projects stay independent (own drops, settings, gallery)
- *  • Groups are collapsible; each shows combined stats at a glance
- *  • "Export All" on a group → multi-tab Excel (Summary + one tab per project)
- *  • Ungrouped active projects list above all groups
- *  • Group picker: tap "↗ Group" on any ungrouped card to assign it
- *  • "↙ Ungroup" inside a group to move a project back to ungrouped
- *  • Group Manager modal: rename group, remove member projects, delete group
- */
-
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
@@ -21,8 +7,6 @@ import { COLORS, DEFAULT_IDFS } from '../theme';
 import { uid, today } from '../utils';
 import ProjectCard from '../components/ProjectCard';
 import { exportGroupToExcel } from '../exportGroupUtils';
-
-// ── Data helpers ─────────────────────────────────────────────────────────────
 
 const emptyProject = (name) => ({
   id:            uid(),
@@ -34,8 +18,6 @@ const emptyProject = (name) => ({
   folders:       [],
   galleryImages: [],
 });
-
-// ── GroupSection ─────────────────────────────────────────────────────────────
 
 function GroupSection({
   group,
@@ -56,13 +38,14 @@ function GroupSection({
   // Calculate all pipeline steps across all projects in the group
   const pipelineSteps = projects.reduce((sum, p) => {
     const rp = p.drops.filter(d => d.roughPull || d.overrideComplete).length;
-    const tm = p.drops.filter(d => d.terminated || d.overrideComplete).length;
+    const ft = p.drops.filter(d => d.terminated || d.overrideComplete).length;
+    const rt = p.drops.filter(d => d.rackTerminated || d.overrideComplete).length;
     const ts = p.drops.filter(d => d.tested || d.overrideComplete).length;
-    return sum + rp + tm + ts;
+    return sum + rp + ft + rt + ts;
   }, 0);
 
-  // Apply the pipeline percentage logic
-  const pct = totalDrops > 0 ? Math.round((pipelineSteps / (totalDrops * 3)) * 100) : 0;
+  // Apply the pipeline percentage logic (4 steps)
+  const pct = totalDrops > 0 ? Math.round((pipelineSteps / (totalDrops * 4)) * 100) : 0;
 
   return (
     <View style={gs.container}>
@@ -135,8 +118,6 @@ function GroupSection({
   );
 }
 
-// ── Main screen ───────────────────────────────────────────────────────────────
-
 export default function ProjectsScreen({
   projects,
   setProjects,
@@ -144,30 +125,25 @@ export default function ProjectsScreen({
   groups,
   setGroups,
 }) {
-  // Modal visibility
   const [showNew,        setShowNew]        = useState(false);
   const [showNewGroup,   setShowNewGroup]   = useState(false);
-  const [showGroupPick,  setShowGroupPick]  = useState(null);   // projectId being assigned
-  const [showManage,     setShowManage]     = useState(null);   // groupId being managed
+  const [showGroupPick,  setShowGroupPick]  = useState(null);
+  const [showManage,     setShowManage]     = useState(null);
 
-  // Input state
   const [newName,        setNewName]        = useState('');
   const [newGroupName,   setNewGroupName]   = useState('');
   const [renameValue,    setRenameValue]    = useState('');
   const [editingName,    setEditingName]    = useState(false);
 
-  // UI state
   const [collapsed,      setCollapsed]      = useState(() => Object.fromEntries(groups.map(g => [g.id, true])));
   const [showArchived,   setShowArchived]   = useState(false);
-  const [exportingGroup, setExportingGroup] = useState(null);   // groupId currently exporting
+  const [exportingGroup, setExportingGroup] = useState(null);
 
-  // ── Derived ────────────────────────────────────────────────────────────────
   const activeProjects   = projects.filter(p => p.status === 'active');
   const archivedProjects = projects.filter(p => p.status === 'archived');
   const ungroupedActive  = activeProjects.filter(p => !p.groupId);
   const managedGroup     = groups.find(g => g.id === showManage);
 
-  // ── Project actions ────────────────────────────────────────────────────────
   const createProject = () => {
     const name = newName.trim();
     if (!name) return;
@@ -217,7 +193,6 @@ export default function ProjectsScreen({
     );
   };
 
-  // ── Group actions ──────────────────────────────────────────────────────────
   const createGroup = () => {
     const name = newGroupName.trim();
     if (!name) return;
@@ -272,7 +247,6 @@ export default function ProjectsScreen({
     setCollapsed(prev => ({ ...prev, [groupId]: !prev[groupId] }));
   };
 
-  // ── Export ─────────────────────────────────────────────────────────────────
   const handleExportAll = async (group) => {
     const groupProjects = activeProjects.filter(p => p.groupId === group.id);
     if (groupProjects.length === 0) {
@@ -289,7 +263,6 @@ export default function ProjectsScreen({
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
 
@@ -303,7 +276,7 @@ export default function ProjectsScreen({
           </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          {/* New Group button — only show when it makes sense */}
+          {/* New Group button */}
           <TouchableOpacity style={s.newGroupBtn} onPress={() => setShowNewGroup(true)} activeOpacity={0.8}>
             <Text style={s.newGroupBtnText}>⊞ Group</Text>
           </TouchableOpacity>

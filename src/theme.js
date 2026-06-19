@@ -26,9 +26,10 @@ export const COLORS = {
 };
 
 export const STATUS_FIELDS = [
-  { key: 'roughPull',  label: 'Rough Pull',  short: 'RP', color: COLORS.amber },
-  { key: 'terminated', label: 'Terminated',  short: 'TM', color: COLORS.blue  },
-  { key: 'tested',     label: 'Tested',      short: 'TS', color: COLORS.green },
+  { key: 'roughPull',      label: 'Rough Pull',       short: 'RP', color: COLORS.amber },
+  { key: 'terminated',     label: 'Field Terminated', short: 'FT', color: COLORS.blue  },
+  { key: 'rackTerminated', label: 'Rack Terminated',  short: 'RT', color: COLORS.purple },
+  { key: 'tested',         label: 'Tested',           short: 'TS', color: COLORS.green },
 ];
 
 export const DEFAULT_IDFS = [

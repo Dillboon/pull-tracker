@@ -8,14 +8,15 @@ import BulkImportModal from '../components/BulkImportModal';
 import { COLORS } from '../theme';
 
 const STATUS_FILTERS = [
-  { key: 'ALL',        label: 'All'            },
-  { key: 'COMPLETE',   label: 'Complete'       },
-  { key: 'INCOMPLETE', label: 'Incomplete'     },
-  { key: 'TERMINATED', label: 'Terminated'     },
-  { key: 'ROUGH_ONLY', label: 'Pulled Only'    },
-  { key: 'PATCHED',    label: 'Patched'        },
-  { key: 'NOTES',      label: 'Notes'          },
-  { key: 'ATTENTION',  label: 'Attention Notes'},
+  { key: 'ALL',        label: 'All'             },
+  { key: 'COMPLETE',   label: 'Complete'        },
+  { key: 'INCOMPLETE', label: 'Incomplete'      },
+  { key: 'FIELD_TERM', label: 'Field Terminated'},
+  { key: 'RACK_TERM',  label: 'Rack Terminated' },
+  { key: 'ROUGH_ONLY', label: 'Pulled Only'     },
+  { key: 'PATCHED',    label: 'Patched'         },
+  { key: 'NOTES',      label: 'Notes'           },
+  { key: 'ATTENTION',  label: 'Attention Notes' },
 ];
 
 export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, updateDrop, deleteDrop, addDropFromTemplate, templates, customTypeList = [], onEditCustomTypes, onReorder }) {
@@ -122,12 +123,10 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
   };
 
   const handleRefresh = () => {
-    // Natural sort — numeric if possible, trailing-number aware for prefixed IDs like C-001
     const natSort = (a, b) => {
       const numA = parseInt(a, 10);
       const numB = parseInt(b, 10);
       if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-      // Extract trailing number for strings like C-001, IDF-02, R10
       const trailA = a.match(/(\d+)$/)?.[1];
       const trailB = b.match(/(\d+)$/)?.[1];
       if (trailA && trailB) {
@@ -139,28 +138,24 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     };
 
     const sorted = [...drops].sort((a, b) => {
-      // 1. IDF alphabetically — blank/unassigned drops sort last
       const idfA = (a.idf || '').toLowerCase();
       const idfB = (b.idf || '').toLowerCase();
       if (!idfA && idfB)  return 1;
       if (idfA && !idfB)  return -1;
       if (idfA !== idfB)  return natSort(idfA, idfB);
 
-      // 2. Custom type alphabetically — standard (no type) drops sort first within each IDF
       const typeA = (a.customType || '').toLowerCase();
       const typeB = (b.customType || '').toLowerCase();
       if (!typeA && typeB)  return -1;
       if (typeA && !typeB)  return 1;
       if (typeA !== typeB)  return natSort(typeA, typeB);
 
-      // 3. Rack number — no rack sorts first, then natural sort (R2 before R10)
       const rackA = (a.rackNumber || '').toLowerCase();
       const rackB = (b.rackNumber || '').toLowerCase();
       if (!rackA && rackB)  return -1;
       if (rackA && !rackB)  return 1;
       if (rackA !== rackB)  return natSort(rackA, rackB);
 
-      // 4. Cable ID — natural sort (C-002 before C-010)
       return natSort(a.cableA || '', b.cableA || '');
     });
 
@@ -172,10 +167,11 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
     if (filterRack !== 'ALL' && (d.rackNumber || '') !== filterRack) return false;
     if (filterCustomType !== 'ALL' && (d.customType || '') !== filterCustomType) return false;
-    if (filterStatus === 'COMPLETE'   && !(d.overrideComplete || (d.roughPull && d.terminated && d.tested))) return false;
-    if (filterStatus === 'INCOMPLETE' &&  (d.overrideComplete || (d.roughPull && d.terminated && d.tested))) return false;
-    if (filterStatus === 'TERMINATED' && !(d.roughPull && d.terminated && !d.tested)) return false;
-    if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.terminated || d.tested)) return false;
+    if (filterStatus === 'COMPLETE'   && !(d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested))) return false;
+    if (filterStatus === 'INCOMPLETE' &&  (d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested))) return false;
+    if (filterStatus === 'FIELD_TERM' && !(d.roughPull && d.terminated)) return false;
+    if (filterStatus === 'RACK_TERM'  && !(d.roughPull && d.rackTerminated)) return false;
+    if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.terminated || d.rackTerminated || d.tested)) return false;
     if (filterStatus === 'PATCHED'    && !(d.patchedA || d.patchedB || d.patchedC || d.patchedD)) return false;
     if (filterStatus === 'NOTES' && (!d.notes?.trim() || d.attention))               return false;
     if (filterStatus === 'ATTENTION'  && !d.attention)                               return false;
