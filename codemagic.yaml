@@ -5,12 +5,41 @@ workflows:
     environment:
       node: 20.18.0
       java: 17
+      android_signing:
+        - cabletrack
+      vars:
+        PACKAGE_NAME: "com.cabletrack.app"
     scripts:
       - name: Install dependencies
         script: npm install
+      - name: Clean old Android directory
+        script: rm -rf android
       - name: Expo prebuild
         script: npx expo prebuild --platform android --no-install
-      - name: Build Android APK
-        script: cd android && chmod +x gradlew && ./gradlew assembleRelease
+      - name: Configure release signing in build.gradle
+        script: |
+          cd android/app
+          cat >> build.gradle << 'GRADLE'
+
+          android {
+              signingConfigs {
+                  release {
+                      if (System.getenv("CI")) {
+                          storeFile file(System.getenv("CM_KEYSTORE_PATH"))
+                          storePassword System.getenv("CM_KEYSTORE_PASSWORD")
+                          keyAlias System.getenv("CM_KEY_ALIAS")
+                          keyPassword System.getenv("CM_KEY_PASSWORD")
+                      }
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          GRADLE
+      - name: Build Android AAB
+        script: cd android && chmod +x gradlew && ./gradlew bundleRelease
     artifacts:
-      - android/app/build/outputs/apk/release/app-release.apk
+      - android/app/build/outputs/bundle/release/app-release.aab

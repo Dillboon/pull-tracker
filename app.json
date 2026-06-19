@@ -2,8 +2,9 @@
   "expo": {
     "name": "CableTrack",
     "slug": "cable-pull-tracker",
-    "version": "1.0.0",
+    "version": "1.0.6",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash.png",
@@ -12,17 +13,30 @@
       "imageWidth": 449
     },
     "android": {
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#202030"
       },
-      "package": "com.cablepull.tracker",
+      "package": "com.cabletrack.app",
       "permissions": []
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.cablepull.tracker"
+      "bundleIdentifier": "com.cabletrack.app"
     },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "0ed50c1d-b8fc-44c9-a698-f51962c94a31"
