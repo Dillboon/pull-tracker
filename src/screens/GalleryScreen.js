@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import * as MediaLibrary from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -284,20 +284,14 @@ export default function GalleryScreen({
 
     const saveImageToDevice = async (img) => {
     try {
-      // Add { writeOnly: true } to prevent triggering broad read permissions
-      let { status } = await MediaLibrary.getPermissionsAsync({ writeOnly: true });
-      if (status !== 'granted') {
-        const result = await MediaLibrary.requestPermissionsAsync({ writeOnly: true });
-        status = result.status;
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(img.uri, {
+          mimeType: 'image/jpeg',
+          dialogTitle: 'Save Photo',
+        });
+      } else {
+        showToast('Sharing not available on this device', 'error');
       }
-      
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Allow media library save access in your device Settings.');
-        return;
-      }
-      
-      await MediaLibrary.createAssetAsync(img.uri);
-      showToast('📥 Photo saved to device');
     } catch (e) {
       showToast('Failed to save photo', 'error');
     }
