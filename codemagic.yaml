@@ -9,13 +9,17 @@ workflows:
         - cabletrack
       vars:
         PACKAGE_NAME: "com.cabletrack.app"
-    scripts:
+        scripts:
+      - name: Clean Environment
+        script: |
+          rm -rf node_modules
+          rm -f package-lock.json
       - name: Install dependencies
         script: npm install
       - name: Clean old Android directory
         script: rm -rf android
       - name: Expo prebuild
-        script: npx expo prebuild --platform android --no-install
+        script: npx expo prebuild --platform android --clean --no-install
       - name: Configure release signing in build.gradle
         script: |
           cd android/app
@@ -41,5 +45,6 @@ workflows:
           GRADLE
       - name: Build Android AAB
         script: cd android && chmod +x gradlew && ./gradlew bundleRelease
+
     artifacts:
       - android/app/build/outputs/bundle/release/app-release.aab
