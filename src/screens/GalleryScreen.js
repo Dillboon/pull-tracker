@@ -244,17 +244,16 @@ export default function GalleryScreen({
   };
 
   // ── Image CRUD ────────────────────────────────────────────────────────────
-  const pickImages = async (folderId) => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission needed', 'Allow photo library access in your device Settings.');
-      return;
-    }
+    const pickImages = async (folderId) => {
+    // REMOVED the explicit requestMediaLibraryPermissionsAsync block entirely
+    
+    // Launch directly; Android's secure Photo Picker will handle the rest
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
       quality: 0.85,
     });
+    
     if (result.canceled) return;
 
     try {
@@ -278,27 +277,32 @@ export default function GalleryScreen({
     }
   };
 
+
   const updateNotes = (imageId, notes) => {
     setGalleryImages(galleryImages.map(i => i.id === imageId ? { ...i, notes } : i));
   };
 
-  const saveImageToDevice = async (img) => {
+    const saveImageToDevice = async (img) => {
     try {
-      let { status } = await MediaLibrary.getPermissionsAsync();
+      // Add { writeOnly: true } to prevent triggering broad read permissions
+      let { status } = await MediaLibrary.getPermissionsAsync({ writeOnly: true });
       if (status !== 'granted') {
-        const result = await MediaLibrary.requestPermissionsAsync();
+        const result = await MediaLibrary.requestPermissionsAsync({ writeOnly: true });
         status = result.status;
       }
+      
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Allow media library access in your device Settings to save photos.');
+        Alert.alert('Permission needed', 'Allow media library save access in your device Settings.');
         return;
       }
+      
       await MediaLibrary.createAssetAsync(img.uri);
       showToast('📥 Photo saved to device');
     } catch (e) {
       showToast('Failed to save photo', 'error');
     }
   };
+
 
   const deleteImage = (imageId) => {
     Alert.alert('Delete Photo', 'Remove this photo permanently?', [
