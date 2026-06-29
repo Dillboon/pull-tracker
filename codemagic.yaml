@@ -1,18 +1,25 @@
+workflows:
+  android-release:
+    name: Android Release
+    max_build_duration: 60
+    environment:
+      node: 20.18.0
+      java: 17
+      android_signing:
+        - cabletrack
+      vars:
+        PACKAGE_NAME: "com.cabletrack.app"
     scripts:
       - name: Clean Environment
         script: |
           rm -rf node_modules
           rm -f package-lock.json
-          rm -f yarn.lock
-          rm -rf android
       - name: Install dependencies
         script: npm install
+      - name: Clean old Android directory
+        script: rm -rf android
       - name: Expo prebuild
         script: npx expo prebuild --platform android --clean --no-install
-      - name: Patch build.gradle
-        script: |
-          # This command searches for the line 'enableBundleCompression' and deletes it entirely
-          sed -i '/enableBundleCompression/d' android/app/build.gradle
       - name: Configure release signing in build.gradle
         script: |
           cd android/app
@@ -38,3 +45,5 @@
           GRADLE
       - name: Build Android AAB
         script: cd android && chmod +x gradlew && ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/bundle/release/app-release.aab
