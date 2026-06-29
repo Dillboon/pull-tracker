@@ -9,7 +9,7 @@ workflows:
         - cabletrack
       vars:
         PACKAGE_NAME: "com.cabletrack.app"
-        scripts:
+    scripts:
       - name: Clean Environment
         script: |
           rm -rf node_modules
@@ -45,6 +45,5 @@ workflows:
           GRADLE
       - name: Build Android AAB
         script: cd android && chmod +x gradlew && ./gradlew bundleRelease
-
     artifacts:
       - android/app/build/outputs/bundle/release/app-release.aab
