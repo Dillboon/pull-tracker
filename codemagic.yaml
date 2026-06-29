@@ -2,50 +2,32 @@ workflows:
   android-release:
     name: Android Release
     max_build_duration: 60
-
     environment:
       node: 20.18.0
       java: 17
-
       android_signing:
         - cabletrack
-
       vars:
         PACKAGE_NAME: "com.cabletrack.app"
-
     scripts:
-
-      # 1. Clean only build artifacts (KEEP lockfile!)
-      - name: Clean environment
+      - name: Clean Environment
         script: |
           rm -rf node_modules
+          rm -f package-lock.json
+          rm -f yarn.lock
           rm -rf android
-
-      # 2. Install EXACT dependency versions (prevents random Expo/RN drift)
       - name: Install dependencies
-        script: npm ci
-
-      # 3. Expo prebuild (stable + reproducible)
+        script: npm install
       - name: Expo prebuild
+        script: npx expo prebuild --platform android --clean --no-install
+      - name: Patch build.gradle
         script: |
-          npx expo prebuild --platform android --clean --no-install
-
-      # 4. FIX: Remove unsupported Gradle flag injection (prevents your crash)
-      - name: Patch Gradle (remove unsupported React flags)
+          # Searches for the line 'enableBundleCompression' and deletes it entirely
+          sed -i '/enableBundleCompression/d' android/app/build.gradle
+      - name: Configure release signing in build.gradle
         script: |
-          FILE=android/app/build.gradle
-
-          if grep -q "enableBundleCompression" "$FILE"; then
-            echo "Removing unsupported enableBundleCompression..."
-            sed -i '' '/enableBundleCompression/d' "$FILE" || sed -i '/enableBundleCompression/d' "$FILE"
-          fi
-
-      # 5. Inject signing config safely (no duplicate android {} block)
-      - name: Configure signing
-        script: |
-          FILE=android/app/build.gradle
-
-          cat >> "$FILE" <<'GRADLE'
+          cd android/app
+          cat >> build.gradle << 'GRADLE'
 
           android {
               signingConfigs {
@@ -65,13 +47,7 @@ workflows:
               }
           }
           GRADLE
-
-      # 6. Build AAB
       - name: Build Android AAB
-        script: |
-          cd android
-          chmod +x gradlew
-          ./gradlew bundleRelease
-
+        script: cd android && chmod +x gradlew && ./gradlew bundleRelease
     artifacts:
       - android/app/build/outputs/bundle/release/app-release.aab
