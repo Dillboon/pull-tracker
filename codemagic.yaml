@@ -14,10 +14,10 @@ workflows:
         script: |
           rm -rf node_modules
           rm -f package-lock.json
+          rm -f yarn.lock
+          rm -rf android
       - name: Install dependencies
         script: npm install
-      - name: Clean old Android directory
-        script: rm -rf android
       - name: Expo prebuild
         script: npx expo prebuild --platform android --clean --no-install
       - name: Configure release signing in build.gradle
