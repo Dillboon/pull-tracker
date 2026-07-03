@@ -43,6 +43,11 @@ const sortedDrops = (drops) => [...drops].sort((a, b) => {
   return natSort(a.cableA || '', b.cableA || '');
 });
 
+// Escapes a value for safe embedding inside a double-quoted Excel formula
+// string literal (e.g. inside COUNTIFS("...")). Prevents a stray " in an
+// IDF/cable name from corrupting the generated formula.
+const escapeFormulaString = (s) => String(s).replace(/"/g, '""');
+
 const getGroupType = (d) => d.groupType || (d.isDouble ? 'double' : 'single');
 
 const getCableLabel = (d) =>
@@ -209,6 +214,7 @@ export async function exportXLSX(drops, projectName = '') {
     { key: 'attention',      width: 11 },
     { key: 'notes',          width: 10 },
     { key: 'date',           width: 12 },
+    { key: 'idfKey',         width: 4, hidden: true }, // raw IDF value, used by By-IDF lookups below
   ];
 
   // Title row (A1:L1)
@@ -237,14 +243,14 @@ export async function exportXLSX(drops, projectName = '') {
   ws.getRow(2).height = 18;
 
   // Header row (row 3)
-  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Field Terminated', 'Rack Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated']);
+  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Field Terminated', 'Rack Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated', 'IDF Key']);
   headerRow.height = 20;
   headerRow.eachCell(cell => {
     cell.font = headerFont; cell.fill = headerFill;
     cell.alignment = centerAlign; cell.border = thinBorder;
   });
   headerRow.getCell(3).alignment = leftAlign;
-  headerRow.getCell(10).alignment = leftAlign; // notes
+  headerRow.getCell(11).alignment = leftAlign; // notes
 
   const dvYesNo = {
     type: 'list', allowBlank: false,
@@ -276,6 +282,7 @@ export async function exportXLSX(drops, projectName = '') {
       d.attention  ? '⚠ Yes' : 'No',
       d.notes || '',
       d.updatedAt || d.createdAt,
+      d.idf || '',
     ]);
     row.height = 18;
 
@@ -371,7 +378,7 @@ export async function exportXLSX(drops, projectName = '') {
   autoFitColumns(ws, {
     11: { min: 20, max: 45 }, 
     12: { min: 14, max: 26 }, 
-  }, [10, 11]); 
+  }, [11, 12]); 
 
   // ── Summary sheet ─────────────────────────────────────────────────────────
   const ws2 = wb.addWorksheet('Summary', { 
@@ -490,15 +497,23 @@ export async function exportXLSX(drops, projectName = '') {
   autoFitColumns(ws2, { 1: { min: 18, max: 36 }, 2: { min: 10, max: 24 }, 3: { min: 12, max: 18 } }, [1]);
 
   // ── Per-IDF Breakdown sheet ───────────────────────────────────────────────
-  const idfs = [...new Set(sorted.map(d => d.idf).filter(Boolean))].sort();
-  if (idfs.length > 0) {
+  // Unique IDFs, preserving the natural sort order `sorted` already has
+  // (re-sorting lexicographically here would put "IDF-10" before "IDF-2").
+  const idfsInOrder = [];
+  {
+    const seen = new Set();
+    sorted.forEach(d => { if (d.idf && !seen.has(d.idf)) { seen.add(d.idf); idfsInOrder.push(d.idf); } });
+  }
+
+  if (idfsInOrder.length > 0) {
     const ws3 = wb.addWorksheet('By IDF', { 
       tabColor: { argb: 'FFF59E0B' },
-      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '1:1' }
+      views: [{ state: 'frozen', ySplit: 3 }],
+      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '1:3' }
     });
 
     ws3.columns = [
-      { width: 10 }, { width: 10 }, { width: 13 }, { width: 14 }, 
+      { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 }, 
       { width: 14 }, { width: 11 }, { width: 10 }, { width: 15 },
     ];
 
@@ -510,60 +525,124 @@ export async function exportXLSX(drops, projectName = '') {
     ws3title.alignment = leftAlign;
     ws3.getRow(1).height = 26;
 
-    let ws3Row = 1;
+    // ── Precompute where every IDF's detail section will land, so the index
+    //    built below can link straight to it (no back-and-forth passes). ──
+    const INDEX_HEADER_ROW = 3;
+    const idfGroups = idfsInOrder.map(idf => ({ idf, drops: sorted.filter(d => d.idf === idf) }));
+    const detailStartRow = INDEX_HEADER_ROW + 1 + idfGroups.length + 1; // header + index rows + spacer
+    let cursor = detailStartRow;
+    idfGroups.forEach(g => {
+      g.bannerRow = cursor;
+      cursor += 2 + g.drops.length + 1; // banner + subheader + data rows + spacer
+    });
+    const lastRow = cursor - 1;
 
-    idfs.forEach(idf => {
-      const idrops = sorted.filter(d => d.idf === idf);
-      ws3Row++;
+    // ── Navigator banner (row 2) ──
+    ws3.mergeCells('A2:H2');
+    const navBanner = ws3.getCell('A2');
+    navBanner.value = `IDF Navigator  —  ${idfGroups.length} closet${idfGroups.length === 1 ? '' : 's'}  ·  click any row below to jump straight to it`;
+    navBanner.font = { bold: true, italic: true, size: 9.5, color: { argb: 'FF94A3B8' }, name: 'Calibri' };
+    navBanner.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+    navBanner.alignment = leftAlign;
+    ws3.getRow(2).height = 18;
 
-      const rpFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$D$4:$D$${lastDataRow}, "Yes")`;
-      const ftFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$E$4:$E$${lastDataRow}, "Yes")`;
-      const rtFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$F$4:$F$${lastDataRow}, "Yes")`;
-      const tsFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$G$4:$G$${lastDataRow}, "Yes")`;
-      
-      const compFormula = `COUNTIFS('Cable Drops'!$A$4:$A$${lastDataRow}, "${idf}", 'Cable Drops'!$H$4:$H$${lastDataRow}, "✓")`;
+    // ── Index header row (row 3) ──
+    ws3.mergeCells(`A${INDEX_HEADER_ROW}:B${INDEX_HEADER_ROW}`);
+    const idxHdrRow = ws3.getRow(INDEX_HEADER_ROW);
+    idxHdrRow.height = 18;
+    const idxHeaderLabels = { 1: 'IDF Closet', 3: 'Drops', 4: 'Rough Pull', 5: 'Field Term.', 6: 'Rack Term.', 7: 'Tested', 8: 'Complete' };
+    Object.entries(idxHeaderLabels).forEach(([colNum, label]) => {
+      const cell = idxHdrRow.getCell(Number(colNum));
+      cell.value = label;
+      cell.font = { bold: true, color: { argb: 'FFFBBF24' }, size: 9.5, name: 'Calibri' };
+      cell.fill = headerFill;
+      cell.border = thinBorder;
+      cell.alignment = Number(colNum) === 1 ? leftAlign : centerAlign;
+    });
 
-      ws3.mergeCells(`A${ws3Row}:H${ws3Row}`);
-      const idfHdrCell = ws3.getCell(`A${ws3Row}`);
+    // ── Index data rows ──
+    idfGroups.forEach((g, i) => {
+      const r = INDEX_HEADER_ROW + 1 + i;
+      ws3.mergeCells(`A${r}:B${r}`);
+      const row = ws3.getRow(r);
+      row.height = 18;
+      const fill = i % 2 === 0 ? evenFill : oddFill;
+
+      const nameCell = row.getCell(1);
+      nameCell.value = { text: g.idf, hyperlink: `#'By IDF'!A${g.bannerRow}`, tooltip: `Jump to ${g.idf}` };
+      nameCell.font = idfFont;
+      nameCell.alignment = leftAlign;
+
+      const idfEscaped = escapeFormulaString(g.idf);
+      g.rpFormula = `COUNTIFS('Cable Drops'!$M$4:$M$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$D$4:$D$${lastDataRow}, "Yes")`;
+      g.ftFormula = `COUNTIFS('Cable Drops'!$M$4:$M$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$E$4:$E$${lastDataRow}, "Yes")`;
+      g.rtFormula = `COUNTIFS('Cable Drops'!$M$4:$M$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$F$4:$F$${lastDataRow}, "Yes")`;
+      g.tsFormula = `COUNTIFS('Cable Drops'!$M$4:$M$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$G$4:$G$${lastDataRow}, "Yes")`;
+      g.cpFormula = `COUNTIFS('Cable Drops'!$M$4:$M$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$H$4:$H$${lastDataRow}, "✓")`;
+
+      row.getCell(3).value = g.drops.length;
+      row.getCell(4).value = { formula: g.rpFormula };
+      row.getCell(5).value = { formula: g.ftFormula };
+      row.getCell(6).value = { formula: g.rtFormula };
+      row.getCell(7).value = { formula: g.tsFormula };
+      row.getCell(8).value = { formula: g.cpFormula };
+
+      for (let c = 1; c <= 8; c++) {
+        const cell = row.getCell(c);
+        cell.border = thinBorder;
+        cell.fill = fill;
+        if (c >= 3) cell.alignment = centerAlign;
+      }
+    });
+
+    // spacer row between the index and the first detail section
+    ws3.getRow(INDEX_HEADER_ROW + 1 + idfGroups.length).height = 8;
+
+    // ── Detail sections (reusing the precomputed banner rows + formulas) ──
+    idfGroups.forEach(g => {
+      const bannerRowNum = g.bannerRow;
+      ws3.mergeCells(`A${bannerRowNum}:H${bannerRowNum}`);
+      const idfHdrCell = ws3.getCell(`A${bannerRowNum}`);
       idfHdrCell.value = {
-        formula: `"${idf}  —  ${idrops.length} drops  |  RP: "&${rpFormula}&"  FT: "&${ftFormula}&"  RT: "&${rtFormula}&"  TS: "&${tsFormula}&"  Complete: "&${compFormula}&"/${idrops.length}"`
+        formula: `"${escapeFormulaString(g.idf)}  —  ${g.drops.length} drops  |  RP: "&${g.rpFormula}&"  FT: "&${g.ftFormula}&"  RT: "&${g.rtFormula}&"  TS: "&${g.tsFormula}&"  Complete: "&${g.cpFormula}&"/${g.drops.length}"`
       };
       idfHdrCell.font = { bold: true, color: { argb: 'FFFBBF24' }, size: 10, name: 'Calibri' };
       idfHdrCell.fill = headerFill;
       idfHdrCell.border = thinBorder;
       idfHdrCell.alignment = leftAlign;
-      ws3.getRow(ws3Row).height = 18;
+      ws3.getRow(bannerRowNum).height = 18;
 
-      ws3Row++;
-
-      const iHdrRow = ws3.addRow(['Type', 'Cable ID(s)', 'Rough Pull', 'Field Term.', 'Rack Term.', 'Tested', 'Complete', 'Notes']);
-      ws3Row = ws3.rowCount;
+      const subRowNum = bannerRowNum + 1;
+      const iHdrRow = ws3.getRow(subRowNum);
       iHdrRow.height = 16;
-      iHdrRow.eachCell(cell => {
+      ['Type', 'Cable ID(s)', 'Rough Pull', 'Field Term.', 'Rack Term.', 'Tested', 'Complete', 'Notes'].forEach((label, idx) => {
+        const cell = iHdrRow.getCell(idx + 1);
+        cell.value = label;
         cell.font = subHdrFont; cell.fill = subHdrFill;
         cell.alignment = centerAlign; cell.border = thinBorder;
       });
       iHdrRow.getCell(2).alignment = leftAlign;
       iHdrRow.getCell(8).alignment = leftAlign;
 
-      idrops.forEach((d, i) => {
-        ws3Row++;
+      g.drops.forEach((d, i) => {
+        const r = subRowNum + 1 + i;
         const cable = getCableLabel(d);
         const typeLabel = getTypeLabel(d);
         const isEven = i % 2 === 0;
         const baseFill = isEven ? evenFill : oddFill;
 
-        const r = ws3.addRow([
-          typeLabel, cable,
-          { formula: `'Cable Drops'!D${d._mainRowNum}` }, 
-          { formula: `'Cable Drops'!E${d._mainRowNum}` },
-          { formula: `'Cable Drops'!F${d._mainRowNum}` },
-          { formula: `'Cable Drops'!G${d._mainRowNum}` },
-          { formula: `'Cable Drops'!H${d._mainRowNum}` },
-          d.notes || '',
-        ]);
-        r.height = 18;
-        r.eachCell((cell, col) => {
+        const row = ws3.getRow(r);
+        row.height = 18;
+        row.getCell(1).value = typeLabel;
+        row.getCell(2).value = cable;
+        row.getCell(3).value = { formula: `'Cable Drops'!D${d._mainRowNum}` };
+        row.getCell(4).value = { formula: `'Cable Drops'!E${d._mainRowNum}` };
+        row.getCell(5).value = { formula: `'Cable Drops'!F${d._mainRowNum}` };
+        row.getCell(6).value = { formula: `'Cable Drops'!G${d._mainRowNum}` };
+        row.getCell(7).value = { formula: `'Cable Drops'!H${d._mainRowNum}` };
+        row.getCell(8).value = d.notes || '';
+
+        row.eachCell((cell, col) => {
           cell.border = thinBorder;
           switch (col) {
             case 1: cell.font = doubleFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
@@ -582,27 +661,44 @@ export async function exportXLSX(drops, projectName = '') {
         });
       });
 
-      ws3Row++;
-      ws3.addRow(['', '', '', '', '', '', '', '']);
-      ws3.getRow(ws3.rowCount).height = 8;
+      // spacer row, doubling as a quick way back up to the navigator
+      const spacerRowNum = subRowNum + 1 + g.drops.length;
+      const spacerRow = ws3.getRow(spacerRowNum);
+      spacerRow.height = 14;
+      const backCell = spacerRow.getCell(1);
+      backCell.value = { text: '↑ Back to Index', hyperlink: `#'By IDF'!A${INDEX_HEADER_ROW}`, tooltip: 'Back to the IDF Navigator' };
+      backCell.font = { italic: true, size: 8.5, color: { argb: 'FF94A3B8' }, name: 'Calibri', underline: true };
+      backCell.alignment = leftAlign;
     });
 
-    if (ws3.rowCount > 1) {
+    if (lastRow >= detailStartRow) {
       ws3.addConditionalFormatting({
-        ref: `C1:F${ws3.rowCount}`,
+        ref: `C${detailStartRow}:F${lastRow}`,
         rules: [
           { type: 'cellIs', operator: 'equal', formulae: ['"Yes"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' } } } },
           { type: 'cellIs', operator: 'equal', formulae: ['"No"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }, font: { bold: true, color: { argb: 'FF991B1B' } } } }
         ],
       });
       ws3.addConditionalFormatting({
-        ref: `G1:G${ws3.rowCount}`,
+        ref: `G${detailStartRow}:G${lastRow}`,
         rules: [
           { type: 'cellIs', operator: 'equal', formulae: ['"✓"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' }, size: 11 } } },
           { type: 'cellIs', operator: 'equal', formulae: ['"✗"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }, font: { bold: true, color: { argb: 'FF991B1B' }, size: 11 } } }
         ],
       });
     }
+
+    // Highlight fully-complete closets right in the index, at a glance
+    ws3.addConditionalFormatting({
+      ref: `H${INDEX_HEADER_ROW + 1}:H${INDEX_HEADER_ROW + idfGroups.length}`,
+      rules: [
+        {
+          type: 'expression',
+          formulae: [`AND($C${INDEX_HEADER_ROW + 1}>0,$H${INDEX_HEADER_ROW + 1}=$C${INDEX_HEADER_ROW + 1})`],
+          style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' } } }
+        }
+      ]
+    });
 
     autoFitColumns(ws3, { 8: { min: 20, max: 45 } }, [2, 8]);
   }
@@ -647,7 +743,7 @@ function autoFitColumns(worksheet, overrides = {}, only = null) {
       if (len > maxLen) maxLen = len;
     });
 
-    column.width = Math.min(maxLen, max);
+    column.width = Math.min(maxLen + 3, max);
   });
 }
 

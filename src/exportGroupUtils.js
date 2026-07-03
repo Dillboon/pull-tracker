@@ -24,6 +24,21 @@ const C = {
   attnText:     'FFD97706',   
 };
 
+// Shared literal markers — defined once so every formula/value that needs to
+// match them (COUNTIFS criteria, cell values) is guaranteed to use the exact
+// same characters. "⚠️ Yes" includes a variation-selector byte that's easy to
+// mistype if re-entered by hand, which would silently break exact-match formulas.
+const CHECK_MARK    = '✓';
+const CROSS_MARK    = '✗';
+const ATTENTION_YES = '⚠️ Yes';
+
+// Escapes a value for safe embedding inside a double-quoted Excel formula
+// string literal (e.g. inside COUNTIFS("...")). Prevents a stray " in an
+// IDF/project name from corrupting the generated formula.
+function escapeFormulaString(s) {
+  return String(s).replace(/"/g, '""');
+}
+
 function applyFill(cell, argb) {
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
 }
@@ -121,6 +136,23 @@ function getSortedDrops(drops) {
   });
 }
 
+// Computes, purely from a project's already-sorted drops, the row each drop
+// will occupy in buildProjectSheet's table (data starts at `startRow`) and
+// the first row each IDF appears on. Both buildProjectSheet and any sheet
+// that needs to link into it (Attention Flags, By IDF) read from this same
+// precomputed layout, so every sheet agrees on row numbers regardless of the
+// order the sheets happen to be built in.
+function computeRowLayout(sortedDrops, startRow = 4) {
+  const dropRow = new Map();
+  const idfFirstRow = new Map();
+  sortedDrops.forEach((drop, i) => {
+    const rowNum = startRow + i;
+    dropRow.set(drop, rowNum);
+    if (drop.idf && !idfFirstRow.has(drop.idf)) idfFirstRow.set(drop.idf, rowNum);
+  });
+  return { dropRow, idfFirstRow };
+}
+
 const dvYesNo = {
   type: 'list',
   allowBlank: false,
@@ -148,12 +180,19 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   applyAlign(titleCell, 'left');
   ws.getRow(1).height = 28;
 
-  ws.mergeCells(2, 1, 2, COL_COUNT);
+  ws.mergeCells(2, 1, 2, COL_COUNT - 1);
   const subCell = ws.getCell('A2');
   subCell.value = `Master Portfolio Status  |  Generated: ${new Date().toLocaleString()}  |  Active Target Trackers`;
   applyFill(subCell, C.navyMid);
   applyFont(subCell, { argb: C.muted, size: 9.5, italic: true });
   applyAlign(subCell, 'left');
+
+  const idfNavCell = ws.getCell(2, COL_COUNT);
+  idfNavCell.value = { text: '🔗 By IDF Index', hyperlink: `#'By IDF'!A1`, tooltip: 'Jump to the IDF Closet Index to find and open any closet' };
+  applyFill(idfNavCell, C.navyMid);
+  applyFont(idfNavCell, { argb: C.amber, bold: true, size: 9.5, underline: true });
+  applyAlign(idfNavCell, 'right');
+
   ws.getRow(2).height = 20;
 
   ws.getRow(3).height = 8;
@@ -235,8 +274,8 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     row.getCell(4).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!E4:E${endDataRow}, "Yes")` } : 0;
     row.getCell(5).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!F4:F${endDataRow}, "Yes")` } : 0;
     row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!G4:G${endDataRow}, "Yes")` } : 0;
-    row.getCell(7).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!J4:J${endDataRow}, "⚠️ Yes")` } : 0;
-    row.getCell(8).value = totalDrops > 0 ? { formula: `IFERROR(COUNTIF(${escapedSheet}!H4:H${endDataRow}, "✓") / B${rowNum}, 0)` } : 0;
+    row.getCell(7).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!J4:J${endDataRow}, "${ATTENTION_YES}")` } : 0;
+    row.getCell(8).value = totalDrops > 0 ? { formula: `IFERROR(COUNTIF(${escapedSheet}!H4:H${endDataRow}, "${CHECK_MARK}") / B${rowNum}, 0)` } : 0;
 
     for (let c = 1; c <= COL_COUNT; c++) {
       const cell = row.getCell(c);
@@ -305,9 +344,147 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   autoFitColumns(ws, { 1: { min: 32, max: 45 } }, [1]);
 }
 
-// ── 2. Attention Flags Sheet ─────────────────────
+// ── 2. By IDF Index Sheet ─────────────────────
+// A flat, filterable table — one row per (Project, IDF Closet) pair — rather
+// than the stacked/banner layout used in the single-project export. At
+// portfolio scale a stacked layout is exactly what makes many closets
+// tedious to scroll through, so here every closet is a single row you can
+// filter, sort, or click straight into. Each row links two levels deep:
+// the Project cell jumps to that project's sheet, and the IDF Closet cell
+// jumps straight to that closet's first row within it.
+function buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedDrops, projectRowLayouts) {
+  const ws = wb.addWorksheet('By IDF', { tabColor: { argb: 'FFF59E0B' } });
+  applyStandardPageSetup(ws, '1:3');
 
-function buildAttentionLogSheet(wb, group, projects, projectSheetMap) {
+  const COL_COUNT = 9;
+  const widths = [26, 20, 9, 12, 12, 12, 10, 11, 12];
+  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
+
+  ws.mergeCells(1, 1, 1, COL_COUNT);
+  const titleCell = ws.getCell('A1');
+  titleCell.value = `IDF Closet Index  —  ${group.name}`;
+  applyFill(titleCell, C.navyDeep);
+  applyFont(titleCell, { argb: C.white, bold: true, size: 14 });
+  applyAlign(titleCell, 'left');
+  ws.getRow(1).height = 28;
+
+  ws.mergeCells(2, 1, 2, COL_COUNT);
+  const subCell = ws.getCell('A2');
+  subCell.value = `Every IDF closet across the portfolio  |  Click a row to jump straight to it  |  Generated: ${new Date().toLocaleString()}`;
+  applyFill(subCell, C.navyMid);
+  applyFont(subCell, { argb: C.muted, size: 9.5, italic: true });
+  applyAlign(subCell, 'left');
+  ws.getRow(2).height = 20;
+
+  const headers = ['Project', 'IDF Closet', 'Drops', 'Rough Pull', 'Field Term.', 'Rack Term.', 'Tested', 'Attention', 'Progress %'];
+  const hRow = ws.getRow(3);
+  hRow.height = 22;
+  headers.forEach((label, i) => {
+    const cell = hRow.getCell(i + 1);
+    cell.value = label;
+    applyFill(cell, C.navyHeader);
+    applyFont(cell, { argb: C.amber, bold: true, size: 10 });
+    applyAlign(cell, i <= 1 ? 'left' : 'center');
+    applyBorders(cell, 'thin');
+  });
+
+  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };
+
+  let rowNum = 3;
+  let idfRowCount = 0;
+
+  projects.forEach(p => {
+    const key = p.id || p.name;
+    const targetSheet = projectSheetMap.get(key);
+    const escapedSheet = `'${targetSheet.replace(/'/g, "''")}'`;
+    const sortedDrops = projectSortedDrops.get(key) || [];
+    const rowLayout = projectRowLayouts.get(key);
+    const endDataRow = 3 + sortedDrops.length;
+
+    // Unique IDFs for this project, preserving the natural sort order
+    // getSortedDrops already established (re-sorting lexicographically here
+    // would put "IDF-10" before "IDF-2").
+    const seen = new Set();
+    const idfsInOrder = [];
+    sortedDrops.forEach(d => { if (d.idf && !seen.has(d.idf)) { seen.add(d.idf); idfsInOrder.push(d.idf); } });
+
+    idfsInOrder.forEach((idf, idx) => {
+      rowNum++;
+      idfRowCount++;
+      const targetRow = (rowLayout && rowLayout.idfFirstRow.get(idf)) || 4;
+      const idfEscaped = escapeFormulaString(idf);
+      const totalCount = sortedDrops.filter(d => d.idf === idf).length;
+      const fill = rowFill(idx);
+
+      const rpFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$D$4:$D$${endDataRow}, "Yes")`;
+      const ftFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$E$4:$E$${endDataRow}, "Yes")`;
+      const rtFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$F$4:$F$${endDataRow}, "Yes")`;
+      const tsFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$G$4:$G$${endDataRow}, "Yes")`;
+      const atFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$J$4:$J$${endDataRow}, "${ATTENTION_YES}")`;
+      const cpFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$H$4:$H$${endDataRow}, "${CHECK_MARK}")`;
+
+      const row = ws.getRow(rowNum);
+      row.height = 20;
+
+      const projCell = row.getCell(1);
+      projCell.value = { text: p.name, hyperlink: `#${escapedSheet}!A1`, tooltip: `Jump to ${p.name}` };
+      applyFont(projCell, { argb: C.idfBlue, bold: true, underline: true, size: 9.5 });
+
+      const idfCell = row.getCell(2);
+      idfCell.value = { text: idf, hyperlink: `#${escapedSheet}!A${targetRow}`, tooltip: `Jump to ${idf} in ${p.name}` };
+      applyFont(idfCell, { argb: C.typeViolet, bold: true, underline: true, size: 10 });
+
+      row.getCell(3).value = totalCount;
+      row.getCell(4).value = { formula: rpFormula };
+      row.getCell(5).value = { formula: ftFormula };
+      row.getCell(6).value = { formula: rtFormula };
+      row.getCell(7).value = { formula: tsFormula };
+      row.getCell(8).value = { formula: atFormula };
+      row.getCell(9).value = { formula: `IFERROR(${cpFormula}/${totalCount || 1},0)` };
+      row.getCell(9).numFmt = '0%';
+
+      for (let c = 1; c <= COL_COUNT; c++) {
+        const cell = row.getCell(c);
+        applyBorders(cell, 'thin');
+        applyFill(cell, fill);
+        if (c > 2) applyAlign(cell, 'center');
+        if (c === 3 || c === 8) applyFont(cell, { size: 10 });
+      }
+    });
+  });
+
+  if (idfRowCount === 0) {
+    const emptyRow = ws.getRow(4);
+    emptyRow.height = 30;
+    ws.mergeCells(4, 1, 4, COL_COUNT);
+    const cell = emptyRow.getCell(1);
+    cell.value = 'No IDF closets have been assigned to any drops yet.';
+    applyFill(cell, C.attnFill);
+    applyFont(cell, { argb: C.attnText, bold: true, italic: true, size: 11 });
+    applyAlign(cell, 'center');
+    applyBorders(cell, 'thin');
+  } else {
+    ws.addConditionalFormatting({
+      ref: `I4:I${rowNum}`,
+      rules: [
+        { type: 'cellIs', operator: 'equal', formulae: ['1'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.yesFill } }, font: { bold: true, color: { argb: C.yesText } } } }
+      ]
+    });
+    ws.addConditionalFormatting({
+      ref: `H4:H${rowNum}`,
+      rules: [
+        { type: 'cellIs', operator: 'greaterThan', formulae: ['0'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.noFill } }, font: { bold: true, color: { argb: C.noText } } } }
+      ]
+    });
+  }
+
+  autoFitColumns(ws, {}, [1, 2]);
+}
+
+// ── 3. Attention Flags Sheet ─────────────────────
+
+function buildAttentionLogSheet(wb, group, projects, projectSheetMap, projectSortedDrops, projectRowLayouts) {
   const ws = wb.addWorksheet('Attention Flags', { tabColor: { argb: C.noText } });
   applyStandardPageSetup(ws, '1:2');
 
@@ -336,8 +513,10 @@ function buildAttentionLogSheet(wb, group, projects, projectSheetMap) {
   let logCount = 0;
 
   projects.forEach((p) => {
-    const targetSheet = projectSheetMap.get(p.id || p.name);
-    const sortedLogDrops = getSortedDrops(p.drops);
+    const key = p.id || p.name;
+    const targetSheet = projectSheetMap.get(key);
+    const sortedLogDrops = projectSortedDrops.get(key) || getSortedDrops(p.drops);
+    const rowLayout = projectRowLayouts.get(key);
     
     sortedLogDrops.forEach((drop) => {
       if (!isAttention(drop)) return; 
@@ -347,7 +526,7 @@ function buildAttentionLogSheet(wb, group, projects, projectSheetMap) {
       const row = ws.getRow(rowNum);
       row.height = 24;
       
-      const mainSheetRowIndex = drop._mainRowNum || 4; 
+      const mainSheetRowIndex = (rowLayout && rowLayout.dropRow.get(drop)) || 4; 
       const projCell = row.getCell(1);
       projCell.value = {
         text: p.name,
@@ -380,7 +559,7 @@ function buildAttentionLogSheet(wb, group, projects, projectSheetMap) {
     emptyRow.height = 30;
     ws.mergeCells(3, 1, 3, COL_COUNT);
     const cell = emptyRow.getCell(1);
-    cell.value = '✓ No active attention flags or deployment blockers reported across current projects.';
+    cell.value = `${CHECK_MARK} No active attention flags or deployment blockers reported across current projects.`;
     applyFill(cell, C.yesFill);
     applyFont(cell, { argb: C.yesText, bold: true, italic: true, size: 11 });
     applyAlign(cell, 'center');
@@ -390,15 +569,16 @@ function buildAttentionLogSheet(wb, group, projects, projectSheetMap) {
   autoFitColumns(ws, { 6: { min: 30, max: 50 } }, [3, 4, 6]);
 }
 
-// ── 3. Individual Project Detailed Drops Sheet ───────────────────────────────
+// ── 4. Individual Project Detailed Drops Sheet ───────────────────────────────
 
-function buildProjectSheet(wb, project, sheetName) {
+function buildProjectSheet(wb, project, sheetName, sortedDrops, rowLayout) {
   const ws = wb.addWorksheet(sheetName, { tabColor: { argb: 'FF3B82F6' } });
   applyStandardPageSetup(ws, '1:3');
   
   const COL_COUNT = 12;
-  const widths = [12, 14, 22, 13, 14, 14, 11, 11, 15, 14, 50, 15];
+  const widths = [12, 14, 22, 13, 14, 14, 11, 11, 15, 14, 50, 15, 4];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  ws.getColumn(13).hidden = true; // raw IDF value, used by the By IDF index's lookups
   
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
 
@@ -426,16 +606,15 @@ function buildProjectSheet(wb, project, sheetName) {
   applyAlign(subCell, 'left');
   ws.getRow(2).height = 20;
 
-  const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Field Term.', 'Rack Term.', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated'];
+  const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Field Term.', 'Rack Term.', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated', 'IDF Key'];
   headerRow(ws, 3, headers, 22);
 
   ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };
 
-  const sortedProjectDrops = getSortedDrops(project.drops);
+  const sortedProjectDrops = sortedDrops || getSortedDrops(project.drops);
 
   sortedProjectDrops.forEach((drop, i) => {
     const rowNum = 4 + i;
-    drop._mainRowNum = rowNum; 
     
     const fill = rowFill(i);
     const hasBlocker = isAttention(drop);
@@ -453,13 +632,14 @@ function buildProjectSheet(wb, project, sheetName) {
     
     // Fallback OR check block
     row.getCell(8).value = { 
-      formula: `IF(OR(${drop.overrideComplete ? 'TRUE' : 'FALSE'},AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes",G${rowNum}="Yes")),"✓","✗")` 
+      formula: `IF(OR(${drop.overrideComplete ? 'TRUE' : 'FALSE'},AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes",G${rowNum}="Yes")),"${CHECK_MARK}","${CROSS_MARK}")` 
     };
     
     row.getCell(9).value = getPatchedLabel(drop);
-    row.getCell(10).value = hasBlocker ? '⚠️ Yes' : 'No';
+    row.getCell(10).value = hasBlocker ? ATTENTION_YES : 'No';
     row.getCell(11).value = drop.notes || '';
     row.getCell(12).value = drop.updatedAt || drop.createdAt || '';
+    row.getCell(13).value = drop.idf || '';
 
     for (let c = 1; c <= COL_COUNT; c++) {
       const cell = row.getCell(c);
@@ -540,7 +720,11 @@ function buildProjectSheet(wb, project, sheetName) {
         }
       ]
     });
-  
+  }
+
+  // These previously lived inside the `if (totalRows > 0)` block above, which
+  // meant a brand-new project with zero drops yet was left unprotected and
+  // un-autofit. They should apply regardless of whether drops exist yet.
   autoFitColumns(ws, { 11: { min: 22, max: 50 }, 12: { min: 14, max: 20 } }, [2, 11, 12]);
 
   ws.protect('', {
@@ -556,7 +740,6 @@ function buildProjectSheet(wb, project, sheetName) {
     deleteColumns:       false,
     deleteRows:          false,
   });
-}
 }
 
 function bannerRow(ws, rowNum, text, bgTransformColor, fgTransformColor, sz, height) {
@@ -644,7 +827,7 @@ export async function exportGroupToExcel(group, projects) {
   wb.created = new Date();
 
   const projectSheetMap = new Map();
-  const targetedTabNames = new Set(['Portfolio Summary', 'Attention Flags']);
+  const targetedTabNames = new Set(['Portfolio Summary', 'By IDF', 'Attention Flags']);
 
   projects.forEach(p => {
     let sanitizedName = p.name.replace(/[\\/*?[\]:]/g, '').trim().slice(0, 26);
@@ -658,12 +841,27 @@ export async function exportGroupToExcel(group, projects) {
     projectSheetMap.set(p.id || p.name, potentialTabTitle);
   });
 
+  // Precompute sorted drops + row layout for every project once, up front.
+  // Attention Flags, By IDF, and each project's own sheet all read from this
+  // same source of truth, so their jump-to-row links are correct regardless
+  // of which order the sheets below are actually built in.
+  const projectSortedDrops = new Map();
+  const projectRowLayouts  = new Map();
+  projects.forEach(p => {
+    const key = p.id || p.name;
+    const sorted = getSortedDrops(p.drops);
+    projectSortedDrops.set(key, sorted);
+    projectRowLayouts.set(key, computeRowLayout(sorted, 4));
+  });
+
   buildSummarySheet(wb, group, projects, projectSheetMap);
-  buildAttentionLogSheet(wb, group, projects, projectSheetMap);
+  buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedDrops, projectRowLayouts);
+  buildAttentionLogSheet(wb, group, projects, projectSheetMap, projectSortedDrops, projectRowLayouts);
 
   for (const project of projects) {
-    const trackingTabTitle = projectSheetMap.get(project.id || project.name);
-    buildProjectSheet(wb, project, trackingTabTitle);
+    const key = project.id || project.name;
+    const trackingTabTitle = projectSheetMap.get(key);
+    buildProjectSheet(wb, project, trackingTabTitle, projectSortedDrops.get(key), projectRowLayouts.get(key));
   }
 
   const buffer = await wb.xlsx.writeBuffer();
