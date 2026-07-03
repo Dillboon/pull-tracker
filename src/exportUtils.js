@@ -460,7 +460,10 @@ export async function exportXLSX(drops, projectName = '') {
     ws2.getRow(ws2.rowCount).height = 6;
   };
 
-  addSRow('Total Drops', total, { formula: `IFERROR(COUNTIF('Cable Drops'!H4:H${lastDataRow},"✓")/${total},0)` });
+  // Blended average across all 4 stages, so this headline number reflects
+  // partial progress rather than duplicating the "Fully Complete" row below.
+  const blendedProgressFormula = `IFERROR((COUNTIF('Cable Drops'!D4:D${lastDataRow},"Yes")+COUNTIF('Cable Drops'!E4:E${lastDataRow},"Yes")+COUNTIF('Cable Drops'!F4:F${lastDataRow},"Yes")+COUNTIF('Cable Drops'!G4:G${lastDataRow},"Yes"))/(4*${total}),0)`;
+  addSRow('Total Drops', total, { formula: blendedProgressFormula });
   addSeparator();
 
   addSubHeader('Status Progress  (live — updates when you edit Yes/No)');

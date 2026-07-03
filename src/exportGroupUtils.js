@@ -275,7 +275,10 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     row.getCell(5).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!F4:F${endDataRow}, "Yes")` } : 0;
     row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!G4:G${endDataRow}, "Yes")` } : 0;
     row.getCell(7).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!J4:J${endDataRow}, "${ATTENTION_YES}")` } : 0;
-    row.getCell(8).value = totalDrops > 0 ? { formula: `IFERROR(COUNTIF(${escapedSheet}!H4:H${endDataRow}, "${CHECK_MARK}") / B${rowNum}, 0)` } : 0;
+    // Average completion across all 4 stages (Rough Pull, Field Term, Rack
+    // Term, Tested) rather than only counting drops that are 100% done —
+    // reuses the live counts already sitting in C:F on this same row.
+    row.getCell(8).value = totalDrops > 0 ? { formula: `IFERROR((C${rowNum}+D${rowNum}+E${rowNum}+F${rowNum})/(4*B${rowNum}),0)` } : 0;
 
     for (let c = 1; c <= COL_COUNT; c++) {
       const cell = row.getCell(c);
@@ -422,7 +425,6 @@ function buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedD
       const rtFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$F$4:$F$${endDataRow}, "Yes")`;
       const tsFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$G$4:$G$${endDataRow}, "Yes")`;
       const atFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$J$4:$J$${endDataRow}, "${ATTENTION_YES}")`;
-      const cpFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$H$4:$H$${endDataRow}, "${CHECK_MARK}")`;
 
       const row = ws.getRow(rowNum);
       row.height = 20;
@@ -441,8 +443,12 @@ function buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedD
       row.getCell(6).value = { formula: rtFormula };
       row.getCell(7).value = { formula: tsFormula };
       row.getCell(8).value = { formula: atFormula };
-      row.getCell(9).value = { formula: `IFERROR(${cpFormula}/${totalCount || 1},0)` };
+      // Average completion across all 4 stages (Rough Pull, Field Term, Rack
+      // Term, Tested) rather than only counting drops that are 100% done —
+      // a drop that's 3 of 4 stages finished now contributes 75%, not 0%.
+      row.getCell(9).value = { formula: `IFERROR((${rpFormula}+${ftFormula}+${rtFormula}+${tsFormula})/(4*${totalCount || 1}),0)` };
       row.getCell(9).numFmt = '0%';
+
 
       for (let c = 1; c <= COL_COUNT; c++) {
         const cell = row.getCell(c);
