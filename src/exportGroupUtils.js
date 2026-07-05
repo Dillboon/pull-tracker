@@ -168,8 +168,8 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   const ws = wb.addWorksheet('Portfolio Summary', { tabColor: { argb: 'FF0A1628' } });
   applyStandardPageSetup(ws, '1:8');
   
-  const COL_COUNT = 8;
-  [32, 14, 14, 15, 15, 14, 14, 16].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  const COL_COUNT = 9;
+  [30, 13, 13, 12, 14, 14, 13, 13, 15].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 8 }];
 
   ws.mergeCells(1, 1, 1, COL_COUNT);
@@ -203,8 +203,8 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   const kpis = [
     { startCol: 1, endCol: 2, label: 'TOTAL PROJECTS', formula: `="${projects.length} Active"`, fill: C.purple1, textCol: C.navyDeep },
     { startCol: 3, endCol: 4, label: 'TOTAL DROPS', formula: `=SUM(B9:B${8 + projects.length})`, fill: C.purple2, textCol: C.idfBlue },
-    { startCol: 5, endCol: 6, label: 'ATTENTION FLAGS', formula: `=SUM(G9:G${8 + projects.length})`, fill: C.noFill, textCol: C.noText },
-    { startCol: 7, endCol: 8, label: 'COMPLETION RATE', formula: `=AVERAGE(H9:H${8 + projects.length})`, fill: C.yesFill, textCol: C.yesText, format: '0.0%' }
+    { startCol: 5, endCol: 6, label: 'ATTENTION FLAGS', formula: `=SUM(H9:H${8 + projects.length})`, fill: C.noFill, textCol: C.noText },
+    { startCol: 7, endCol: 9, label: 'COMPLETION RATE', formula: `=AVERAGE(I9:I${8 + projects.length})`, fill: C.yesFill, textCol: C.yesText, format: '0.0%' }
   ];
 
   kpis.forEach(kpi => {
@@ -234,7 +234,7 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
 
   ws.getRow(7).height = 10;
 
-  const headers = ['Projects', 'Total Drops', 'Rough Pulled', 'Field Terminated', 'Rack Terminated', 'Tested', 'Attention Flags', 'Progress %'];
+  const headers = ['Projects', 'Total Drops', 'Rough Pulled', 'Dropped', 'Field Terminated', 'Rack Terminated', 'Tested', 'Attention Flags', 'Progress %'];
   const hRow = ws.getRow(8);
   hRow.height = 24;
   headers.forEach((lbl, i) => {
@@ -274,11 +274,12 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     row.getCell(4).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!E4:E${endDataRow}, "Yes")` } : 0;
     row.getCell(5).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!F4:F${endDataRow}, "Yes")` } : 0;
     row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!G4:G${endDataRow}, "Yes")` } : 0;
-    row.getCell(7).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!J4:J${endDataRow}, "${ATTENTION_YES}")` } : 0;
-    // Average completion across all 4 stages (Rough Pull, Field Term, Rack
-    // Term, Tested) rather than only counting drops that are 100% done —
-    // reuses the live counts already sitting in C:F on this same row.
-    row.getCell(8).value = totalDrops > 0 ? { formula: `IFERROR((C${rowNum}+D${rowNum}+E${rowNum}+F${rowNum})/(4*B${rowNum}),0)` } : 0;
+    row.getCell(7).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!H4:H${endDataRow}, "Yes")` } : 0;
+    row.getCell(8).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!K4:K${endDataRow}, "${ATTENTION_YES}")` } : 0;
+    // Average completion across all 5 stages (Rough Pull, Dropped, Field
+    // Term, Rack Term, Tested) rather than only counting drops that are
+    // 100% done — reuses the live counts already sitting in C:G on this row.
+    row.getCell(9).value = totalDrops > 0 ? { formula: `IFERROR((C${rowNum}+D${rowNum}+E${rowNum}+F${rowNum}+G${rowNum})/(5*B${rowNum}),0)` } : 0;
 
     for (let c = 1; c <= COL_COUNT; c++) {
       const cell = row.getCell(c);
@@ -290,7 +291,7 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
       } else {
         applyFill(cell, fill);
       }
-      if (c === 8) {
+      if (c === 9) {
         cell.numFmt = '0%';
         applyFont(cell, { bold: true, size: 10.5 });
       }
@@ -308,7 +309,8 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   totRow.getCell(5).value = { formula: `SUM(E9:E${totalRowNum - 1})` };
   totRow.getCell(6).value = { formula: `SUM(F9:F${totalRowNum - 1})` };
   totRow.getCell(7).value = { formula: `SUM(G9:G${totalRowNum - 1})` };
-  totRow.getCell(8).value = { formula: `IFERROR(SUMPRODUCT(B9:B${totalRowNum - 1}, H9:H${totalRowNum - 1}) / B${totalRowNum}, 0)` };
+  totRow.getCell(8).value = { formula: `SUM(H9:H${totalRowNum - 1})` };
+  totRow.getCell(9).value = { formula: `IFERROR(SUMPRODUCT(B9:B${totalRowNum - 1}, I9:I${totalRowNum - 1}) / B${totalRowNum}, 0)` };
 
   for (let c = 1; c <= COL_COUNT; c++) {
     const cell = totRow.getCell(c);
@@ -316,12 +318,12 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     applyBorders(cell, 'thin');
     applyFont(cell, { argb: C.amber, bold: true, size: 11 });
     applyAlign(cell, c === 1 ? 'left' : 'center');
-    if (c === 8) cell.numFmt = '0%';
+    if (c === 9) cell.numFmt = '0%';
   }
 
   if (projects.length > 0) {
     ws.addConditionalFormatting({
-      ref: `H9:H${totalRowNum - 1}`,
+      ref: `I9:I${totalRowNum - 1}`,
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['1'],
@@ -334,7 +336,7 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
       ]
     });
     ws.addConditionalFormatting({
-      ref: `G9:G${totalRowNum - 1}`,
+      ref: `H9:H${totalRowNum - 1}`,
       rules: [
         {
           type: 'cellIs', operator: 'greaterThan', formulae: ['0'],
@@ -359,8 +361,8 @@ function buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedD
   const ws = wb.addWorksheet('By IDF', { tabColor: { argb: 'FFF59E0B' } });
   applyStandardPageSetup(ws, '1:3');
 
-  const COL_COUNT = 9;
-  const widths = [26, 20, 9, 12, 12, 12, 10, 11, 12];
+  const COL_COUNT = 10;
+  const widths = [26, 20, 9, 12, 12, 12, 12, 10, 11, 12];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
 
@@ -380,7 +382,7 @@ function buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedD
   applyAlign(subCell, 'left');
   ws.getRow(2).height = 20;
 
-  const headers = ['Project', 'IDF Closet', 'Drops', 'Rough Pull', 'Field Term.', 'Rack Term.', 'Tested', 'Attention', 'Progress %'];
+  const headers = ['Project', 'IDF Closet', 'Drops', 'Rough Pull', 'Dropped', 'Field Term.', 'Rack Term.', 'Tested', 'Attention', 'Progress %'];
   const hRow = ws.getRow(3);
   hRow.height = 22;
   headers.forEach((label, i) => {
@@ -420,11 +422,12 @@ function buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedD
       const totalCount = sortedDrops.filter(d => d.idf === idf).length;
       const fill = rowFill(idx);
 
-      const rpFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$D$4:$D$${endDataRow}, "Yes")`;
-      const ftFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$E$4:$E$${endDataRow}, "Yes")`;
-      const rtFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$F$4:$F$${endDataRow}, "Yes")`;
-      const tsFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$G$4:$G$${endDataRow}, "Yes")`;
-      const atFormula = `COUNTIFS(${escapedSheet}!$M$4:$M$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$J$4:$J$${endDataRow}, "${ATTENTION_YES}")`;
+      const rpFormula = `COUNTIFS(${escapedSheet}!$N$4:$N$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$D$4:$D$${endDataRow}, "Yes")`;
+      const dpFormula = `COUNTIFS(${escapedSheet}!$N$4:$N$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$E$4:$E$${endDataRow}, "Yes")`;
+      const ftFormula = `COUNTIFS(${escapedSheet}!$N$4:$N$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$F$4:$F$${endDataRow}, "Yes")`;
+      const rtFormula = `COUNTIFS(${escapedSheet}!$N$4:$N$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$G$4:$G$${endDataRow}, "Yes")`;
+      const tsFormula = `COUNTIFS(${escapedSheet}!$N$4:$N$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$H$4:$H$${endDataRow}, "Yes")`;
+      const atFormula = `COUNTIFS(${escapedSheet}!$N$4:$N$${endDataRow}, "${idfEscaped}", ${escapedSheet}!$K$4:$K$${endDataRow}, "${ATTENTION_YES}")`;
 
       const row = ws.getRow(rowNum);
       row.height = 20;
@@ -439,15 +442,17 @@ function buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedD
 
       row.getCell(3).value = totalCount;
       row.getCell(4).value = { formula: rpFormula };
-      row.getCell(5).value = { formula: ftFormula };
-      row.getCell(6).value = { formula: rtFormula };
-      row.getCell(7).value = { formula: tsFormula };
-      row.getCell(8).value = { formula: atFormula };
-      // Average completion across all 4 stages (Rough Pull, Field Term, Rack
-      // Term, Tested) rather than only counting drops that are 100% done —
-      // a drop that's 3 of 4 stages finished now contributes 75%, not 0%.
-      row.getCell(9).value = { formula: `IFERROR((${rpFormula}+${ftFormula}+${rtFormula}+${tsFormula})/(4*${totalCount || 1}),0)` };
-      row.getCell(9).numFmt = '0%';
+      row.getCell(5).value = { formula: dpFormula };
+      row.getCell(6).value = { formula: ftFormula };
+      row.getCell(7).value = { formula: rtFormula };
+      row.getCell(8).value = { formula: tsFormula };
+      row.getCell(9).value = { formula: atFormula };
+      // Average completion across all 5 stages (Rough Pull, Dropped, Field
+      // Term, Rack Term, Tested) rather than only counting drops that are
+      // 100% done — a drop that's 4 of 5 stages finished now contributes
+      // 80%, not 0%.
+      row.getCell(10).value = { formula: `IFERROR((${rpFormula}+${dpFormula}+${ftFormula}+${rtFormula}+${tsFormula})/(5*${totalCount || 1}),0)` };
+      row.getCell(10).numFmt = '0%';
 
 
       for (let c = 1; c <= COL_COUNT; c++) {
@@ -455,7 +460,7 @@ function buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedD
         applyBorders(cell, 'thin');
         applyFill(cell, fill);
         if (c > 2) applyAlign(cell, 'center');
-        if (c === 3 || c === 8) applyFont(cell, { size: 10 });
+        if (c === 3 || c === 9) applyFont(cell, { size: 10 });
       }
     });
   });
@@ -472,13 +477,13 @@ function buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedD
     applyBorders(cell, 'thin');
   } else {
     ws.addConditionalFormatting({
-      ref: `I4:I${rowNum}`,
+      ref: `J4:J${rowNum}`,
       rules: [
         { type: 'cellIs', operator: 'equal', formulae: ['1'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.yesFill } }, font: { bold: true, color: { argb: C.yesText } } } }
       ]
     });
     ws.addConditionalFormatting({
-      ref: `H4:H${rowNum}`,
+      ref: `I4:I${rowNum}`,
       rules: [
         { type: 'cellIs', operator: 'greaterThan', formulae: ['0'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: C.noFill } }, font: { bold: true, color: { argb: C.noText } } } }
       ]
@@ -581,10 +586,10 @@ function buildProjectSheet(wb, project, sheetName, sortedDrops, rowLayout) {
   const ws = wb.addWorksheet(sheetName, { tabColor: { argb: 'FF3B82F6' } });
   applyStandardPageSetup(ws, '1:3');
   
-  const COL_COUNT = 12;
-  const widths = [12, 14, 22, 13, 14, 14, 11, 11, 15, 14, 50, 15, 4];
+  const COL_COUNT = 13;
+  const widths = [12, 14, 22, 13, 12, 14, 14, 11, 11, 15, 14, 50, 15, 4];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
-  ws.getColumn(13).hidden = true; // raw IDF value, used by the By IDF index's lookups
+  ws.getColumn(14).hidden = true; // raw IDF value, used by the By IDF index's lookups
   
   ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }];
 
@@ -601,18 +606,19 @@ function buildProjectSheet(wb, project, sheetName, sortedDrops, rowLayout) {
   
   const totalDrops = project.drops.length;
   const roughCount = project.drops.filter(d => d.roughPull || d.overrideComplete).length;
+  const dropCount  = project.drops.filter(d => d.dropped || d.overrideComplete).length;
   const termCount  = project.drops.filter(d => d.terminated || d.overrideComplete).length;
   const rackCount  = project.drops.filter(d => d.rackTerminated || d.overrideComplete).length;
   const testCount  = project.drops.filter(d => d.tested || d.overrideComplete).length;
   const attnCount  = project.drops.filter(isAttention).length;
 
-  subCell.value = `Generated: ${new Date().toLocaleString()}  |  Total: (${totalDrops})  |  Rough pulled: (${roughCount})  |  Field Terminated: (${termCount})  |  Rack Terminated: (${rackCount})  |  Tested: (${testCount})  |  Attention: (${attnCount})`;
+  subCell.value = `Generated: ${new Date().toLocaleString()}  |  Total: (${totalDrops})  |  Rough pulled: (${roughCount})  |  Dropped: (${dropCount})  |  Field Terminated: (${termCount})  |  Rack Terminated: (${rackCount})  |  Tested: (${testCount})  |  Attention: (${attnCount})`;
   applyFill(subCell, C.navyMid);
   applyFont(subCell, { argb: C.muted, size: 9.5, italic: true });
   applyAlign(subCell, 'left');
   ws.getRow(2).height = 20;
 
-  const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Field Term.', 'Rack Term.', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated', 'IDF Key'];
+  const headers = ['IDF Closet', 'Drop Type', 'Cable IDs', 'Rough Pull', 'Dropped', 'Field Term.', 'Rack Term.', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated', 'IDF Key'];
   headerRow(ws, 3, headers, 22);
 
   ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: COL_COUNT } };
@@ -632,20 +638,21 @@ function buildProjectSheet(wb, project, sheetName, sortedDrops, rowLayout) {
     row.getCell(2).value = typeName(drop);
     row.getCell(3).value = cableIds(drop);
     row.getCell(4).value = drop.roughPull  ? 'Yes' : 'No';
-    row.getCell(5).value = drop.terminated ? 'Yes' : 'No';
-    row.getCell(6).value = drop.rackTerminated ? 'Yes' : 'No';
-    row.getCell(7).value = drop.tested     ? 'Yes' : 'No';
+    row.getCell(5).value = drop.dropped    ? 'Yes' : 'No';
+    row.getCell(6).value = drop.terminated ? 'Yes' : 'No';
+    row.getCell(7).value = drop.rackTerminated ? 'Yes' : 'No';
+    row.getCell(8).value = drop.tested     ? 'Yes' : 'No';
     
     // Fallback OR check block
-    row.getCell(8).value = { 
-      formula: `IF(OR(${drop.overrideComplete ? 'TRUE' : 'FALSE'},AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes",G${rowNum}="Yes")),"${CHECK_MARK}","${CROSS_MARK}")` 
+    row.getCell(9).value = { 
+      formula: `IF(OR(${drop.overrideComplete ? 'TRUE' : 'FALSE'},AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes",G${rowNum}="Yes",H${rowNum}="Yes")),"${CHECK_MARK}","${CROSS_MARK}")` 
     };
     
-    row.getCell(9).value = getPatchedLabel(drop);
-    row.getCell(10).value = hasBlocker ? ATTENTION_YES : 'No';
-    row.getCell(11).value = drop.notes || '';
-    row.getCell(12).value = drop.updatedAt || drop.createdAt || '';
-    row.getCell(13).value = drop.idf || '';
+    row.getCell(10).value = getPatchedLabel(drop);
+    row.getCell(11).value = hasBlocker ? ATTENTION_YES : 'No';
+    row.getCell(12).value = drop.notes || '';
+    row.getCell(13).value = drop.updatedAt || drop.createdAt || '';
+    row.getCell(14).value = drop.idf || '';
 
     for (let c = 1; c <= COL_COUNT; c++) {
       const cell = row.getCell(c);
@@ -670,27 +677,28 @@ function buildProjectSheet(wb, project, sheetName, sortedDrops, rowLayout) {
         case 5:
         case 6:
         case 7:
+        case 8:
           applyFill(cell, fill); applyFont(cell, { size: 10 }); applyAlign(cell, 'center');
           cell.dataValidation = dvYesNo;
           cell.protection = { locked: false };
           break;
-        case 8:
+        case 9:
           applyFill(cell, fill); applyAlign(cell, 'center');
           break;
-        case 9:
+        case 10:
           applyFill(cell, fill); applyAlign(cell, 'center');
           applyFont(cell, { size: 9.5, argb: cell.value === 'No' ? C.slate : C.yesText, bold: cell.value !== 'No' });
           break;
-        case 10:
+        case 11:
           applyFill(cell, hasBlocker ? C.attnFill : fill);
           applyFont(cell, { argb: hasBlocker ? C.attnText : C.muted, bold: hasBlocker, size: 10 });
           applyAlign(cell, 'center');
           break;
-        case 11:
+        case 12:
           applyFill(cell, fill); applyFont(cell, { argb: C.slate, size: 9 }); applyAlign(cell, 'left', 'middle', true);
           cell.protection = { locked: false };
           break;
-        case 12:
+        case 13:
           applyFill(cell, fill); applyFont(cell, { argb: C.slate, size: 9 }); applyAlign(cell, 'center');
           break;
       }
@@ -701,7 +709,7 @@ function buildProjectSheet(wb, project, sheetName, sortedDrops, rowLayout) {
   if (totalRows > 0) {
     const endRow = 3 + totalRows;
     ws.addConditionalFormatting({
-      ref: `D4:G${endRow}`,
+      ref: `D4:H${endRow}`,
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"Yes"'],
@@ -714,7 +722,7 @@ function buildProjectSheet(wb, project, sheetName, sortedDrops, rowLayout) {
       ]
     });
     ws.addConditionalFormatting({
-      ref: `H4:H${endRow}`,
+      ref: `I4:I${endRow}`,
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"✓"'],
@@ -731,7 +739,7 @@ function buildProjectSheet(wb, project, sheetName, sortedDrops, rowLayout) {
   // These previously lived inside the `if (totalRows > 0)` block above, which
   // meant a brand-new project with zero drops yet was left unprotected and
   // un-autofit. They should apply regardless of whether drops exist yet.
-  autoFitColumns(ws, { 11: { min: 22, max: 50 }, 12: { min: 14, max: 20 } }, [2, 11, 12]);
+  autoFitColumns(ws, { 12: { min: 22, max: 50 }, 13: { min: 14, max: 20 } }, [2, 12, 13]);
 
   ws.protect('', {
     selectLockedCells:   true,
@@ -767,7 +775,7 @@ function headerRow(ws, rowNum, labels, height = 20) {
     cell.value = label;
     applyFill(cell, C.navyHeader);
     applyFont(cell, { argb: C.amber, bold: true, size: 10 });
-    applyAlign(cell, i === 0 || i === 2 || i === 10 ? 'left' : 'center'); 
+    applyAlign(cell, i === 0 || i === 2 || i === 11 ? 'left' : 'center'); 
     cell.border = {
       top: { style: 'medium', color: { argb: C.navyDeep } },
       bottom: { style: 'medium', color: { argb: C.navyDeep } }

@@ -167,11 +167,11 @@ export default function DropsScreen({ drops, idfList, addDrop, bulkAddDrops, upd
     if (filterIdf !== 'ALL' && d.idf !== filterIdf) return false;
     if (filterRack !== 'ALL' && (d.rackNumber || '') !== filterRack) return false;
     if (filterCustomType !== 'ALL' && (d.customType || '') !== filterCustomType) return false;
-    if (filterStatus === 'COMPLETE'   && !(d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested))) return false;
-    if (filterStatus === 'INCOMPLETE' &&  (d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested))) return false;
+    if (filterStatus === 'COMPLETE'   && !(d.overrideComplete || (d.roughPull && d.dropped && d.terminated && d.rackTerminated && d.tested))) return false;
+    if (filterStatus === 'INCOMPLETE' &&  (d.overrideComplete || (d.roughPull && d.dropped && d.terminated && d.rackTerminated && d.tested))) return false;
     if (filterStatus === 'FIELD_TERM' && !(d.roughPull && d.terminated)) return false;
     if (filterStatus === 'RACK_TERM'  && !(d.roughPull && d.rackTerminated)) return false;
-    if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.terminated || d.rackTerminated || d.tested)) return false;
+    if (filterStatus === 'ROUGH_ONLY' && (!d.roughPull || d.dropped || d.terminated || d.rackTerminated || d.tested)) return false;
     if (filterStatus === 'PATCHED'    && !(d.patchedA || d.patchedB || d.patchedC || d.patchedD)) return false;
     if (filterStatus === 'NOTES' && (!d.notes?.trim() || d.attention))               return false;
     if (filterStatus === 'ATTENTION'  && !d.attention)                               return false;

@@ -66,6 +66,7 @@ export default function BulkImportModal({ visible, onClose, onImport, idfList, c
       rackNumber:     rackNumber.trim(),
       customType:     customType.trim(),
       roughPull:      false,
+      dropped:        false,
       terminated:     false,
       rackTerminated: false,
       tested:         false,

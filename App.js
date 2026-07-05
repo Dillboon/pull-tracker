@@ -175,7 +175,7 @@ export default function App() {
       isDouble:   template.groupType === 'double',
       cableA: '', cableB: '', cableC: '', cableD: '',
       idf:        template.idf || '',
-      roughPull:  false, terminated: false, tested: false,
+      roughPull:  false, dropped: false, terminated: false, rackTerminated: false, tested: false,
       notes:      '', createdAt: today(),
     };
     const next = [...activeProject.drops, drop];

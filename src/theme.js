@@ -27,6 +27,7 @@ export const COLORS = {
 
 export const STATUS_FIELDS = [
   { key: 'roughPull',      label: 'Rough Pull',       short: 'RP', color: COLORS.amber },
+  { key: 'dropped',        label: 'Dropped',          short: 'DP', color: COLORS.pink  },
   { key: 'terminated',     label: 'Field Terminated', short: 'FT', color: COLORS.blue  },
   { key: 'rackTerminated', label: 'Rack Terminated',  short: 'RT', color: COLORS.purple },
   { key: 'tested',         label: 'Tested',           short: 'TS', color: COLORS.green },

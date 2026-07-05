@@ -38,14 +38,15 @@ function GroupSection({
   // Calculate all pipeline steps across all projects in the group
   const pipelineSteps = projects.reduce((sum, p) => {
     const rp = p.drops.filter(d => d.roughPull || d.overrideComplete).length;
+    const dp = p.drops.filter(d => d.dropped || d.overrideComplete).length;
     const ft = p.drops.filter(d => d.terminated || d.overrideComplete).length;
     const rt = p.drops.filter(d => d.rackTerminated || d.overrideComplete).length;
     const ts = p.drops.filter(d => d.tested || d.overrideComplete).length;
-    return sum + rp + ft + rt + ts;
+    return sum + rp + dp + ft + rt + ts;
   }, 0);
 
-  // Apply the pipeline percentage logic (4 steps)
-  const pct = totalDrops > 0 ? Math.round((pipelineSteps / (totalDrops * 4)) * 100) : 0;
+  // Apply the pipeline percentage logic (5 steps)
+  const pct = totalDrops > 0 ? Math.round((pipelineSteps / (totalDrops * 5)) * 100) : 0;
 
   return (
     <View style={gs.container}>

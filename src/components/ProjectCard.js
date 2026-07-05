@@ -13,15 +13,16 @@ export default function ProjectCard({
 }) {
   const total    = project.drops.length;
   
-  const complete = project.drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested)).length;
+  const complete = project.drops.filter(d => d.overrideComplete || (d.roughPull && d.dropped && d.terminated && d.rackTerminated && d.tested)).length;
   
   const rp       = project.drops.filter(d => d.roughPull || d.overrideComplete).length;
+  const dp       = project.drops.filter(d => d.dropped || d.overrideComplete).length;
   const ft       = project.drops.filter(d => d.terminated || d.overrideComplete).length;
   const rt       = project.drops.filter(d => d.rackTerminated || d.overrideComplete).length;
   const ts       = project.drops.filter(d => d.tested || d.overrideComplete).length;
   
-  // Calculate percentage based on 4 pipeline steps
-  const pct      = total > 0 ? Math.round(((rp + ft + rt + ts) / (total * 4)) * 100) : 0;
+  // Calculate percentage based on 5 pipeline steps
+  const pct      = total > 0 ? Math.round(((rp + dp + ft + rt + ts) / (total * 5)) * 100) : 0;
   const isArchived = project.status === 'archived';
 
   return (
@@ -64,11 +65,12 @@ export default function ProjectCard({
       {total > 0 && (
         <View style={s.statsRow}>
           {[
-            { label: 'Drops',  val: total,    color: COLORS.textSub },
-            { label: 'Pulled', val: rp,       color: COLORS.amber   },
-            { label: 'F.Term', val: ft,       color: COLORS.blue    },
-            { label: 'R.Term', val: rt,       color: COLORS.purple  },
-            { label: 'Tested', val: ts,       color: COLORS.green   },
+            { label: 'Drops',   val: total,    color: COLORS.textSub },
+            { label: 'Pulled',  val: rp,       color: COLORS.amber   },
+            { label: 'Dropped', val: dp,       color: COLORS.pink    },
+            { label: 'F.Term',  val: ft,       color: COLORS.blue    },
+            { label: 'R.Term',  val: rt,       color: COLORS.purple  },
+            { label: 'Tested',  val: ts,       color: COLORS.green   },
           ].map(({ label, val, color }) => (
             <View key={label} style={s.stat}>
               <Text style={[s.statVal, { color }]}>{val}</Text>

@@ -43,10 +43,10 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
   const [expanded, setExpanded] = useState(false);
   const swipeableRef = useRef(null);
   
-  // Visual progress overrides for complete flag internally calculated to 4 steps
-  const count      = drop.overrideComplete ? 4 : ((drop.roughPull ? 1 : 0) + (drop.terminated ? 1 : 0) + (drop.rackTerminated ? 1 : 0) + (drop.tested ? 1 : 0));
+  // Visual progress overrides for complete flag internally calculated from STATUS_FIELDS
+  const count      = drop.overrideComplete ? STATUS_FIELDS.length : STATUS_FIELDS.filter(f => drop[f.key]).length;
   const pColor     = drop.overrideComplete ? COLORS.green : progressColor(drop);
-  const isComplete = drop.overrideComplete || count === 4;
+  const isComplete = drop.overrideComplete || count === STATUS_FIELDS.length;
   const groupType  = getGroupType(drop);
 
   const hasConflict = conflictIds && [drop.cableA, drop.cableB, drop.cableC, drop.cableD]
@@ -77,15 +77,10 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
   };
 
   const quickCompleteAll = () => {
-    const allDone = drop.roughPull && drop.terminated && drop.rackTerminated && drop.tested;
-    onUpdate({ 
-      ...drop, 
-      roughPull: !allDone, 
-      terminated: !allDone, 
-      rackTerminated: !allDone,
-      tested: !allDone,
-      overrideComplete: false // Reset manual override flag if status is manually adjusted
-    });
+    const allDone = STATUS_FIELDS.every(f => drop[f.key]);
+    const next = { ...drop, overrideComplete: false }; // Reset manual override flag if status is manually adjusted
+    STATUS_FIELDS.forEach(f => { next[f.key] = !allDone; });
+    onUpdate(next);
   };
 
   const quickToggle = (key) => onUpdate({ ...drop, [key]: !drop[key] });
@@ -256,7 +251,7 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
             activeOpacity={0.7}
           >
             <View style={[s.ring, { borderColor: pColor }]}>
-              <Text style={[s.ringText, { color: pColor }]}>{count}/4</Text>
+              <Text style={[s.ringText, { color: pColor }]}>{count}/{STATUS_FIELDS.length}</Text>
             </View>
           </TouchableOpacity>
           <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>{expanded ? '▴' : '▾'}</Text>

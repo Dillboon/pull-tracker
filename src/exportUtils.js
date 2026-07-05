@@ -72,8 +72,9 @@ const getPatchedLabel = (d) => {
 export async function exportPDF(drops, projectName = '') {
   const sorted = sortedDrops(drops);
   
-  // 4-step progress counts
+  // 5-step progress counts
   const rp = sorted.filter(d => d.roughPull || d.overrideComplete).length;
+  const dp = sorted.filter(d => d.dropped || d.overrideComplete).length;
   const ft = sorted.filter(d => d.terminated || d.overrideComplete).length;
   const rt = sorted.filter(d => d.rackTerminated || d.overrideComplete).length;
   const ts = sorted.filter(d => d.tested || d.overrideComplete).length;
@@ -93,6 +94,7 @@ export async function exportPDF(drops, projectName = '') {
         <td>${typeLabel !== 'Single' ? `<b style="color:#7c3aed;">${typeLabel}</b>` : 'Single'}</td>
         <td>${cable}</td>
         <td style="text-align:center">${tick(d.roughPull)}</td>
+        <td style="text-align:center">${tick(d.dropped)}</td>
         <td style="text-align:center">${tick(d.terminated)}</td>
         <td style="text-align:center">${tick(d.rackTerminated)}</td>
         <td style="text-align:center">${tick(d.tested)}</td>
@@ -130,6 +132,7 @@ export async function exportPDF(drops, projectName = '') {
       <div class="summary">
         <div class="stat"><b>${sorted.length}</b><span>Total Drops</span></div>
         <div class="stat"><b style="color:#d97706">${rp}/${sorted.length}</b><span>Rough Pulled</span></div>
+        <div class="stat"><b style="color:#db2777">${dp}/${sorted.length}</b><span>Dropped</span></div>
         <div class="stat"><b style="color:#2563eb">${ft}/${sorted.length}</b><span>Field Term.</span></div>
         <div class="stat"><b style="color:#7c3aed">${rt}/${sorted.length}</b><span>Rack Term.</span></div>
         <div class="stat"><b style="color:#16a34a">${ts}/${sorted.length}</b><span>Tested</span></div>
@@ -138,7 +141,7 @@ export async function exportPDF(drops, projectName = '') {
         <thead>
           <tr>
             <th>IDF</th><th>Type</th><th>Cable ID(s)</th>
-            <th>Rough Pull</th><th>Field Term.</th><th>Rack Term.</th><th>Tested</th><th>Patched</th>
+            <th>Rough Pull</th><th>Dropped</th><th>Field Term.</th><th>Rack Term.</th><th>Tested</th><th>Patched</th>
             <th>Notes</th><th>Attn</th><th>Last Updated</th>
           </tr>
         </thead>
@@ -200,12 +203,13 @@ export async function exportXLSX(drops, projectName = '') {
     }
   });
 
-  // Updated layout to accommodate the 4th progress column
+  // Updated layout to accommodate the 5th progress column
   ws.columns = [
     { key: 'idf',            width: 12 },
     { key: 'type',           width: Math.max(12, ...sorted.map(d => getTypeLabel(d).length)) + 2 },
     { key: 'cable',          width: Math.max(12, ...sorted.map(d => getCableLabel(d).length)) + 2 },
     { key: 'roughPull',      width: 12 },
+    { key: 'dropped',        width: 12 },
     { key: 'terminated',     width: 15 },
     { key: 'rackTerminated', width: 15 },
     { key: 'tested',         width: 10 },
@@ -217,8 +221,8 @@ export async function exportXLSX(drops, projectName = '') {
     { key: 'idfKey',         width: 4, hidden: true }, // raw IDF value, used by By-IDF lookups below
   ];
 
-  // Title row (A1:L1)
-  ws.mergeCells('A1:L1');
+  // Title row (A1:M1)
+  ws.mergeCells('A1:M1');
   const titleCell     = ws.getCell('A1');
   titleCell.value     = `CablePull Field Tracker${projectName ? `  —  ${projectName}` : ''}`;
   titleCell.font      = { bold: true, size: 13, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
@@ -226,31 +230,32 @@ export async function exportXLSX(drops, projectName = '') {
   titleCell.alignment = leftAlign;
   ws.getRow(1).height = 26;
 
-  // Subtitle row (A2:L2)
-  ws.mergeCells('A2:L2');
+  // Subtitle row (A2:M2)
+  ws.mergeCells('A2:M2');
   const subCell   = ws.getCell('A2');
   
   const rpCount   = sorted.filter(d => d.roughPull || d.overrideComplete).length;
+  const dpCount   = sorted.filter(d => d.dropped || d.overrideComplete).length;
   const ftCount   = sorted.filter(d => d.terminated || d.overrideComplete).length;
   const rtCount   = sorted.filter(d => d.rackTerminated || d.overrideComplete).length;
   const tsCount   = sorted.filter(d => d.tested || d.overrideComplete).length;
   const attnCount = sorted.filter(d => d.attention).length;
   
-  subCell.value   = `Generated: ${new Date().toLocaleString()}  |  Total: ${total}  |  Rough pulled: ${rpCount}  |  Field Term.: ${ftCount}  |  Rack Term.: ${rtCount}  |  Tested: ${tsCount}  |  Attention: ${attnCount}`;
+  subCell.value   = `Generated: ${new Date().toLocaleString()}  |  Total: ${total}  |  Rough pulled: ${rpCount}  |  Dropped: ${dpCount}  |  Field Term.: ${ftCount}  |  Rack Term.: ${rtCount}  |  Tested: ${tsCount}  |  Attention: ${attnCount}`;
   subCell.font    = { size: 9, color: { argb: 'FF94A3B8' }, name: 'Calibri' };
   subCell.fill    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
   subCell.alignment = leftAlign;
   ws.getRow(2).height = 18;
 
   // Header row (row 3)
-  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Field Terminated', 'Rack Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated', 'IDF Key']);
+  const headerRow = ws.addRow(['IDF', 'Type', 'Cable ID(s)', 'Rough Pull', 'Dropped', 'Field Terminated', 'Rack Terminated', 'Tested', 'Complete', 'Patched', 'Attention', 'Notes', 'Last Updated', 'IDF Key']);
   headerRow.height = 20;
   headerRow.eachCell(cell => {
     cell.font = headerFont; cell.fill = headerFill;
     cell.alignment = centerAlign; cell.border = thinBorder;
   });
   headerRow.getCell(3).alignment = leftAlign;
-  headerRow.getCell(11).alignment = leftAlign; // notes
+  headerRow.getCell(12).alignment = leftAlign; // notes
 
   const dvYesNo = {
     type: 'list', allowBlank: false,
@@ -274,6 +279,7 @@ export async function exportXLSX(drops, projectName = '') {
       typeLabel,
       cable,
       d.roughPull      ? 'Yes' : 'No',
+      d.dropped        ? 'Yes' : 'No',
       d.terminated     ? 'Yes' : 'No',
       d.rackTerminated ? 'Yes' : 'No',
       d.tested         ? 'Yes' : 'No',
@@ -286,9 +292,9 @@ export async function exportXLSX(drops, projectName = '') {
     ]);
     row.height = 18;
 
-    // Evaluate Completion with 4 progress steps (D, E, F, G)
-    row.getCell(8).value = {
-      formula: `IF(OR(${d.overrideComplete ? 'TRUE' : 'FALSE'},AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes",G${rowNum}="Yes")),"✓","✗")`,
+    // Evaluate Completion with 5 progress steps (D, E, F, G, H)
+    row.getCell(9).value = {
+      formula: `IF(OR(${d.overrideComplete ? 'TRUE' : 'FALSE'},AND(D${rowNum}="Yes",E${rowNum}="Yes",F${rowNum}="Yes",G${rowNum}="Yes",H${rowNum}="Yes")),"✓","✗")`,
     };
 
     row.eachCell((cell, colNum) => {
@@ -301,24 +307,25 @@ export async function exportXLSX(drops, projectName = '') {
         case 5:
         case 6:
         case 7:
+        case 8:
           cell.fill = baseFill; cell.alignment = centerAlign;
           cell.protection = { locked: false };
           break;
-        case 8:
-          cell.fill = baseFill; cell.alignment = centerAlign; break;
         case 9:
+          cell.fill = baseFill; cell.alignment = centerAlign; break;
+        case 10:
           cell.fill = baseFill; cell.alignment = centerAlign;
           cell.font = { ...bodyFont, color: { argb: (d.patchedA || d.patchedB || d.patchedC || d.patchedD) ? 'FF065F46' : 'FF64748B' }};
           break;
-		case 10:
+		case 11:
           cell.fill = d.attention ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7ED' } } : baseFill;
           cell.font = d.attention ? { bold: true, color: { argb: 'FFD97706' }, size: 10, name: 'Calibri' } : { ...dimFont, color: { argb: 'FF94A3B8' } };
           cell.alignment = centerAlign; break;
-        case 11:
+        case 12:
           cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true };
           cell.protection = { locked: false };
           break;
-        case 12:
+        case 13:
           cell.font = dimFont; cell.fill = baseFill; cell.alignment = centerAlign; break;
       }
     });
@@ -327,13 +334,14 @@ export async function exportXLSX(drops, projectName = '') {
     row.getCell(5).dataValidation = dvYesNo;
     row.getCell(6).dataValidation = dvYesNo;
     row.getCell(7).dataValidation = dvYesNo;
+    row.getCell(8).dataValidation = dvYesNo;
   });
 
-  ws.autoFilter = { from: 'A3', to: 'L3' };
+  ws.autoFilter = { from: 'A3', to: 'M3' };
 
   if (total > 0) {
     ws.addConditionalFormatting({
-      ref: `D4:G${lastDataRow}`,
+      ref: `D4:H${lastDataRow}`,
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"Yes"'],
@@ -346,7 +354,7 @@ export async function exportXLSX(drops, projectName = '') {
       ],
     });
     ws.addConditionalFormatting({
-      ref: `H4:H${lastDataRow}`,
+      ref: `I4:I${lastDataRow}`,
       rules: [
         {
           type: 'cellIs', operator: 'equal', formulae: ['"✓"'],
@@ -376,9 +384,9 @@ export async function exportXLSX(drops, projectName = '') {
   });
 
   autoFitColumns(ws, {
-    11: { min: 20, max: 45 }, 
-    12: { min: 14, max: 26 }, 
-  }, [11, 12]); 
+    12: { min: 20, max: 45 }, 
+    13: { min: 14, max: 26 }, 
+  }, [12, 13]); 
 
   // ── Summary sheet ─────────────────────────────────────────────────────────
   const ws2 = wb.addWorksheet('Summary', { 
@@ -431,12 +439,12 @@ export async function exportXLSX(drops, projectName = '') {
     row.getCell(3).numFmt = '0.0%';
   };
 
-  // Now points to H for overall completion
+  // Now points to I for overall completion
   const addCompleteFormulaRow = (metric) => {
     const row = ws2.addRow([
       metric,
-      { formula: `COUNTIF('Cable Drops'!H4:H${lastDataRow},"✓")` },
-      { formula: `IFERROR(COUNTIF('Cable Drops'!H4:H${lastDataRow},"✓")/${total},0)` },
+      { formula: `COUNTIF('Cable Drops'!I4:I${lastDataRow},"✓")` },
+      { formula: `IFERROR(COUNTIF('Cable Drops'!I4:I${lastDataRow},"✓")/${total},0)` },
     ]);
     row.height = 18;
     const fill = ws2.rowCount % 2 === 0 ? evenFill : oddFill;
@@ -460,17 +468,18 @@ export async function exportXLSX(drops, projectName = '') {
     ws2.getRow(ws2.rowCount).height = 6;
   };
 
-  // Blended average across all 4 stages, so this headline number reflects
+  // Blended average across all 5 stages, so this headline number reflects
   // partial progress rather than duplicating the "Fully Complete" row below.
-  const blendedProgressFormula = `IFERROR((COUNTIF('Cable Drops'!D4:D${lastDataRow},"Yes")+COUNTIF('Cable Drops'!E4:E${lastDataRow},"Yes")+COUNTIF('Cable Drops'!F4:F${lastDataRow},"Yes")+COUNTIF('Cable Drops'!G4:G${lastDataRow},"Yes"))/(4*${total}),0)`;
+  const blendedProgressFormula = `IFERROR((COUNTIF('Cable Drops'!D4:D${lastDataRow},"Yes")+COUNTIF('Cable Drops'!E4:E${lastDataRow},"Yes")+COUNTIF('Cable Drops'!F4:F${lastDataRow},"Yes")+COUNTIF('Cable Drops'!G4:G${lastDataRow},"Yes")+COUNTIF('Cable Drops'!H4:H${lastDataRow},"Yes"))/(5*${total}),0)`;
   addSRow('Total Drops', total, { formula: blendedProgressFormula });
   addSeparator();
 
   addSubHeader('Status Progress  (live — updates when you edit Yes/No)');
   addFormulaRow('Rough Pulled', 'D');
-  addFormulaRow('Field Terminated', 'E');
-  addFormulaRow('Rack Terminated', 'F');
-  addFormulaRow('Tested', 'G');
+  addFormulaRow('Dropped', 'E');
+  addFormulaRow('Field Terminated', 'F');
+  addFormulaRow('Rack Terminated', 'G');
+  addFormulaRow('Tested', 'H');
   addCompleteFormulaRow('Fully Complete');
   addSeparator();
 
@@ -516,11 +525,11 @@ export async function exportXLSX(drops, projectName = '') {
     });
 
     ws3.columns = [
-      { width: 14 }, { width: 12 }, { width: 13 }, { width: 14 }, 
+      { width: 14 }, { width: 12 }, { width: 13 }, { width: 12 }, { width: 14 },
       { width: 14 }, { width: 11 }, { width: 10 }, { width: 15 },
     ];
 
-    ws3.mergeCells('A1:H1');
+    ws3.mergeCells('A1:I1');
     const ws3title = ws3.getCell('A1');
     ws3title.value = `By IDF Closet  (Live View)${projectName ? `  —  ${projectName}` : ''}`;
     ws3title.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
@@ -541,7 +550,7 @@ export async function exportXLSX(drops, projectName = '') {
     const lastRow = cursor - 1;
 
     // ── Navigator banner (row 2) ──
-    ws3.mergeCells('A2:H2');
+    ws3.mergeCells('A2:I2');
     const navBanner = ws3.getCell('A2');
     navBanner.value = `IDF Navigator  —  ${idfGroups.length} closet${idfGroups.length === 1 ? '' : 's'}  ·  click any row below to jump straight to it`;
     navBanner.font = { bold: true, italic: true, size: 9.5, color: { argb: 'FF94A3B8' }, name: 'Calibri' };
@@ -553,7 +562,7 @@ export async function exportXLSX(drops, projectName = '') {
     ws3.mergeCells(`A${INDEX_HEADER_ROW}:B${INDEX_HEADER_ROW}`);
     const idxHdrRow = ws3.getRow(INDEX_HEADER_ROW);
     idxHdrRow.height = 18;
-    const idxHeaderLabels = { 1: 'IDF Closet', 3: 'Drops', 4: 'Rough Pull', 5: 'Field Term.', 6: 'Rack Term.', 7: 'Tested', 8: 'Complete' };
+    const idxHeaderLabels = { 1: 'IDF Closet', 3: 'Drops', 4: 'Rough Pull', 5: 'Dropped', 6: 'Field Term.', 7: 'Rack Term.', 8: 'Tested', 9: 'Complete' };
     Object.entries(idxHeaderLabels).forEach(([colNum, label]) => {
       const cell = idxHdrRow.getCell(Number(colNum));
       cell.value = label;
@@ -577,20 +586,22 @@ export async function exportXLSX(drops, projectName = '') {
       nameCell.alignment = leftAlign;
 
       const idfEscaped = escapeFormulaString(g.idf);
-      g.rpFormula = `COUNTIFS('Cable Drops'!$M$4:$M$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$D$4:$D$${lastDataRow}, "Yes")`;
-      g.ftFormula = `COUNTIFS('Cable Drops'!$M$4:$M$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$E$4:$E$${lastDataRow}, "Yes")`;
-      g.rtFormula = `COUNTIFS('Cable Drops'!$M$4:$M$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$F$4:$F$${lastDataRow}, "Yes")`;
-      g.tsFormula = `COUNTIFS('Cable Drops'!$M$4:$M$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$G$4:$G$${lastDataRow}, "Yes")`;
-      g.cpFormula = `COUNTIFS('Cable Drops'!$M$4:$M$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$H$4:$H$${lastDataRow}, "✓")`;
+      g.rpFormula = `COUNTIFS('Cable Drops'!$N$4:$N$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$D$4:$D$${lastDataRow}, "Yes")`;
+      g.dpFormula = `COUNTIFS('Cable Drops'!$N$4:$N$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$E$4:$E$${lastDataRow}, "Yes")`;
+      g.ftFormula = `COUNTIFS('Cable Drops'!$N$4:$N$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$F$4:$F$${lastDataRow}, "Yes")`;
+      g.rtFormula = `COUNTIFS('Cable Drops'!$N$4:$N$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$G$4:$G$${lastDataRow}, "Yes")`;
+      g.tsFormula = `COUNTIFS('Cable Drops'!$N$4:$N$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$H$4:$H$${lastDataRow}, "Yes")`;
+      g.cpFormula = `COUNTIFS('Cable Drops'!$N$4:$N$${lastDataRow}, "${idfEscaped}", 'Cable Drops'!$I$4:$I$${lastDataRow}, "✓")`;
 
       row.getCell(3).value = g.drops.length;
       row.getCell(4).value = { formula: g.rpFormula };
-      row.getCell(5).value = { formula: g.ftFormula };
-      row.getCell(6).value = { formula: g.rtFormula };
-      row.getCell(7).value = { formula: g.tsFormula };
-      row.getCell(8).value = { formula: g.cpFormula };
+      row.getCell(5).value = { formula: g.dpFormula };
+      row.getCell(6).value = { formula: g.ftFormula };
+      row.getCell(7).value = { formula: g.rtFormula };
+      row.getCell(8).value = { formula: g.tsFormula };
+      row.getCell(9).value = { formula: g.cpFormula };
 
-      for (let c = 1; c <= 8; c++) {
+      for (let c = 1; c <= 9; c++) {
         const cell = row.getCell(c);
         cell.border = thinBorder;
         cell.fill = fill;
@@ -604,10 +615,10 @@ export async function exportXLSX(drops, projectName = '') {
     // ── Detail sections (reusing the precomputed banner rows + formulas) ──
     idfGroups.forEach(g => {
       const bannerRowNum = g.bannerRow;
-      ws3.mergeCells(`A${bannerRowNum}:H${bannerRowNum}`);
+      ws3.mergeCells(`A${bannerRowNum}:I${bannerRowNum}`);
       const idfHdrCell = ws3.getCell(`A${bannerRowNum}`);
       idfHdrCell.value = {
-        formula: `"${escapeFormulaString(g.idf)}  —  ${g.drops.length} drops  |  RP: "&${g.rpFormula}&"  FT: "&${g.ftFormula}&"  RT: "&${g.rtFormula}&"  TS: "&${g.tsFormula}&"  Complete: "&${g.cpFormula}&"/${g.drops.length}"`
+        formula: `"${escapeFormulaString(g.idf)}  —  ${g.drops.length} drops  |  RP: "&${g.rpFormula}&"  DP: "&${g.dpFormula}&"  FT: "&${g.ftFormula}&"  RT: "&${g.rtFormula}&"  TS: "&${g.tsFormula}&"  Complete: "&${g.cpFormula}&"/${g.drops.length}"`
       };
       idfHdrCell.font = { bold: true, color: { argb: 'FFFBBF24' }, size: 10, name: 'Calibri' };
       idfHdrCell.fill = headerFill;
@@ -618,14 +629,14 @@ export async function exportXLSX(drops, projectName = '') {
       const subRowNum = bannerRowNum + 1;
       const iHdrRow = ws3.getRow(subRowNum);
       iHdrRow.height = 16;
-      ['Type', 'Cable ID(s)', 'Rough Pull', 'Field Term.', 'Rack Term.', 'Tested', 'Complete', 'Notes'].forEach((label, idx) => {
+      ['Type', 'Cable ID(s)', 'Rough Pull', 'Dropped', 'Field Term.', 'Rack Term.', 'Tested', 'Complete', 'Notes'].forEach((label, idx) => {
         const cell = iHdrRow.getCell(idx + 1);
         cell.value = label;
         cell.font = subHdrFont; cell.fill = subHdrFill;
         cell.alignment = centerAlign; cell.border = thinBorder;
       });
       iHdrRow.getCell(2).alignment = leftAlign;
-      iHdrRow.getCell(8).alignment = leftAlign;
+      iHdrRow.getCell(9).alignment = leftAlign;
 
       g.drops.forEach((d, i) => {
         const r = subRowNum + 1 + i;
@@ -643,7 +654,8 @@ export async function exportXLSX(drops, projectName = '') {
         row.getCell(5).value = { formula: `'Cable Drops'!F${d._mainRowNum}` };
         row.getCell(6).value = { formula: `'Cable Drops'!G${d._mainRowNum}` };
         row.getCell(7).value = { formula: `'Cable Drops'!H${d._mainRowNum}` };
-        row.getCell(8).value = d.notes || '';
+        row.getCell(8).value = { formula: `'Cable Drops'!I${d._mainRowNum}` };
+        row.getCell(9).value = d.notes || '';
 
         row.eachCell((cell, col) => {
           cell.border = thinBorder;
@@ -655,8 +667,9 @@ export async function exportXLSX(drops, projectName = '') {
             case 5:
             case 6:
             case 7:
-              cell.fill = baseFill; cell.alignment = centerAlign; break;
             case 8:
+              cell.fill = baseFill; cell.alignment = centerAlign; break;
+            case 9:
               cell.font = dimFont; cell.fill = baseFill; cell.alignment = { ...leftAlign, wrapText: true }; break;
             default:
               cell.fill = baseFill; break;
@@ -676,14 +689,14 @@ export async function exportXLSX(drops, projectName = '') {
 
     if (lastRow >= detailStartRow) {
       ws3.addConditionalFormatting({
-        ref: `C${detailStartRow}:F${lastRow}`,
+        ref: `C${detailStartRow}:G${lastRow}`,
         rules: [
           { type: 'cellIs', operator: 'equal', formulae: ['"Yes"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' } } } },
           { type: 'cellIs', operator: 'equal', formulae: ['"No"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }, font: { bold: true, color: { argb: 'FF991B1B' } } } }
         ],
       });
       ws3.addConditionalFormatting({
-        ref: `G${detailStartRow}:G${lastRow}`,
+        ref: `H${detailStartRow}:H${lastRow}`,
         rules: [
           { type: 'cellIs', operator: 'equal', formulae: ['"✓"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' }, size: 11 } } },
           { type: 'cellIs', operator: 'equal', formulae: ['"✗"'], style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }, font: { bold: true, color: { argb: 'FF991B1B' }, size: 11 } } }
@@ -693,17 +706,17 @@ export async function exportXLSX(drops, projectName = '') {
 
     // Highlight fully-complete closets right in the index, at a glance
     ws3.addConditionalFormatting({
-      ref: `H${INDEX_HEADER_ROW + 1}:H${INDEX_HEADER_ROW + idfGroups.length}`,
+      ref: `I${INDEX_HEADER_ROW + 1}:I${INDEX_HEADER_ROW + idfGroups.length}`,
       rules: [
         {
           type: 'expression',
-          formulae: [`AND($C${INDEX_HEADER_ROW + 1}>0,$H${INDEX_HEADER_ROW + 1}=$C${INDEX_HEADER_ROW + 1})`],
+          formulae: [`AND($C${INDEX_HEADER_ROW + 1}>0,$I${INDEX_HEADER_ROW + 1}=$C${INDEX_HEADER_ROW + 1})`],
           style: { fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } }, font: { bold: true, color: { argb: 'FF065F46' } } }
         }
       ]
     });
 
-    autoFitColumns(ws3, { 8: { min: 20, max: 45 } }, [2, 8]);
+    autoFitColumns(ws3, { 9: { min: 20, max: 45 } }, [2, 9]);
   }
 
   // ── Write & share ─────────────────────────────────────────────────────────
