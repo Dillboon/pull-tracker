@@ -1,16 +1,49 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { COLORS } from '../theme';
+import { COLORS, STATUS_FIELDS } from '../theme';
 import { exportPDF, exportXLSX } from '../exportUtils';
 
 const getGroupType = (d) => d.groupType || (d.isDouble ? 'double' : 'single');
 
+// A distinct color for the synthetic "Fully Complete" stage — deliberately
+// not one of the STATUS_FIELDS colors, so it never collides with a real
+// pipeline stage (e.g. "Dropped" already uses pink).
+const COMPLETE_COLOR = COLORS.teal;
+
+function isFullyComplete(d) {
+  return d.overrideComplete || STATUS_FIELDS.every(f => d[f.key]);
+}
+
+// Single shared calculation used everywhere progress is shown — the whole
+// project, a drop type, an IDF closet, or a rack. Returns each stage's
+// done/remaining counts, the overall blended %, and the current
+// "bottleneck" — whichever stage has the most drops still outstanding —
+// so callers never have to re-derive "how much is left" by hand.
+function computeProgress(drops) {
+  const total = drops.length;
+  const stages = STATUS_FIELDS.map(f => {
+    const done = drops.filter(d => d[f.key] || d.overrideComplete).length;
+    return { key: f.key, label: f.label, short: f.short, color: f.color, done, remaining: total - done };
+  });
+  const complete = drops.filter(isFullyComplete).length;
+  const score = stages.reduce((sum, st) => sum + st.done, 0);
+  const pct = total > 0 ? Math.round((score / (total * STATUS_FIELDS.length)) * 100) : 0;
+  const color = pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : COLORS.textMuted;
+
+  let bottleneck = null;
+  stages.forEach(st => {
+    if (st.remaining > 0 && (!bottleneck || st.remaining > bottleneck.remaining)) bottleneck = st;
+  });
+
+  return { total, stages, complete, remaining: total - complete, pct, color, bottleneck };
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function PipelineBar({ label, count, total, color }) {
+function PipelineBar({ label, count, total, remaining, color }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   return (
-    <View style={{ marginBottom: 12 }}>
+    <View style={{ marginBottom: 14 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 5 }}>
         <Text style={s.pipeLabel}>{label}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
@@ -23,6 +56,11 @@ function PipelineBar({ label, count, total, color }) {
       <View style={s.barTrack}>
         <View style={[s.barFill, { width: `${pct}%`, backgroundColor: color }]} />
       </View>
+      {total > 0 && (
+        <Text style={[s.pipeRemaining, remaining === 0 && { color: COLORS.green }]}>
+          {remaining === 0 ? '✓ all done' : `${remaining} remaining`}
+        </Text>
+      )}
     </View>
   );
 }
@@ -77,26 +115,20 @@ function ExportButtons({ drops, label, exporting, onExport }) {
   );
 }
 
-function RackRow({ label, drops }) {
-  const total = drops.length;
-  const rp    = drops.filter(d => d.roughPull   || d.overrideComplete).length;
-  const ft    = drops.filter(d => d.terminated  || d.overrideComplete).length;
-  const rt    = drops.filter(d => d.rackTerminated || d.overrideComplete).length;
-  const ts    = drops.filter(d => d.tested      || d.overrideComplete).length;
-  const done  = drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested)).length;
-  const score = drops.reduce((sum, d) => {
-    if (d.overrideComplete) return sum + 4;
-    return sum + (d.roughPull ? 1 : 0) + (d.terminated ? 1 : 0) + (d.rackTerminated ? 1 : 0) + (d.tested ? 1 : 0);
-  }, 0);
-  const pct   = total > 0 ? Math.round((score / (total * 4)) * 100) : 0;
-  const color = pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : COLORS.textMuted;
-
+// Compact done/total/remaining row with a per-stage breakdown underneath.
+// Used for rack breakdowns and for the "by IDF" list nested inside a drop
+// type's detail — anywhere a short list of progress rows is needed.
+function ProgressRow({ label, drops }) {
+  const { total, stages, complete, remaining, pct, color } = computeProgress(drops);
   return (
     <View style={s.rackRow}>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <Text style={s.rackLabel}>{label}</Text>
-          <Text style={[s.rackMeta, { color }]}>{done}/{total} done</Text>
+          <Text style={[s.rackMeta, { color }]}>
+            {complete}/{total} done
+            {remaining > 0 && <Text style={{ color: COLORS.amber }}>{'  ·  '}{remaining} left</Text>}
+          </Text>
           <View style={{ flex: 1 }} />
           <View style={[s.idfPctPill, { backgroundColor: color + '22', borderColor: color + '44' }]}>
             <Text style={[s.idfPctText, { color }]}>{pct}%</Text>
@@ -106,14 +138,9 @@ function RackRow({ label, drops }) {
           <View style={[s.barFill, { width: `${pct}%`, backgroundColor: color }]} />
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-          {[
-            { label: 'RP', val: rp, color: COLORS.amber },
-            { label: 'FT', val: ft, color: COLORS.blue  },
-            { label: 'RT', val: rt, color: COLORS.purple },
-            { label: 'TS', val: ts, color: COLORS.green },
-          ].map(({ label: l, val, color: c }) => (
-            <Text key={l} style={{ fontSize: 9, color: c, fontWeight: '700' }}>
-              {l}: {val}
+          {stages.map(st => (
+            <Text key={st.key} style={{ fontSize: 9, color: st.color, fontWeight: '700' }}>
+              {st.short}: {st.done}
             </Text>
           ))}
         </View>
@@ -127,49 +154,36 @@ function TypeDetailCard({ typeKey, isCustom, drops }) {
     ? drops.filter(d => d.customType === typeKey)
     : drops.filter(d => getGroupType(d) === typeKey);
 
-  const total = typeDrops.length;
-  const rp    = typeDrops.filter(d => d.roughPull   || d.overrideComplete).length;
-  const ft    = typeDrops.filter(d => d.terminated  || d.overrideComplete).length;
-  const rt    = typeDrops.filter(d => d.rackTerminated || d.overrideComplete).length;
-  const ts    = typeDrops.filter(d => d.tested      || d.overrideComplete).length;
-  const done  = typeDrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested)).length;
-  const score = typeDrops.reduce((sum, d) => {
-    if (d.overrideComplete) return sum + 4;
-    return sum + (d.roughPull ? 1 : 0) + (d.terminated ? 1 : 0) + (d.rackTerminated ? 1 : 0) + (d.tested ? 1 : 0);
-  }, 0);
-  const pct   = total > 0 ? Math.round((score / (total * 4)) * 100) : 0;
-
+  const { total, stages, complete, remaining } = computeProgress(typeDrops);
   const typeIdfs = [...new Set(typeDrops.map(d => d.idf).filter(Boolean))].sort();
 
   return (
     <View style={{ gap: 10, marginTop: 4 }}>
-      {/* Mini stat row */}
+      {/* Mini stat row — one tile per pipeline stage, plus Fully Complete */}
       <View style={s.idfMiniStats}>
-        {[
-          { label: 'Pulled',  val: rp,   color: COLORS.amber },
-          { label: 'F.Term',  val: ft,   color: COLORS.blue  },
-          { label: 'R.Term',  val: rt,   color: COLORS.purple },
-          { label: 'Tested',  val: ts,   color: COLORS.green },
-          { label: 'Done',    val: done, color: COLORS.pink  },
-        ].map(({ label, val, color }) => (
-          <View key={label} style={s.idfMiniStat}>
-            <Text style={[s.idfMiniVal, { color }]}>{val}</Text>
-            <Text style={s.idfMiniLabel}>{label}</Text>
+        {[...stages, { key: 'complete', short: 'Done', color: COMPLETE_COLOR, done: complete }].map(st => (
+          <View key={st.key} style={s.idfMiniStat}>
+            <Text style={[s.idfMiniVal, { color: st.color }]}>{st.done}</Text>
+            <Text style={s.idfMiniLabel}>{st.short}</Text>
           </View>
         ))}
       </View>
 
+      {/* Remaining-at-a-glance */}
+      {total > 0 && (
+        <Text style={s.remainingLine}>
+          {remaining > 0
+            ? <><Text style={{ color: COLORS.amber, fontWeight: '800' }}>{remaining}</Text> of {total} still need work</>
+            : <Text style={{ color: COLORS.green, fontWeight: '700' }}>✓ All {total} complete</Text>}
+        </Text>
+      )}
+
       {/* Pipeline bars */}
       <View>
-        {[
-          { label: 'Rough Pull',       count: rp,   color: COLORS.amber },
-          { label: 'Field Terminated', count: ft,   color: COLORS.blue  },
-          { label: 'Rack Terminated',  count: rt,   color: COLORS.purple },
-          { label: 'Tested',           count: ts,   color: COLORS.green },
-          { label: 'Complete',         count: done, color: COLORS.pink  },
-        ].map(stage => (
-          <PipelineBar key={stage.label} {...stage} total={total} />
+        {stages.map(st => (
+          <PipelineBar key={st.key} label={st.label} count={st.done} total={total} remaining={st.remaining} color={st.color} />
         ))}
+        <PipelineBar label="Fully Complete" count={complete} total={total} remaining={remaining} color={COMPLETE_COLOR} />
       </View>
 
       {/* By IDF breakdown for this type */}
@@ -177,51 +191,9 @@ function TypeDetailCard({ typeKey, isCustom, drops }) {
         <>
           <Text style={s.subLabel}>BY IDF</Text>
           <View style={{ gap: 5 }}>
-            {typeIdfs.map(idf => {
-              const idfTypeDrops = typeDrops.filter(d => d.idf === idf);
-              const idfRp    = idfTypeDrops.filter(d => d.roughPull   || d.overrideComplete).length;
-              const idfFt    = idfTypeDrops.filter(d => d.terminated  || d.overrideComplete).length;
-              const idfRt    = idfTypeDrops.filter(d => d.rackTerminated || d.overrideComplete).length;
-              const idfTs    = idfTypeDrops.filter(d => d.tested      || d.overrideComplete).length;
-              const idfDone  = idfTypeDrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested)).length;
-              const idfScore = idfTypeDrops.reduce((sum, d) => {
-                if (d.overrideComplete) return sum + 4;
-                return sum + (d.roughPull ? 1 : 0) + (d.terminated ? 1 : 0) + (d.rackTerminated ? 1 : 0) + (d.tested ? 1 : 0);
-              }, 0);
-              const idfPct   = idfTypeDrops.length > 0 ? Math.round((idfScore / (idfTypeDrops.length * 4)) * 100) : 0;
-              const idfColor = idfPct === 100 ? COLORS.green : idfPct > 0 ? COLORS.amber : COLORS.textMuted;
-              return (
-                <View key={idf} style={s.rackRow}>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <Text style={s.rackLabel}>{idf}</Text>
-                      <Text style={[s.rackMeta, { color: idfColor }]}>
-                        {idfDone}/{idfTypeDrops.length} done
-                      </Text>
-                      <View style={{ flex: 1 }} />
-                      <View style={[s.idfPctPill, { backgroundColor: idfColor + '22', borderColor: idfColor + '44' }]}>
-                        <Text style={[s.idfPctText, { color: idfColor }]}>{idfPct}%</Text>
-                      </View>
-                    </View>
-                    <View style={[s.barTrack, { height: 2 }]}>
-                      <View style={[s.barFill, { width: `${idfPct}%`, backgroundColor: idfColor }]} />
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                      {[
-                        { label: 'RP', val: idfRp, color: COLORS.amber },
-                        { label: 'FT', val: idfFt, color: COLORS.blue  },
-                        { label: 'RT', val: idfRt, color: COLORS.purple },
-                        { label: 'TS', val: idfTs, color: COLORS.green },
-                      ].map(({ label: l, val, color: c }) => (
-                        <Text key={l} style={{ fontSize: 9, color: c, fontWeight: '700' }}>
-                          {l}: {val}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
+            {typeIdfs.map(idf => (
+              <ProgressRow key={idf} label={idf} drops={typeDrops.filter(d => d.idf === idf)} />
+            ))}
           </View>
         </>
       )}
@@ -237,12 +209,7 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
   const [expandedType, setExpandedType] = useState(null);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
-  const total    = drops.length;
-  const complete = drops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested)).length;
-  const rp       = drops.filter(d => d.roughPull   || d.overrideComplete).length;
-  const ft       = drops.filter(d => d.terminated  || d.overrideComplete).length;
-  const rt       = drops.filter(d => d.rackTerminated || d.overrideComplete).length;
-  const ts       = drops.filter(d => d.tested      || d.overrideComplete).length;
+  const { total, stages, complete, remaining, pct, color: pctColor, bottleneck } = computeProgress(drops);
   const attention = drops.filter(d => d.attention).length;
   const patched   = drops.filter(d => d.patchedA || d.patchedB || d.patchedC || d.patchedD).length;
   const singles  = drops.filter(d => getGroupType(d) === 'single').length;
@@ -257,11 +224,22 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
     }
   });
 
-  // Calculate percentage based on total pipeline steps (4 steps per drop)
-  const pct      = total > 0 ? Math.round(((rp + ft + rt + ts) / (total * 4)) * 100) : 0;
-  const pctColor = pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : COLORS.textMuted;
-
   const activeIdfs = idfList.filter(idf => drops.some(d => d.idf === idf));
+
+  // Per-IDF progress, precomputed once so both the summary hint and the
+  // card list below read from the same numbers (no re-deriving "how much
+  // is left" in two different places).
+  const idfSummaries = activeIdfs.map(idf => {
+    const idrops = drops.filter(d => d.idf === idf);
+    return { idf, idrops, progress: computeProgress(idrops) };
+  });
+  const totalIdfRemaining = idfSummaries.reduce((sum, x) => sum + x.progress.remaining, 0);
+  // Ranked by completion % (lowest first), not raw remaining count — a
+  // closet that's 20% done should outrank one that's 90% done even if the
+  // 90%-done closet has more drops left in absolute terms.
+  const focusIdf = [...idfSummaries]
+    .filter(x => x.progress.remaining > 0)
+    .sort((a, b) => a.progress.pct - b.progress.pct)[0] || null;
 
   // ── Exports ───────────────────────────────────────────────────────────────
   const handleExport = async (type) => {
@@ -311,20 +289,31 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
           <Text style={s.heroSub}>
             <Text style={{ color: pctColor, fontWeight: '800' }}>{complete}</Text>
             <Text style={{ color: COLORS.textMuted }}> of {total} drop{total !== 1 ? 's' : ''} complete</Text>
+            {total > 0 && (
+              <Text style={{ color: remaining > 0 ? COLORS.amber : COLORS.green, fontWeight: '700' }}>
+                {'  ·  '}{remaining > 0 ? `${remaining} remaining` : 'all done'}
+              </Text>
+            )}
           </Text>
           <View style={[s.barTrack, { marginTop: 10, height: 5 }]}>
             <View style={[s.barFill, { width: `${pct}%`, backgroundColor: pctColor }]} />
           </View>
+          {bottleneck && (
+            <Text style={s.focusHint}>
+              🎯 Focus next: <Text style={{ fontWeight: '800', color: COLORS.text }}>{bottleneck.label}</Text>
+              {' — '}{bottleneck.remaining} left
+            </Text>
+          )}
         </View>
       </View>
 
       {/* ── Quick stat grid ── */}
       <View style={s.statGrid}>
         {[
-          { label: 'Total',      val: total,            color: COLORS.textSub },
-          { label: 'Complete',   val: complete,          color: pctColor },
-		  { label: 'Incomplete', val: total - complete,  color: (total - complete) > 0 ? COLORS.red : COLORS.textMuted },
-          { label: 'Attention',  val: attention,         color: attention > 0 ? COLORS.amber : COLORS.textMuted },
+          { label: 'Total',      val: total,     color: COLORS.textSub },
+          { label: 'Complete',   val: complete,  color: pctColor },
+          { label: 'Remaining',  val: remaining, color: remaining > 0 ? COLORS.red : COLORS.textMuted },
+          { label: 'Attention',  val: attention, color: attention > 0 ? COLORS.amber : COLORS.textMuted },
         ].map(({ label, val, color }) => (
           <View key={label} style={s.statCard}>
             <Text style={[s.statVal, { color }]}>{val}</Text>
@@ -338,15 +327,10 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
         <View style={s.section}>
           <Text style={s.sectionTitle}>COMPLETION PIPELINE</Text>
           <View style={{ marginTop: 14 }}>
-            {[
-              { label: 'Rough Pull',       count: rp,       color: COLORS.amber },
-              { label: 'Field Terminated', count: ft,       color: COLORS.blue  },
-              { label: 'Rack Terminated',  count: rt,       color: COLORS.purple },
-              { label: 'Tested',           count: ts,       color: COLORS.green },
-              { label: 'Complete',         count: complete, color: COLORS.pink  },
-            ].map(stage => (
-              <PipelineBar key={stage.label} {...stage} total={total} />
+            {stages.map(st => (
+              <PipelineBar key={st.key} label={st.label} count={st.done} total={total} remaining={st.remaining} color={st.color} />
             ))}
+            <PipelineBar label="Fully Complete" count={complete} total={total} remaining={remaining} color={COMPLETE_COLOR} />
           </View>
         </View>
       )}
@@ -405,20 +389,24 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
       {/* ── By IDF ── */}
       {activeIdfs.length > 0 && (
         <View style={s.section}>
-          <Text style={s.sectionTitle}>BY IDF CLOSET</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={s.sectionTitle}>BY IDF CLOSET</Text>
+            {totalIdfRemaining > 0 && (
+              <Text style={s.sectionMeta}>{totalIdfRemaining} drop{totalIdfRemaining !== 1 ? 's' : ''} left</Text>
+            )}
+          </View>
+
+          {focusIdf && (
+            <Text style={[s.focusHint, { marginTop: 6 }]}>
+              🎯 Focus first: <Text style={{ fontWeight: '800', color: COLORS.text }}>{focusIdf.idf}</Text>
+              {' — '}{focusIdf.progress.pct}% done · {focusIdf.progress.remaining} drop{focusIdf.progress.remaining !== 1 ? 's' : ''} left
+            </Text>
+          )}
+
           <View style={{ marginTop: 10, gap: 8 }}>
-           {activeIdfs.map(idf => {
-              const idrops   = drops.filter(d => d.idf === idf);
-              const idfDone  = idrops.filter(d => d.overrideComplete || (d.roughPull && d.terminated && d.rackTerminated && d.tested)).length;
-              const idfRp    = idrops.filter(d => d.roughPull   || d.overrideComplete).length;
-              const idfFt    = idrops.filter(d => d.terminated  || d.overrideComplete).length;
-              const idfRt    = idrops.filter(d => d.rackTerminated || d.overrideComplete).length;
-              const idfTs    = idrops.filter(d => d.tested      || d.overrideComplete).length;
-              
-              // Calculate percentage based on pipeline steps for this specific IDF
-              const idfPct   = idrops.length > 0 ? Math.round(((idfRp + idfFt + idfRt + idfTs) / (idrops.length * 4)) * 100) : 0;
-              const idfColor = idfPct === 100 ? COLORS.green : idfPct > 0 ? COLORS.amber : COLORS.textMuted;
-              const isOpen   = expandedIdf === idf;
+           {idfSummaries.map(({ idf, idrops, progress }) => {
+              const { stages: idfStages, complete: idfDone, remaining: idfRemaining, pct: idfPct, color: idfColor } = progress;
+              const isOpen = expandedIdf === idf;
 
               return (
                 <View key={idf} style={[s.idfCard, isOpen && s.idfCardOpen]}>
@@ -439,6 +427,9 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
                       <Text style={s.idfMeta}>
                         {idrops.length} drop{idrops.length !== 1 ? 's' : ''}{'  ·  '}
                         {idfDone}/{idrops.length} complete
+                        {idfRemaining > 0 && (
+                          <Text style={{ color: COLORS.amber, fontWeight: '700' }}>{'  ·  '}{idfRemaining} left</Text>
+                        )}
                       </Text>
                       <View style={[s.barTrack, { marginTop: 6, height: 3 }]}>
                         <View style={[s.barFill, { width: `${idfPct}%`, backgroundColor: idfColor }]} />
@@ -453,31 +444,20 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
 
                       {/* Mini stat row */}
                       <View style={s.idfMiniStats}>
-                        {[
-                          { label: 'Pulled', val: idfRp,   color: COLORS.amber },
-                          { label: 'F.Term', val: idfFt,   color: COLORS.blue  },
-                          { label: 'R.Term', val: idfRt,   color: COLORS.purple },
-                          { label: 'Tested', val: idfTs,   color: COLORS.green },
-                          { label: 'Done',   val: idfDone, color: COLORS.pink  },
-                        ].map(({ label, val, color }) => (
-                          <View key={label} style={s.idfMiniStat}>
-                            <Text style={[s.idfMiniVal, { color }]}>{val}</Text>
-                            <Text style={s.idfMiniLabel}>{label}</Text>
+                        {[...idfStages, { key: 'complete', short: 'Done', color: COMPLETE_COLOR, done: idfDone }].map(st => (
+                          <View key={st.key} style={s.idfMiniStat}>
+                            <Text style={[s.idfMiniVal, { color: st.color }]}>{st.done}</Text>
+                            <Text style={s.idfMiniLabel}>{st.short}</Text>
                           </View>
                         ))}
                       </View>
 
                       {/* Progress bars */}
                       <View style={{ marginTop: 14, marginBottom: 14 }}>
-                        {[
-                          { label: 'Rough Pull',       count: idfRp,   color: COLORS.amber },
-                          { label: 'Field Terminated', count: idfFt,   color: COLORS.blue  },
-                          { label: 'Rack Terminated',  count: idfRt,   color: COLORS.purple },
-                          { label: 'Tested',           count: idfTs,   color: COLORS.green },
-                          { label: 'Complete',         count: idfDone, color: COLORS.pink  },
-                        ].map(stage => (
-                          <PipelineBar key={stage.label} {...stage} total={idrops.length} />
+                        {idfStages.map(st => (
+                          <PipelineBar key={st.key} label={st.label} count={st.done} total={idrops.length} remaining={st.remaining} color={st.color} />
                         ))}
+                        <PipelineBar label="Fully Complete" count={idfDone} total={idrops.length} remaining={idfRemaining} color={COMPLETE_COLOR} />
                       </View>
 
                       <Text style={[s.subLabel, { marginBottom: 8 }]}>EXPORT {idf}</Text>
@@ -493,20 +473,31 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
                         const idfRacks = [...new Set(idrops.map(d => d.rackNumber).filter(Boolean))].sort();
                         const unracked = idrops.filter(d => !d.rackNumber);
                         if (idfRacks.length === 0) return null;
+
+                        const rackSummaries = [
+                          ...(unracked.length > 0 ? [{ label: 'Unassigned', drops: unracked }] : []),
+                          ...idfRacks.map(rack => ({ label: `Rack ${rack}`, drops: idrops.filter(d => d.rackNumber === rack) })),
+                        ].map(r => ({ ...r, progress: computeProgress(r.drops) }));
+
+                        // Ranked by completion % (lowest first), same reasoning as focusIdf above.
+                        const rackFocus = [...rackSummaries]
+                          .filter(r => r.progress.remaining > 0)
+                          .sort((a, b) => a.progress.pct - b.progress.pct)[0] || null;
+
                         return (
                           <>
                             <View style={[s.divider, { marginTop: 14 }]} />
-                            <Text style={[s.subLabel, { marginBottom: 8 }]}>BY RACK</Text>
-                            <View style={{ gap: 6 }}>
-                              {unracked.length > 0 && (
-                                <RackRow label="Unassigned" drops={unracked} />
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <Text style={s.subLabel}>BY RACK</Text>
+                              {rackFocus && (
+                                <Text style={s.focusHintSmall}>
+                                  🎯 {rackFocus.label}: {rackFocus.progress.pct}% · {rackFocus.progress.remaining} left
+                                </Text>
                               )}
-                              {idfRacks.map(rack => (
-                                <RackRow
-                                  key={rack}
-                                  label={`Rack ${rack}`}
-                                  drops={idrops.filter(d => d.rackNumber === rack)}
-                                />
+                            </View>
+                            <View style={{ gap: 6 }}>
+                              {rackSummaries.map(r => (
+                                <ProgressRow key={r.label} label={r.label} drops={r.drops} />
                               ))}
                             </View>
                           </>
@@ -594,15 +585,22 @@ const s = StyleSheet.create({
     borderRadius: 12, padding: 14, marginBottom: 12,
   },
   sectionTitle: { fontSize: 10, fontWeight: '800', letterSpacing: 1, color: COLORS.textMuted },
+  sectionMeta:  { fontSize: 10, fontWeight: '700', color: COLORS.amber },
   subLabel:     { fontSize: 9,  fontWeight: '800', letterSpacing: 1, color: COLORS.textDim },
 
+  // "What's left" callouts
+  focusHint:      { fontSize: 11, color: COLORS.textMuted, marginTop: 8, fontWeight: '600' },
+  focusHintSmall: { fontSize: 9.5, color: COLORS.textMuted, fontWeight: '700' },
+  remainingLine:  { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
+
   // Pipeline
-  pipeLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSub },
-  pipeCount: { fontSize: 13, fontWeight: '800', letterSpacing: -0.3 },
-  pipeTotal: { fontSize: 11, fontWeight: '400', color: COLORS.textMuted },
-  pipePct:   { fontSize: 11, fontWeight: '700', minWidth: 34, textAlign: 'right' },
-  barTrack:  { height: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' },
-  barFill:   { height: '100%', borderRadius: 3 },
+  pipeLabel:     { fontSize: 12, fontWeight: '700', color: COLORS.textSub },
+  pipeCount:     { fontSize: 13, fontWeight: '800', letterSpacing: -0.3 },
+  pipeTotal:     { fontSize: 11, fontWeight: '400', color: COLORS.textMuted },
+  pipePct:       { fontSize: 11, fontWeight: '700', minWidth: 34, textAlign: 'right' },
+  pipeRemaining: { fontSize: 9.5, color: COLORS.textMuted, fontWeight: '600', marginTop: 4 },
+  barTrack:      { height: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' },
+  barFill:       { height: '100%', borderRadius: 3 },
 
   // Type pills
   typeRow:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -634,7 +632,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between',
     backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: 10,
   },
-  idfMiniStat:  { alignItems: 'center', flex: 1 }, // Added flex: 1 to ensure even spacing for 5 items
+  idfMiniStat:  { alignItems: 'center', flex: 1 }, // flex: 1 keeps spacing even regardless of stage count
   idfMiniVal:   { fontSize: 15, fontWeight: '800' },
   idfMiniLabel: { fontSize: 8, color: COLORS.textMuted, marginTop: 2, fontWeight: '600' },
   chevron:      { fontSize: 12, color: COLORS.textMuted, marginLeft: 8 },

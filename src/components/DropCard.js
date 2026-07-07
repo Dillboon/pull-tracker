@@ -10,16 +10,18 @@ import { progressColor, getGroupType } from '../utils';
 const GROUP_TYPES = ['single', 'double', 'triple', 'quad'];
 
 // ─── Tappable Badge ───────────────────────────────────────────────────────────
-function Badge({ done, short, onToggle }) {
+function Badge({ done, short, color, onToggle }) {
   return (
     <TouchableOpacity
       onPress={onToggle}
       activeOpacity={0.6}
-      style={[s.badge, done ? s.badgeDone : s.badgeOff]}
+      style={[s.badge, done ? { backgroundColor: color + '1f', borderColor: color + '55' } : s.badgeOff]}
     >
-      <Text style={[s.badgeText, { color: done ? COLORS.green : COLORS.textMuted }]}>
-        {done ? '✓' : '·'} {short}
-      </Text>
+      <View style={[
+        s.badgeDot,
+        done ? { backgroundColor: color, borderColor: color } : { backgroundColor: 'transparent', borderColor: COLORS.textDim },
+      ]} />
+      <Text style={[s.badgeText, { color: done ? color : COLORS.textMuted }]}>{short}</Text>
     </TouchableOpacity>
   );
 }
@@ -156,7 +158,7 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
     <View style={[s.card, { borderLeftColor: pColor, borderColor: isComplete ? 'rgba(34,197,94,0.3)' : COLORS.border }]}>
       {/* ── Header ── */}
       <TouchableOpacity onPress={toggleExpanded} activeOpacity={0.75} style={s.header}>
-        <View style={{ flex: 1, gap: 6 }}>
+        <View style={{ flex: 1, gap: 5 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
             {(groupType !== 'single' || drop.customType) && (
               <View style={[s.groupPill, {
@@ -205,22 +207,31 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
                 </React.Fragment>
               );
             })}
+            {hasConflict && (
+              <View style={s.conflictPill}>
+                <Text style={s.conflictPillText}>⚠ DUPE ID</Text>
+              </View>
+            )}
           </View>
+
+          {/* IDF / rack location — its own row, separate from the tappable
+              status badges below (previously crammed onto the same line) */}
+          {!!drop.idf && (
+            <Text style={s.idfLocation} numberOfLines={1}>
+              <Text style={s.idfLocationPin}>📍 </Text>
+              <Text style={s.idfLocationCode}>{drop.idf}</Text>
+              {!!drop.rackNumber && <Text style={s.idfLocationRack}>{`   ·   Rack ${drop.rackNumber}`}</Text>}
+            </Text>
+          )}
 
           {/* Badge row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 }}>
-            {drop.idf ? (
-              <View style={s.idfPill}>
-                <Text style={s.idfPillText}>
-                  {drop.idf}{drop.rackNumber ? ` · R${drop.rackNumber}` : ''}
-                </Text>
-              </View>
-            ) : null}
             {STATUS_FIELDS.map(f => (
               <Badge
                 key={f.key}
                 done={drop[f.key]}
                 short={f.short}
+                color={f.color}
                 onToggle={() => quickToggle(f.key)}
               />
             ))}
@@ -234,11 +245,6 @@ export default function DropCard({ drop, onUpdate, onDelete, idfList, collapseKe
                 <Text style={s.notePillText}>⚠️</Text>
               </View>
             ) : null}
-            {hasConflict && (
-              <View style={s.conflictPill}>
-                <Text style={s.conflictPillText}>⚠ DUPE ID</Text>
-              </View>
-            )}
           </View>
         </View>
 
@@ -511,33 +517,39 @@ const s = StyleSheet.create({
   groupPillText: {
     fontSize: 8, fontWeight: '800', color: '#a78bfa', letterSpacing: 0.8,
   },
-  idfPill: {
-    backgroundColor: 'rgba(148,163,184,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.15)',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
+  idfLocation: {
+    fontSize: 11,
   },
-  idfPillText: {
-    fontSize: 10, fontWeight: '600', color: COLORS.textSub, letterSpacing: 0.5,
+  idfLocationPin: {
+    fontSize: 9,
+  },
+  idfLocationCode: {
+    fontSize: 11.5, fontWeight: '800', color: COLORS.blue, fontFamily: 'monospace', letterSpacing: 0.4,
+  },
+  idfLocationRack: {
+    fontSize: 10.5, fontWeight: '600', color: COLORS.textMuted,
   },
   badge: {
-    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 5,
     paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderWidth: 1,
-  },
-  badgeDone: {
-    backgroundColor: COLORS.greenDim,
-    borderColor: 'rgba(34,197,94,0.4)',
   },
   badgeOff: {
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderColor: 'rgba(255,255,255,0.08)',
   },
+  badgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    borderWidth: 1.2,
+  },
   badgeText: {
-    fontSize: 9, fontWeight: '700', letterSpacing: 0.5, fontFamily: 'monospace',
+    fontSize: 9.5, fontWeight: '800', letterSpacing: 0.5, fontFamily: 'monospace',
   },
   notePill: {
     backgroundColor: 'rgba(255,255,255,0.06)',
