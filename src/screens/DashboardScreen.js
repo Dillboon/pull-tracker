@@ -16,9 +16,8 @@ function isFullyComplete(d) {
 
 // Single shared calculation used everywhere progress is shown — the whole
 // project, a drop type, an IDF closet, or a rack. Returns each stage's
-// done/remaining counts, the overall blended %, and the current
-// "bottleneck" — whichever stage has the most drops still outstanding —
-// so callers never have to re-derive "how much is left" by hand.
+// done/remaining counts and the overall blended %, so callers never have to
+// re-derive "how much is left" by hand.
 function computeProgress(drops) {
   const total = drops.length;
   const stages = STATUS_FIELDS.map(f => {
@@ -30,12 +29,7 @@ function computeProgress(drops) {
   const pct = total > 0 ? Math.round((score / (total * STATUS_FIELDS.length)) * 100) : 0;
   const color = pct === 100 ? COLORS.green : pct > 0 ? COLORS.amber : COLORS.textMuted;
 
-  let bottleneck = null;
-  stages.forEach(st => {
-    if (st.remaining > 0 && (!bottleneck || st.remaining > bottleneck.remaining)) bottleneck = st;
-  });
-
-  return { total, stages, complete, remaining: total - complete, pct, color, bottleneck };
+  return { total, stages, complete, remaining: total - complete, pct, color };
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -209,7 +203,7 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
   const [expandedType, setExpandedType] = useState(null);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
-  const { total, stages, complete, remaining, pct, color: pctColor, bottleneck } = computeProgress(drops);
+  const { total, stages, complete, remaining, pct, color: pctColor } = computeProgress(drops);
   const attention = drops.filter(d => d.attention).length;
   const patched   = drops.filter(d => d.patchedA || d.patchedB || d.patchedC || d.patchedD).length;
   const singles  = drops.filter(d => getGroupType(d) === 'single').length;
@@ -234,12 +228,6 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
     return { idf, idrops, progress: computeProgress(idrops) };
   });
   const totalIdfRemaining = idfSummaries.reduce((sum, x) => sum + x.progress.remaining, 0);
-  // Ranked by completion % (lowest first), not raw remaining count — a
-  // closet that's 20% done should outrank one that's 90% done even if the
-  // 90%-done closet has more drops left in absolute terms.
-  const focusIdf = [...idfSummaries]
-    .filter(x => x.progress.remaining > 0)
-    .sort((a, b) => a.progress.pct - b.progress.pct)[0] || null;
 
   // ── Exports ───────────────────────────────────────────────────────────────
   const handleExport = async (type) => {
@@ -298,12 +286,6 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
           <View style={[s.barTrack, { marginTop: 10, height: 5 }]}>
             <View style={[s.barFill, { width: `${pct}%`, backgroundColor: pctColor }]} />
           </View>
-          {bottleneck && (
-            <Text style={s.focusHint}>
-              🎯 Focus next: <Text style={{ fontWeight: '800', color: COLORS.text }}>{bottleneck.label}</Text>
-              {' — '}{bottleneck.remaining} left
-            </Text>
-          )}
         </View>
       </View>
 
@@ -396,13 +378,6 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
             )}
           </View>
 
-          {focusIdf && (
-            <Text style={[s.focusHint, { marginTop: 6 }]}>
-              🎯 Focus first: <Text style={{ fontWeight: '800', color: COLORS.text }}>{focusIdf.idf}</Text>
-              {' — '}{focusIdf.progress.pct}% done · {focusIdf.progress.remaining} drop{focusIdf.progress.remaining !== 1 ? 's' : ''} left
-            </Text>
-          )}
-
           <View style={{ marginTop: 10, gap: 8 }}>
            {idfSummaries.map(({ idf, idrops, progress }) => {
               const { stages: idfStages, complete: idfDone, remaining: idfRemaining, pct: idfPct, color: idfColor } = progress;
@@ -479,22 +454,10 @@ export default function DashboardScreen({ drops, idfList, showToast, project }) 
                           ...idfRacks.map(rack => ({ label: `Rack ${rack}`, drops: idrops.filter(d => d.rackNumber === rack) })),
                         ].map(r => ({ ...r, progress: computeProgress(r.drops) }));
 
-                        // Ranked by completion % (lowest first), same reasoning as focusIdf above.
-                        const rackFocus = [...rackSummaries]
-                          .filter(r => r.progress.remaining > 0)
-                          .sort((a, b) => a.progress.pct - b.progress.pct)[0] || null;
-
                         return (
                           <>
                             <View style={[s.divider, { marginTop: 14 }]} />
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                              <Text style={s.subLabel}>BY RACK</Text>
-                              {rackFocus && (
-                                <Text style={s.focusHintSmall}>
-                                  🎯 {rackFocus.label}: {rackFocus.progress.pct}% · {rackFocus.progress.remaining} left
-                                </Text>
-                              )}
-                            </View>
+                            <Text style={[s.subLabel, { marginBottom: 8 }]}>BY RACK</Text>
                             <View style={{ gap: 6 }}>
                               {rackSummaries.map(r => (
                                 <ProgressRow key={r.label} label={r.label} drops={r.drops} />
@@ -588,9 +551,6 @@ const s = StyleSheet.create({
   sectionMeta:  { fontSize: 10, fontWeight: '700', color: COLORS.amber },
   subLabel:     { fontSize: 9,  fontWeight: '800', letterSpacing: 1, color: COLORS.textDim },
 
-  // "What's left" callouts
-  focusHint:      { fontSize: 11, color: COLORS.textMuted, marginTop: 8, fontWeight: '600' },
-  focusHintSmall: { fontSize: 9.5, color: COLORS.textMuted, fontWeight: '700' },
   remainingLine:  { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
 
   // Pipeline
