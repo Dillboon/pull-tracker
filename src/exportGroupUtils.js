@@ -637,11 +637,11 @@ function buildProjectSheet(wb, project, sheetName, sortedDrops, rowLayout) {
     row.getCell(1).value = drop.idf ? `${drop.idf}${drop.rackNumber ? ` · R${drop.rackNumber}` : ''}` : '';
     row.getCell(2).value = typeName(drop);
     row.getCell(3).value = cableIds(drop);
-    row.getCell(4).value = drop.roughPull  ? 'Yes' : 'No';
-    row.getCell(5).value = drop.dropped    ? 'Yes' : 'No';
-    row.getCell(6).value = drop.terminated ? 'Yes' : 'No';
-    row.getCell(7).value = drop.rackTerminated ? 'Yes' : 'No';
-    row.getCell(8).value = drop.tested     ? 'Yes' : 'No';
+    row.getCell(4).value = (drop.roughPull      || drop.overrideComplete) ? 'Yes' : 'No';
+    row.getCell(5).value = (drop.dropped        || drop.overrideComplete) ? 'Yes' : 'No';
+    row.getCell(6).value = (drop.terminated     || drop.overrideComplete) ? 'Yes' : 'No';
+    row.getCell(7).value = (drop.rackTerminated || drop.overrideComplete) ? 'Yes' : 'No';
+    row.getCell(8).value = (drop.tested         || drop.overrideComplete) ? 'Yes' : 'No';
     
     // Fallback OR check block
     row.getCell(9).value = { 
