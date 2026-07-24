@@ -200,11 +200,19 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
   ws.getRow(5).height = 24;
   ws.getRow(6).height = 14;
 
+  // Computed once, up front, so the KPI tile above can reference the same
+  // cell the TOTAL row below will contain — guaranteeing "Completion Rate"
+  // and "Total Completion Progress" can never show two different numbers.
+  const totalRowNum = 9 + projects.length;
+
   const kpis = [
     { startCol: 1, endCol: 2, label: 'TOTAL PROJECTS', formula: `="${projects.length} Active"`, fill: C.purple1, textCol: C.navyDeep },
-    { startCol: 3, endCol: 4, label: 'TOTAL DROPS', formula: `=SUM(B9:B${8 + projects.length})`, fill: C.purple2, textCol: C.idfBlue },
-    { startCol: 5, endCol: 6, label: 'ATTENTION FLAGS', formula: `=SUM(H9:H${8 + projects.length})`, fill: C.noFill, textCol: C.noText },
-    { startCol: 7, endCol: 9, label: 'COMPLETION RATE', formula: `=AVERAGE(I9:I${8 + projects.length})`, fill: C.yesFill, textCol: C.yesText, format: '0.0%' }
+    { startCol: 3, endCol: 4, label: 'TOTAL DROPS', formula: `=SUM(B9:B${totalRowNum - 1})`, fill: C.purple2, textCol: C.idfBlue },
+    { startCol: 5, endCol: 6, label: 'ATTENTION FLAGS', formula: `=SUM(H9:H${totalRowNum - 1})`, fill: C.noFill, textCol: C.noText },
+    // Same drop-count-weighted figure as the TOTAL row's Progress % — not a
+    // separate AVERAGE() of each project's %, which would let a tiny project
+    // pull the number just as hard as a large one.
+    { startCol: 7, endCol: 9, label: 'COMPLETION RATE', formula: `=I${totalRowNum}`, fill: C.yesFill, textCol: C.yesText, format: '0.0%' }
   ];
 
   kpis.forEach(kpi => {
@@ -276,10 +284,13 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     row.getCell(6).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!G4:G${endDataRow}, "Yes")` } : 0;
     row.getCell(7).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!H4:H${endDataRow}, "Yes")` } : 0;
     row.getCell(8).value = totalDrops > 0 ? { formula: `COUNTIF(${escapedSheet}!K4:K${endDataRow}, "${ATTENTION_YES}")` } : 0;
-    // Average completion across all 5 stages (Rough Pull, Dropped, Field
-    // Term, Rack Term, Tested) rather than only counting drops that are
-    // 100% done — reuses the live counts already sitting in C:G on this row.
-    row.getCell(9).value = totalDrops > 0 ? { formula: `IFERROR((C${rowNum}+D${rowNum}+E${rowNum}+F${rowNum}+G${rowNum})/(5*B${rowNum}),0)` } : 0;
+    // Each drop contributes 5 points if its Complete column is "✓"
+    // (including via the manual "Mark Complete" override), otherwise
+    // however many of its 5 individual boxes are actually checked. This
+    // keeps C:G above showing the real, unmodified per-stage counts, while
+    // this headline % still gives full credit to overridden drops.
+    const scoreFormula = `SUMPRODUCT((${escapedSheet}!$I$4:$I$${endDataRow}="${CHECK_MARK}")*5+(${escapedSheet}!$I$4:$I$${endDataRow}<>"${CHECK_MARK}")*((${escapedSheet}!$D$4:$D$${endDataRow}="Yes")+(${escapedSheet}!$E$4:$E$${endDataRow}="Yes")+(${escapedSheet}!$F$4:$F$${endDataRow}="Yes")+(${escapedSheet}!$G$4:$G$${endDataRow}="Yes")+(${escapedSheet}!$H$4:$H$${endDataRow}="Yes")))`;
+    row.getCell(9).value = totalDrops > 0 ? { formula: `IFERROR(${scoreFormula}/(5*B${rowNum}),0)` } : 0;
 
     for (let c = 1; c <= COL_COUNT; c++) {
       const cell = row.getCell(c);
@@ -298,7 +309,6 @@ function buildSummarySheet(wb, group, projects, projectSheetMap) {
     }
   });
 
-  const totalRowNum = 9 + projects.length;
   const totRow = ws.getRow(totalRowNum);
   totRow.height = 24;
 
@@ -447,11 +457,13 @@ function buildIdfIndexSheet(wb, group, projects, projectSheetMap, projectSortedD
       row.getCell(7).value = { formula: rtFormula };
       row.getCell(8).value = { formula: tsFormula };
       row.getCell(9).value = { formula: atFormula };
-      // Average completion across all 5 stages (Rough Pull, Dropped, Field
-      // Term, Rack Term, Tested) rather than only counting drops that are
-      // 100% done — a drop that's 4 of 5 stages finished now contributes
-      // 80%, not 0%.
-      row.getCell(10).value = { formula: `IFERROR((${rpFormula}+${dpFormula}+${ftFormula}+${rtFormula}+${tsFormula})/(5*${totalCount || 1}),0)` };
+      // Each drop in this closet contributes 5 points if its Complete
+      // column is "✓" (including via the manual "Mark Complete" override),
+      // otherwise however many of its 5 individual boxes are actually
+      // checked. Columns 4-8 above keep showing the real, unmodified
+      // per-stage counts; only this headline % credits overridden drops.
+      const scoreFormula = `SUMPRODUCT((${escapedSheet}!$N$4:$N$${endDataRow}="${idfEscaped}")*((${escapedSheet}!$I$4:$I$${endDataRow}="${CHECK_MARK}")*5+(${escapedSheet}!$I$4:$I$${endDataRow}<>"${CHECK_MARK}")*((${escapedSheet}!$D$4:$D$${endDataRow}="Yes")+(${escapedSheet}!$E$4:$E$${endDataRow}="Yes")+(${escapedSheet}!$F$4:$F$${endDataRow}="Yes")+(${escapedSheet}!$G$4:$G$${endDataRow}="Yes")+(${escapedSheet}!$H$4:$H$${endDataRow}="Yes"))))`;
+      row.getCell(10).value = { formula: `IFERROR(${scoreFormula}/(5*${totalCount || 1}),0)` };
       row.getCell(10).numFmt = '0%';
 
 
@@ -637,11 +649,11 @@ function buildProjectSheet(wb, project, sheetName, sortedDrops, rowLayout) {
     row.getCell(1).value = drop.idf ? `${drop.idf}${drop.rackNumber ? ` · R${drop.rackNumber}` : ''}` : '';
     row.getCell(2).value = typeName(drop);
     row.getCell(3).value = cableIds(drop);
-    row.getCell(4).value = (drop.roughPull      || drop.overrideComplete) ? 'Yes' : 'No';
-    row.getCell(5).value = (drop.dropped        || drop.overrideComplete) ? 'Yes' : 'No';
-    row.getCell(6).value = (drop.terminated     || drop.overrideComplete) ? 'Yes' : 'No';
-    row.getCell(7).value = (drop.rackTerminated || drop.overrideComplete) ? 'Yes' : 'No';
-    row.getCell(8).value = (drop.tested         || drop.overrideComplete) ? 'Yes' : 'No';
+    row.getCell(4).value = drop.roughPull  ? 'Yes' : 'No';
+    row.getCell(5).value = drop.dropped    ? 'Yes' : 'No';
+    row.getCell(6).value = drop.terminated ? 'Yes' : 'No';
+    row.getCell(7).value = drop.rackTerminated ? 'Yes' : 'No';
+    row.getCell(8).value = drop.tested     ? 'Yes' : 'No';
     
     // Fallback OR check block
     row.getCell(9).value = { 

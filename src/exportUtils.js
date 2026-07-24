@@ -278,11 +278,11 @@ export async function exportXLSX(drops, projectName = '') {
       d.idf ? `${d.idf}${d.rackNumber ? ` · R${d.rackNumber}` : ''}` : '',
       typeLabel,
       cable,
-      (d.roughPull      || d.overrideComplete) ? 'Yes' : 'No',
-      (d.dropped        || d.overrideComplete) ? 'Yes' : 'No',
-      (d.terminated     || d.overrideComplete) ? 'Yes' : 'No',
-      (d.rackTerminated || d.overrideComplete) ? 'Yes' : 'No',
-      (d.tested         || d.overrideComplete) ? 'Yes' : 'No',
+      d.roughPull      ? 'Yes' : 'No',
+      d.dropped        ? 'Yes' : 'No',
+      d.terminated     ? 'Yes' : 'No',
+      d.rackTerminated ? 'Yes' : 'No',
+      d.tested         ? 'Yes' : 'No',
       '',  // Complete — evaluated dynamically below
 	  getPatchedLabel(d),
       d.attention  ? '⚠ Yes' : 'No',
@@ -470,7 +470,12 @@ export async function exportXLSX(drops, projectName = '') {
 
   // Blended average across all 5 stages, so this headline number reflects
   // partial progress rather than duplicating the "Fully Complete" row below.
-  const blendedProgressFormula = `IFERROR((COUNTIF('Cable Drops'!D4:D${lastDataRow},"Yes")+COUNTIF('Cable Drops'!E4:E${lastDataRow},"Yes")+COUNTIF('Cable Drops'!F4:F${lastDataRow},"Yes")+COUNTIF('Cable Drops'!G4:G${lastDataRow},"Yes")+COUNTIF('Cable Drops'!H4:H${lastDataRow},"Yes"))/(5*${total}),0)`;
+  // Each drop contributes 5 points if Complete="✓" (including via the manual
+  // "Mark Complete" override), otherwise however many of its 5 individual
+  // boxes are actually checked. This keeps the individual Rough Pull/Dropped/
+  // Field Term/Rack Term/Tested counts below showing the real, unmodified
+  // state, while this headline % still gives full credit to overridden drops.
+  const blendedProgressFormula = `IFERROR(SUMPRODUCT(('Cable Drops'!$I$4:$I$${lastDataRow}="✓")*5+('Cable Drops'!$I$4:$I$${lastDataRow}<>"✓")*(('Cable Drops'!$D$4:$D$${lastDataRow}="Yes")+('Cable Drops'!$E$4:$E$${lastDataRow}="Yes")+('Cable Drops'!$F$4:$F$${lastDataRow}="Yes")+('Cable Drops'!$G$4:$G$${lastDataRow}="Yes")+('Cable Drops'!$H$4:$H$${lastDataRow}="Yes")))/(5*${total}),0)`;
   addSRow('Total Drops', total, { formula: blendedProgressFormula });
   addSeparator();
 
